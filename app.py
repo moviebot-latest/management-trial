@@ -1014,7 +1014,7 @@ def _init_db():
     admin = User.query.filter(db.func.lower(User.username) == admin_username.casefold()).first()
 
     if admin is None:
-        employee_id = next_employee_id()
+        employee_id = next_employee_id("Administration")
         admin = User(
             employee_id=employee_id,
             name="System Administrator",
