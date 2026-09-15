@@ -638,6 +638,9 @@ def edit_profile():
 @app.route("/change-password", methods=["GET", "POST"])
 @login_required
 def change_password():
+    if session.get("role") == "admin":
+        flash("Admin password is managed from the server environment.", "error")
+        return redirect(url_for("dashboard"))
     user = User.query.get_or_404(session["user_id"])
     if request.method == "GET":
         return render_template("change_password.html",
@@ -1050,10 +1053,9 @@ def _init_db():
             if os.environ.get("ADMIN_EMAIL", "").strip():
                 admin.email = admin_email
                 changed = True
-        # Keep the Render admin credentials authoritative.
-        if not check_password_hash(admin.password_hash, admin_password):
-            admin.password_hash = generate_password_hash(admin_password)
-            changed = True
+        # ADMIN_PASSWORD is used only for the initial admin bootstrap.
+        # Do not overwrite a password changed from the website on every
+        # Vercel cold start / database initialization.
         if changed:
             db.session.commit()
             print(f"[INIT] Admin synchronized: {admin.username}", flush=True)
