@@ -45,6 +45,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       <a href="{{ url_for('dashboard') }}" class="nav-item active">
         <span class="nav-icon">📊</span> Dashboard
       </a>
+      <a href="{{ url_for('profile') }}" class="nav-item">
+        <span class="nav-icon">👤</span> My Profile
+      </a>
       {% if role != 'admin' %}
       <a href="/change-password" class="nav-item">
         <span class="nav-icon">🔒</span> Change Password
@@ -52,9 +55,18 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       {% endif %}
       {% if role == 'admin' %}
       <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
-      <button class="nav-item" onclick="openModal('createModal')">
+      <button class="nav-item" type="button" onclick="openModal('createModal')">
         <span class="nav-icon">➕</span> New User
       </button>
+      <a href="{{ url_for('analytics') }}" class="nav-item">
+        <span class="nav-icon">📈</span> Analytics
+      </a>
+      <a href="{{ url_for('settings') }}" class="nav-item">
+        <span class="nav-icon">⚙️</span> Settings
+      </a>
+      <a href="{{ url_for('audit_logs') }}" class="nav-item">
+        <span class="nav-icon">📋</span> Audit Logs
+      </a>
       <a href="{{ url_for('export_users') }}" class="nav-item">
         <span class="nav-icon">📥</span> Export CSV
       </a>
@@ -91,10 +103,13 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <span class="badge {% if role=='admin' %}badge-admin{% else %}badge-active{% endif %}">
           {{ role|capitalize }}
         </span>
+        {% if role != 'admin' %}<a href="/change-password" class="btn btn-ghost topbar-action">🔒 Password</a>{% endif %}
         {% if role == 'admin' %}
-        <a href="{{ url_for('export_users') }}" class="btn btn-ghost">&#x2B73; Export</a>
-        <button class="btn btn-primary" onclick="openModal('createModal')">+ New User</button>
+        <a href="{{ url_for('settings') }}" class="btn btn-ghost topbar-action">⚙️ Settings</a>
+        <button class="btn btn-primary" type="button" onclick="openModal('createModal')">+ New User</button>
         {% endif %}
+        <a href="/logout" class="btn btn-logout">↪ Logout</a>
+        <button class="mobile-menu-btn" type="button" aria-label="Open menu" onclick="toggleSidebar()">☰</button>
       </div>
     </header>
 
@@ -591,5 +606,11 @@ function openEdit(btn){
 }
 </script>
 
+
+<script>
+function toggleSidebar(){document.getElementById('sidebar')?.classList.toggle('open');}
+</script>
+
+<script src="/static/ui_advanced.js"></script>
 </body>
 </html>

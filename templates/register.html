@@ -134,5 +134,6 @@ function onPw(pw){
 function onMatch(){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,e=document.getElementById('merr');e.textContent=c&&p!==c?'Passwords do not match.':''}
 document.getElementById('regForm').addEventListener('submit',function(e){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,er=document.getElementById('merr');if(p!==c){e.preventDefault();er.textContent='Passwords do not match.';document.getElementById('r-conf').focus();}});
 </script>
+<script src="/static/ui_advanced.js"></script>
 </body>
 </html>

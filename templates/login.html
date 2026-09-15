@@ -1,89 +1,85 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Login — Management System</title>
-  <meta name="robots" content="noindex,nofollow">
-  <meta name="theme-color" content="#6366f1">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign In — Management System</title><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#635bff">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="auth-page">
-
-  <!-- Left decorative side -->
   <div class="auth-side">
     <div class="auth-side-logo">MS</div>
-    <h2>Welcome to<br>Management System</h2>
-    <p>A secure, modern platform to manage your team, track employees, and stay in control.</p>
+    <div class="auth-side-live"><span></span> Secure workspace</div>
+    <h2>Welcome back.<br>Run your team<br>with confidence.</h2>
+    <p>A modern management workspace for people, departments, analytics and secure activity tracking.</p>
     <ul class="auth-side-features">
-      <li><span class="feat-icon">🔒</span> Enterprise-grade security</li>
-      <li><span class="feat-icon">📈</span> Real-time analytics dashboard</li>
-      <li><span class="feat-icon">👥</span> Full employee management</li>
-      <li><span class="feat-icon">📋</span> Audit logs &amp; activity tracking</li>
+      <li><span class="feat-icon">🛡️</span><span><b>Protected access</b><small>Secure authentication &amp; sessions</small></span></li>
+      <li><span class="feat-icon">📊</span><span><b>Live insights</b><small>Analytics at a glance</small></span></li>
+      <li><span class="feat-icon">👥</span><span><b>Team management</b><small>Profiles &amp; departments</small></span></li>
+      <li><span class="feat-icon">🧾</span><span><b>Full audit trail</b><small>Track important system events</small></span></li>
     </ul>
   </div>
 
-  <!-- Right form side -->
   <div class="auth-form-side">
-    <div class="auth-form-box">
+    <div class="auth-form-box login-card">
       <div class="auth-logo-sm">MS</div>
+      <div class="login-kicker">SECURE SIGN IN</div>
       <h1 class="auth-title">Sign in to your account</h1>
-      <p class="auth-sub">Enter your credentials to access the dashboard.</p>
+      <p class="auth-sub">Use your username and password to continue.</p>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for cat, msg in messages %}
-          <div class="flash {{ cat }}"><span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}</div>
-        {% endfor %}
+        {% for cat, msg in messages %}<div class="flash {{ cat }}"><span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}</div>{% endfor %}
       {% endwith %}
 
-      <form method="post" action="{{ url_for('login_page') }}" novalidate>
+      <form id="loginForm" method="post" action="{{ url_for('login_page') }}" novalidate>
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-
-        <div class="field">
-          <label for="username">Username</label>
-          <input id="username" name="username" type="text"
-                 autocomplete="username" placeholder="Enter your username"
-                 required maxlength="80" autofocus>
-        </div>
-
-        <div class="field">
-          <label for="password">Password</label>
-          <div class="password-wrap">
-            <input id="password" name="password" type="password"
-                   autocomplete="current-password" placeholder="Your password"
-                   required>
-            <button type="button" class="eye-btn" onclick="togglePw('password',this)" aria-label="Show password">
-              👁️
-            </button>
-          </div>
-        </div>
-
-        <button class="submit-btn" type="submit">
-          Sign In &rarr;
-        </button>
+        <div class="field login-field"><label for="username">Username</label><div class="input-shell"><span>👤</span><input id="username" name="username" type="text" autocomplete="username" placeholder="Enter your username" required maxlength="80" autofocus></div></div>
+        <div class="field login-field"><label for="password">Password</label><div class="password-wrap input-shell"><span>🔐</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="eye-btn" onclick="togglePw('password',this)" aria-label="Show password">👁️</button></div></div>
+        <button id="loginBtn" class="submit-btn login-submit" type="submit"><span>Sign In Securely</span><strong>→</strong></button>
       </form>
-
-      <div class="auth-footer" style="margin-top:18px">
-        <a href="/change-password">Forgot password?</a>
-        &nbsp;&middot;&nbsp;
-        <a href="/register">Create account</a>
-      </div>
+      <div class="auth-footer"><a href="/register">Create account</a><span>•</span><span>Protected by secure sessions</span></div>
     </div>
   </div>
-
 </div>
+
+<!-- Login verification animation -->
+<div id="loginLoader" class="login-loader" aria-hidden="true">
+  <div class="login-loader-card">
+    <div class="verify-orb"><div class="verify-ring"></div><div class="verify-logo">MS</div></div>
+    <div class="verify-title">Signing you in</div>
+    <div class="verify-sub" id="verifySub">Preparing secure login…</div>
+    <div class="verify-steps">
+      <div class="verify-step" id="stepUser"><span class="step-dot">1</span><span>Checking username</span><b>…</b></div>
+      <div class="verify-step" id="stepPass"><span class="step-dot">2</span><span>Checking password</span><b>…</b></div>
+      <div class="verify-step" id="stepServer"><span class="step-dot">3</span><span>Verifying with server</span><b>…</b></div>
+      <div class="verify-step" id="stepDone"><span class="step-dot">4</span><span>Login complete</span><b>…</b></div>
+    </div>
+    <div class="verify-progress"><span id="verifyProgress"></span></div>
+  </div>
+</div>
+<script src="/static/ui_advanced.js"></script>
 <script>
-function togglePw(id, btn) {
-  const inp = document.getElementById(id);
-  const show = inp.type === 'password';
-  inp.type = show ? 'text' : 'password';
-  btn.textContent = show ? '\uD83D\uDE48' : '\uD83D\uDC41\uFE0F';
-}
+function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'🙈':'👁️';}
+const form=document.getElementById('loginForm'), loader=document.getElementById('loginLoader');
+const stages=[['stepUser','Checking username…'],['stepPass','Checking password…'],['stepServer','Verifying with server…'],['stepDone','Login complete ✓']];
+function stage(i){stages.forEach((x,n)=>{const el=document.getElementById(x[0]);el.classList.toggle('active',n===i);el.classList.toggle('done',n<i);el.querySelector('b').textContent=n<i?'✓':n===i?'…':'•';});document.getElementById('verifySub').textContent=stages[i][1];document.getElementById('verifyProgress').style.width=((i+1)*25)+'%';}
+form.addEventListener('submit',async function(e){
+  e.preventDefault();
+  const u=document.getElementById('username').value.trim(), p=document.getElementById('password').value;
+  if(!u||!p){return;}
+  document.getElementById('loginBtn').disabled=true; loader.classList.add('show'); loader.setAttribute('aria-hidden','false');
+  stage(0); await new Promise(r=>setTimeout(r,420));
+  stage(1); await new Promise(r=>setTimeout(r,420));
+  stage(2);
+  try{
+    const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',redirect:'follow',headers:{'X-Requested-With':'XMLHttpRequest'}});
+    if(response.redirected && response.url && !response.url.endsWith('/login') && !response.url.endsWith('/')){stage(3);await new Promise(r=>setTimeout(r,520));window.location.assign(response.url);return;}
+    const html=await response.text();
+    document.open();document.write(html);document.close();
+  }catch(err){window.location.reload();}
+});
 </script>
 </body>
 </html>
