@@ -1,0 +1,46 @@
+# ============================================================
+# Render.com Deployment Config
+# Docs: https://render.com/docs/render-yaml
+# ============================================================
+
+services:
+  - type: web
+    name: management-system-v3
+    env: python
+    plan: free                          # Free tier on Render
+    region: singapore                   # Singapore = India ke kareeb
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --timeout 120 --bind 0.0.0.0:$PORT
+
+    # Health check
+    healthCheckPath: /health
+
+    # Auto-deploy from GitHub
+    autoDeploy: true
+
+    envVars:
+      # Auto-generated secure secret key
+      - key: SECRET_KEY
+        generateValue: true
+
+      # Neon PostgreSQL URL - paste from Neon dashboard
+      - key: DATABASE_URL
+        sync: false          # You will paste this manually in Render dashboard
+
+      # SSL mode for Neon
+      - key: PGSSLMODE
+        value: require
+
+      # Admin account - set these in Render dashboard
+      - key: ADMIN_USERNAME
+        sync: false
+
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      - key: ADMIN_EMAIL
+        sync: false
+
+      # Keep debug OFF in production
+      - key: FLASK_DEBUG
+        value: "0"
