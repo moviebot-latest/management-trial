@@ -1059,10 +1059,38 @@ def _init_db():
             print(f"[INIT] Admin synchronized: {admin.username}", flush=True)
 
 
-# Initialize/migrate the database on process/serverless startup.
-# Flask-SQLAlchemy requires an application context for DB operations.
-with app.app_context():
-    _init_db()
+# Vercel imports the Flask app while creating the function.
+# Do NOT connect/migrate the database during module import: a transient
+# database/network problem must not prevent Vercel from importing the app.
+_db_ready = False
+_db_init_error = None
+
+
+def _ensure_db_ready():
+    global _db_ready, _db_init_error
+    if _db_ready:
+        return True
+    try:
+        with app.app_context():
+            _init_db()
+        _db_ready = True
+        _db_init_error = None
+        return True
+    except Exception as exc:
+        db.session.rollback()
+        _db_init_error = str(exc)
+        app.logger.exception("Database initialization failed")
+        return False
+
+
+@app.before_request
+def _initialize_database_before_request():
+    if not _ensure_db_ready():
+        return (jsonify({
+            "status": "error",
+            "message": "Database is not available.",
+            "detail": _db_init_error,
+        }), 503)
 
 
 if __name__ == '__main__':
