@@ -1060,7 +1060,9 @@ def _init_db():
 
 
 # Initialize/migrate the database on process/serverless startup.
-_init_db()
+# Flask-SQLAlchemy requires an application context for DB operations.
+with app.app_context():
+    _init_db()
 
 
 if __name__ == '__main__':
