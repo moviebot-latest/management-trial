@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Audit Logs — Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-logo">MS</div>
+        <div><div class="sidebar-brand-name">Mgmt System</div><div class="sidebar-brand-sub">v3 — Advanced</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section-title">Navigation</div>
+      <a href="{{ url_for('dashboard') }}" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="{{ url_for('profile') }}" class="nav-item"><span class="nav-icon">👤</span> My Profile</a>
+      <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
+      <a href="{{ url_for('analytics') }}" class="nav-item"><span class="nav-icon">📈</span> Analytics</a>
+      <a href="{{ url_for('settings') }}" class="nav-item"><span class="nav-icon">⚙️</span> Settings</a>
+      <a href="{{ url_for('audit_logs') }}" class="nav-item active"><span class="nav-icon">📋</span> Audit Logs</a>
+      <a href="{{ url_for('export_users') }}" class="nav-item"><span class="nav-icon">📥</span> Export CSV</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar">{{ current_name[:1]|upper }}</div>
+        <div><div class="sidebar-user-name">{{ current_name }}</div><div class="sidebar-user-role">Admin</div></div>
+      </div>
+      <a href="/logout" class="sidebar-logout"><span>→</span> Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">📋 Audit Logs</div>
+        <div class="topbar-sub">Complete activity trail &mdash; {{ total_logs }} records</div>
+      </div>
+      <div class="topbar-right">
+        <a href="{{ url_for('settings') }}" class="btn btn-danger" style="font-size:12px">Clear Logs</a>
+      </div>
+    </header>
+
+    <div class="page-body">
+      <!-- Filter form -->
+      <form method="get" action="{{ url_for('audit_logs') }}" class="toolbar">
+        <input type="search" name="q" placeholder="🔍 Search username or action…" value="{{ search }}" maxlength="80">
+        <select name="action">
+          <option value="">All Actions</option>
+          <option value="LOGIN_SUCCESS" {% if action_filter=='LOGIN_SUCCESS' %}selected{% endif %}>Login Success</option>
+          <option value="LOGIN_FAILED"  {% if action_filter=='LOGIN_FAILED'  %}selected{% endif %}>Login Failed</option>
+          <option value="LOGOUT"        {% if action_filter=='LOGOUT'        %}selected{% endif %}>Logout</option>
+          <option value="REGISTER"      {% if action_filter=='REGISTER'      %}selected{% endif %}>Register</option>
+          <option value="ADMIN"         {% if action_filter=='ADMIN'         %}selected{% endif %}>Admin Actions</option>
+          <option value="PASSWORD"      {% if action_filter=='PASSWORD'      %}selected{% endif %}>Password Change</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Filter</button>
+        {% if search or action_filter %}
+          <a href="{{ url_for('audit_logs') }}" class="btn btn-ghost">&#x2715; Clear</a>
+        {% endif %}
+      </form>
+
+      <div class="panel">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Time</th>
+                <th>Username</th>
+                <th>Action</th>
+                <th>IP Address</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in logs %}
+              <tr>
+                <td style="color:#94a3b8;font-size:12px">{{ log.id }}</td>
+                <td style="font-size:12px;color:#64748b;white-space:nowrap">{{ log.timestamp.strftime('%d %b %Y %H:%M:%S') if log.timestamp else '' }}</td>
+                <td>
+                  <span style="font-family:monospace;font-size:12px;background:#f1f5f9;padding:3px 8px;border-radius:6px">{{ log.username }}</span>
+                </td>
+                <td>
+                  <span class="badge
+                    {% if 'SUCCESS' in log.action or 'REGISTER' in log.action %}badge-active
+                    {% elif 'FAILED' in log.action or 'BLOCKED' in log.action or 'DELETED' in log.action %}badge-inactive
+                    {% elif 'LOGOUT' in log.action %}" style="background:#f1f5f9;color:#64748b"
+                    {% elif 'ADMIN' in log.action or 'EDIT' in log.action %}badge-admin
+                    {% else %}badge-admin{% endif %}
+                  ">{{ log.action|replace('_',' ')|title }}</span>
+                </td>
+                <td style="font-family:monospace;font-size:12px;color:#94a3b8">{{ log.ip_address or '—' }}</td>
+                <td style="font-size:12px;color:#64748b;max-width:300px">{{ log.details or '' }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" style="text-align:center;padding:40px;color:#94a3b8;font-style:italic">No logs found{% if search or action_filter %} for current filter{% endif %}.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if pagination and pagination.pages > 1 %}
+        <div class="pagination">
+          <span>Showing {{ (pagination.page-1)*50+1 }}–{{ [pagination.page*50, pagination.total]|min }} of {{ pagination.total }}</span>
+          <div class="pager">
+            <a class="{% if not pagination.has_prev %}disabled{% endif %}"
+               href="?page={{ pagination.prev_num }}&q={{ search }}&action={{ action_filter }}">&laquo;</a>
+            {% for p in pagination.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+              {% if p %}
+                <a class="{% if p==pagination.page %}current{% endif %}"
+                   href="?page={{ p }}&q={{ search }}&action={{ action_filter }}">{{ p }}</a>
+              {% else %}
+                <span style="pointer-events:none;color:#cbd5e1">&#8230;</span>
+              {% endif %}
+            {% endfor %}
+            <a class="{% if not pagination.has_next %}disabled{% endif %}"
+               href="?page={{ pagination.next_num }}&q={{ search }}&action={{ action_filter }}">&raquo;</a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

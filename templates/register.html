@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Create Account — Management System</title>
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#6366f1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="auth-page">
+
+  <div class="auth-side">
+    <div class="auth-side-logo">MS</div>
+    <h2>Join the<br>Team Today</h2>
+    <p>Create your account to get instant access to the management dashboard and team tools.</p>
+    <ul class="auth-side-features">
+      <li><span class="feat-icon">⚡</span> Quick 2-minute setup</li>
+      <li><span class="feat-icon">🏢</span> Choose your department</li>
+      <li><span class="feat-icon">🔐</span> Secure from day one</li>
+      <li><span class="feat-icon">📈</span> Access team analytics</li>
+    </ul>
+  </div>
+
+  <div class="auth-form-side">
+    <div class="auth-form-box" style="max-width:460px">
+      <div class="auth-logo-sm">MS</div>
+      <h1 class="auth-title">Create your account</h1>
+      <p class="auth-sub">Fill in the details below to get started.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}"><span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <form id="regForm" method="post" action="{{ url_for('register') }}" novalidate>
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+          <div class="field">
+            <label for="r-name">Full Name</label>
+            <input id="r-name" name="name" placeholder="Your full name" required maxlength="120" autofocus>
+          </div>
+          <div class="field">
+            <label for="r-email">Email</label>
+            <input id="r-email" name="email" type="email" placeholder="you@example.com" required maxlength="160">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+          <div class="field">
+            <label for="r-gender">Gender</label>
+            <select id="r-gender" name="gender" required>
+              <option value="">Select…</option>
+              <option>Male</option><option>Female</option>
+              <option>Other</option><option>Prefer not to say</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="r-dept">Department</label>
+            <select id="r-dept" name="department" required>
+              <option value="">Select…</option>
+              {% for d in valid_departments %}<option>{{ d }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="r-user">Username</label>
+          <input id="r-user" name="username" placeholder="Choose a unique username" required maxlength="80"
+                 pattern="[a-zA-Z0-9_.\-]+" title="Letters, numbers, _ - . only">
+        </div>
+
+        <div class="field">
+          <label for="r-pw">Password</label>
+          <div class="password-wrap">
+            <input id="r-pw" name="password" type="password" placeholder="Min 8 chars with mix of types"
+                   required minlength="8" oninput="onPw(this.value)">
+            <button type="button" class="eye-btn" onclick="togglePw('r-pw',this)">👁️</button>
+          </div>
+          <div class="strength" id="sw" style="display:none">
+            <div class="strength-bars"><span></span><span></span><span></span><span></span></div>
+            <div class="strength-label" id="sl"></div>
+          </div>
+          <ul class="pw-rules" id="pwr" style="display:none">
+            <li id="r-len">8+ characters</li>
+            <li id="r-up">Uppercase (A-Z)</li>
+            <li id="r-lo">Lowercase (a-z)</li>
+            <li id="r-num">Number (0-9)</li>
+            <li id="r-sp">Special char</li>
+          </ul>
+        </div>
+
+        <div class="field">
+          <label for="r-conf">Confirm Password</label>
+          <div class="password-wrap">
+            <input id="r-conf" name="confirm" type="password" placeholder="Repeat your password"
+                   required minlength="8" oninput="onMatch()">
+            <button type="button" class="eye-btn" onclick="togglePw('r-conf',this)">👁️</button>
+          </div>
+          <span class="field-err" id="merr"></span>
+        </div>
+
+        <button class="submit-btn" type="submit">Create Account &rarr;</button>
+      </form>
+
+      <div class="auth-footer" style="margin-top:16px">
+        Already have an account? <a href="/">Sign in</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'\uD83D\uDE48':'\uD83D\uDC41\uFE0F';}
+function onPw(pw){
+  const sw=document.getElementById('sw'),pwr=document.getElementById('pwr');
+  if(!pw){sw.style.display='none';pwr.style.display='none';return;}
+  sw.style.display='block';pwr.style.display='grid';
+  const ch={'r-len':pw.length>=8,'r-up':/[A-Z]/.test(pw),'r-lo':/[a-z]/.test(pw),'r-num':/\d/.test(pw),'r-sp':/[^A-Za-z0-9]/.test(pw)};
+  Object.keys(ch).forEach(id=>document.getElementById(id).className=ch[id]?'met':'');
+  const sc=Object.values(ch).filter(Boolean).length;
+  const bars=sw.querySelectorAll('.strength-bars span'),lbl=document.getElementById('sl');
+  bars.forEach(b=>b.className='');
+  const cls=[null,'weak','medium','medium','strong','vstrong'],nm=['','Weak','Fair','Fair','Strong','Very Strong'];
+  for(let i=0;i<sc;i++)bars[i].className=cls[sc];
+  lbl.textContent=nm[sc];lbl.style.color=sc>=4?'#10b981':sc>=3?'#6366f1':sc>=2?'#f59e0b':'#f43f5e';
+}
+function onMatch(){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,e=document.getElementById('merr');e.textContent=c&&p!==c?'Passwords do not match.':''}
+document.getElementById('regForm').addEventListener('submit',function(e){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,er=document.getElementById('merr');if(p!==c){e.preventDefault();er.textContent='Passwords do not match.';document.getElementById('r-conf').focus();}});
+</script>
+</body>
+</html>

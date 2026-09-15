@@ -1,1 +1,89 @@
-t
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Login — Management System</title>
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#6366f1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="auth-page">
+
+  <!-- Left decorative side -->
+  <div class="auth-side">
+    <div class="auth-side-logo">MS</div>
+    <h2>Welcome to<br>Management System</h2>
+    <p>A secure, modern platform to manage your team, track employees, and stay in control.</p>
+    <ul class="auth-side-features">
+      <li><span class="feat-icon">🔒</span> Enterprise-grade security</li>
+      <li><span class="feat-icon">📈</span> Real-time analytics dashboard</li>
+      <li><span class="feat-icon">👥</span> Full employee management</li>
+      <li><span class="feat-icon">📋</span> Audit logs &amp; activity tracking</li>
+    </ul>
+  </div>
+
+  <!-- Right form side -->
+  <div class="auth-form-side">
+    <div class="auth-form-box">
+      <div class="auth-logo-sm">MS</div>
+      <h1 class="auth-title">Sign in to your account</h1>
+      <p class="auth-sub">Enter your credentials to access the dashboard.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}"><span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="post" action="{{ url_for('login_page') }}" novalidate>
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text"
+                 autocomplete="username" placeholder="Enter your username"
+                 required maxlength="80" autofocus>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="password-wrap">
+            <input id="password" name="password" type="password"
+                   autocomplete="current-password" placeholder="Your password"
+                   required>
+            <button type="button" class="eye-btn" onclick="togglePw('password',this)" aria-label="Show password">
+              👁️
+            </button>
+          </div>
+        </div>
+
+        <button class="submit-btn" type="submit">
+          Sign In &rarr;
+        </button>
+      </form>
+
+      <div class="auth-footer" style="margin-top:18px">
+        <a href="/change-password">Forgot password?</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/register">Create account</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+function togglePw(id, btn) {
+  const inp = document.getElementById(id);
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  btn.textContent = show ? '\uD83D\uDE48' : '\uD83D\uDC41\uFE0F';
+}
+</script>
+</body>
+</html>

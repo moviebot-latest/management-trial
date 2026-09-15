@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Analytics — Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-logo">MS</div>
+        <div><div class="sidebar-brand-name">Mgmt System</div><div class="sidebar-brand-sub">v3 — Advanced</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section-title">Navigation</div>
+      <a href="{{ url_for('dashboard') }}" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="{{ url_for('profile') }}" class="nav-item"><span class="nav-icon">👤</span> My Profile</a>
+      <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
+      <a href="{{ url_for('analytics') }}" class="nav-item active"><span class="nav-icon">📈</span> Analytics</a>
+      <a href="{{ url_for('settings') }}" class="nav-item"><span class="nav-icon">⚙️</span> Settings</a>
+      <a href="{{ url_for('audit_logs') }}" class="nav-item"><span class="nav-icon">📋</span> Audit Logs</a>
+      <button class="nav-item" onclick="openModal&&openModal('createModal')"><span class="nav-icon">➕</span> New User</button>
+      <a href="{{ url_for('export_users') }}" class="nav-item"><span class="nav-icon">📥</span> Export CSV</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar">{{ current_name[:1]|upper }}</div>
+        <div><div class="sidebar-user-name">{{ current_name }}</div><div class="sidebar-user-role">Admin</div></div>
+      </div>
+      <a href="/logout" class="sidebar-logout"><span>→</span> Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">📈 Analytics</div>
+        <div class="topbar-sub">Insights &amp; reports for your workspace</div>
+      </div>
+      <div class="topbar-right">
+        <a href="{{ url_for('export_users') }}" class="btn btn-ghost">&#x2B73; Export CSV</a>
+      </div>
+    </header>
+
+    <div class="page-body">
+
+      <!-- Stat cards -->
+      <div class="stats-row">
+        <div class="stat-card blue"><div class="stat-icon-wrap">👥</div><div class="stat-label">Total Users</div><div class="stat-value">{{ total }}</div><div class="stat-hint">All accounts</div></div>
+        <div class="stat-card green"><div class="stat-icon-wrap">✅</div><div class="stat-label">Active</div><div class="stat-value">{{ active }}</div><div class="stat-hint">{{ ((active/total*100)|round(1)) if total else 0 }}% of total</div></div>
+        <div class="stat-card red"><div class="stat-icon-wrap">❌</div><div class="stat-label">Inactive</div><div class="stat-value">{{ inactive }}</div><div class="stat-hint">Deactivated accounts</div></div>
+        <div class="stat-card amber"><div class="stat-icon-wrap">🔒</div><div class="stat-label">Locked</div><div class="stat-value">{{ locked }}</div><div class="stat-hint">Brute-force blocked</div></div>
+        <div class="stat-card purple"><div class="stat-icon-wrap">🏢</div><div class="stat-label">Departments</div><div class="stat-value">{{ dept_count }}</div><div class="stat-hint">Active departments</div></div>
+        <div class="stat-card sky"><div class="stat-icon-wrap">✨</div><div class="stat-label">This Month</div><div class="stat-value">{{ month_reg }}</div><div class="stat-hint">New registrations</div></div>
+      </div>
+
+      <div class="row2">
+
+        <!-- Dept breakdown -->
+        <div class="panel">
+          <div class="panel-head"><div><h2>🏢 Department Breakdown</h2><p>Users per department</p></div></div>
+          <div class="panel-body">
+            {% for d in dept_breakdown %}
+            <div style="margin-bottom:14px">
+              <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">
+                <span>{{ d.name }}</span>
+                <span style="color:#6366f1">{{ d.count }} <span style="color:#94a3b8;font-weight:400">({{ d.pct }}%)</span></span>
+              </div>
+              <div style="height:10px;background:#f1f5f9;border-radius:999px;overflow:hidden">
+                <div style="height:100%;width:{{ d.pct }}%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:999px;transition:.6s"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Monthly trend chart -->
+        <div class="panel">
+          <div class="panel-head"><div><h2>📅 Monthly Registrations</h2><p>Last 6 months</p></div></div>
+          <div class="panel-body">
+            <div class="chart-bars" style="height:180px;align-items:flex-end">
+              {% for m in monthly %}
+              <div class="chart-col" style="flex:1">
+                <div class="chart-val">{{ m.count }}</div>
+                <div class="chart-bar-track" style="height:140px">
+                  <div class="chart-bar-fill" style="height:{{ (m.count/monthly_max*100)|round(0)|int if monthly_max else 0 }}%"></div>
+                </div>
+                <div class="chart-day" style="font-size:11px">{{ m.label }}</div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Status Donut visual -->
+      <div class="row2">
+        <div class="panel">
+          <div class="panel-head"><div><h2>🏹 Status Breakdown</h2><p>Account health overview</p></div></div>
+          <div class="panel-body">
+            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px">
+                {% set total_s = active + inactive + locked %}
+                {% if total_s == 0 %}{% set total_s = 1 %}{% endif %}
+                <div style="margin-bottom:12px">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px">
+                    <span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>Active</span>
+                    <strong>{{ active }} ({{ ((active/total_s)*100)|round(1) }}%)</strong>
+                  </div>
+                  <div style="height:12px;background:#f1f5f9;border-radius:999px"><div style="height:100%;width:{{ ((active/total_s)*100)|round(0)|int }}%;background:#10b981;border-radius:999px"></div></div>
+                </div>
+                <div style="margin-bottom:12px">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px">
+                    <span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block"></span>Inactive</span>
+                    <strong>{{ inactive }} ({{ ((inactive/total_s)*100)|round(1) }}%)</strong>
+                  </div>
+                  <div style="height:12px;background:#f1f5f9;border-radius:999px"><div style="height:100%;width:{{ ((inactive/total_s)*100)|round(0)|int }}%;background:#94a3b8;border-radius:999px"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px">
+                    <span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:#f43f5e;display:inline-block"></span>Locked</span>
+                    <strong>{{ locked }} ({{ ((locked/total_s)*100)|round(1) }}%)</strong>
+                  </div>
+                  <div style="height:12px;background:#f1f5f9;border-radius:999px"><div style="height:100%;width:{{ ((locked/total_s)*100)|round(0)|int }}%;background:#f43f5e;border-radius:999px"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent registrations -->
+        <div class="panel">
+          <div class="panel-head"><div><h2>🆕 Recent Registrations</h2><p>Last 10 new users</p></div></div>
+          <div class="panel-body" style="padding-top:0">
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Name</th><th>Dept</th><th>Joined</th></tr></thead>
+                <tbody>
+                  {% for u in recent_users %}
+                  <tr>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0">{{ u.name[:1]|upper }}</div>
+                        <div>
+                          <div style="font-weight:600;font-size:13px">{{ u.name }}</div>
+                          <div style="font-size:11px;color:#94a3b8">{{ u.username }}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span class="badge badge-admin" style="font-size:10px">{{ u.department }}</span></td>
+                    <td style="font-size:12px;color:#64748b">{{ u.created_at.strftime('%d %b %Y') }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

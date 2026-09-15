@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>My Profile — Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-logo">MS</div>
+        <div><div class="sidebar-brand-name">Mgmt System</div><div class="sidebar-brand-sub">v3 &mdash; Advanced</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section-title">Navigation</div>
+      <a href="{{ url_for('dashboard') }}" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="{{ url_for('profile') }}" class="nav-item active"><span class="nav-icon">👤</span> My Profile</a>
+      <a href="/change-password" class="nav-item"><span class="nav-icon">🔒</span> Change Password</a>
+      {% if role == 'admin' %}
+      <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
+      <a href="{{ url_for('analytics') }}" class="nav-item"><span class="nav-icon">📈</span> Analytics</a>
+      <a href="{{ url_for('settings') }}" class="nav-item"><span class="nav-icon">⚙️</span> Settings</a>
+      <a href="{{ url_for('audit_logs') }}" class="nav-item"><span class="nav-icon">📋</span> Audit Logs</a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar">{{ user.name[:1]|upper }}</div>
+        <div><div class="sidebar-user-name">{{ user.name }}</div><div class="sidebar-user-role">{{ user.role|capitalize }}</div></div>
+      </div>
+      <a href="/logout" class="sidebar-logout"><span>→</span> Sign Out</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">My Profile</div>
+        <div class="topbar-sub">View and manage your personal information</div>
+      </div>
+      <div class="topbar-right">
+        <span class="badge badge-active">{{ user.role|capitalize }}</span>
+      </div>
+    </header>
+
+    <div style="padding:0 28px">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}" style="margin-top:14px">
+            <span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}
+          </div>
+        {% endfor %}
+      {% endwith %}
+    </div>
+
+    <div class="page-body">
+
+      <!-- Profile Header Card -->
+      <div class="panel" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;margin-bottom:24px">
+        <div class="panel-body" style="display:flex;align-items:center;gap:28px;padding:32px">
+          <div style="width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.25);display:grid;place-items:center;font-size:38px;font-weight:900;color:#fff;flex-shrink:0;border:4px solid rgba(255,255,255,.3)">{{ user.name[:1]|upper }}</div>
+          <div>
+            <h2 style="font-size:24px;font-weight:900;color:#fff;margin-bottom:4px">{{ user.name }}</h2>
+            <p style="color:rgba(255,255,255,.8);font-size:14px">@{{ user.username }} &bull; {{ user.department }} &bull; <span style="background:rgba(255,255,255,.2);padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600">{{ user.role|capitalize }}</span></p>
+            <p style="color:rgba(255,255,255,.65);font-size:13px;margin-top:8px">📅 Member since {{ user.created_at.strftime('%d %B %Y') }}</p>
+          </div>
+          <div style="margin-left:auto">
+            <div style="background:rgba(255,255,255,.15);border-radius:16px;padding:16px 24px;text-align:center">
+              <div style="font-size:22px;font-weight:900;color:#fff">{{ user.employee_id }}</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Employee ID</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+        <!-- Edit Profile Form -->
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>✏️ Edit Profile</h2><p>Update your personal information</p></div>
+          </div>
+          <div class="panel-body">
+            <form method="post" action="{{ url_for('edit_profile') }}" novalidate>
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <div class="field">
+                <label>Full Name</label>
+                <input name="name" type="text" value="{{ user.name }}" required maxlength="120" placeholder="Your full name">
+              </div>
+              <div class="field">
+                <label>Email Address</label>
+                <input name="email" type="email" value="{{ user.email }}" required maxlength="160" placeholder="name@example.com">
+              </div>
+              <div class="field">
+                <label>Gender</label>
+                <select name="gender" required>
+                  {% for g in ['Male','Female','Other','Prefer not to say'] %}
+                    <option {% if user.gender==g %}selected{% endif %}>{{ g }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Department</label>
+                <select name="department" required>
+                  {% for d in valid_departments %}
+                    <option {% if user.department==d %}selected{% endif %}>{{ d }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full" style="margin-top:8px">✔ Save Changes</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Account Info + Security -->
+        <div style="display:flex;flex-direction:column;gap:24px">
+
+          <!-- Account Details -->
+          <div class="panel">
+            <div class="panel-head"><div><h2>💼 Account Details</h2><p>Your read-only account info</p></div></div>
+            <div class="panel-body">
+              <div class="info-grid">
+                <div class="info-cell">
+                  <div class="lbl">Username</div>
+                  <div class="val" style="font-family:monospace">{{ user.username }}</div>
+                </div>
+                <div class="info-cell">
+                  <div class="lbl">Employee ID</div>
+                  <div class="val" style="font-family:monospace">{{ user.employee_id }}</div>
+                </div>
+                <div class="info-cell">
+                  <div class="lbl">Role</div>
+                  <div class="val"><span class="badge badge-active">{{ user.role|capitalize }}</span></div>
+                </div>
+                <div class="info-cell">
+                  <div class="lbl">Account Status</div>
+                  <div class="val"><span class="badge badge-active">✅ Active</span></div>
+                </div>
+                <div class="info-cell" style="grid-column:1/-1">
+                  <div class="lbl">Last Login</div>
+                  <div class="val">{{ user.last_login.strftime('%d %B %Y at %H:%M') if user.last_login else 'Not recorded' }}</div>
+                </div>
+                <div class="info-cell" style="grid-column:1/-1">
+                  <div class="lbl">Joined On</div>
+                  <div class="val">{{ user.created_at.strftime('%d %B %Y') }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Security Panel -->
+          <div class="panel">
+            <div class="panel-head"><div><h2>🔒 Security</h2><p>Manage your password and security</p></div></div>
+            <div class="panel-body">
+              <ul class="security-tips" style="margin-bottom:18px">
+                <li><span class="tip-icon">✔</span> Password is encrypted (Bcrypt)</li>
+                <li><span class="tip-icon">✔</span> Session expires after 30 min</li>
+                <li><span class="tip-icon">✔</span> Account auto-locks after 5 failed attempts</li>
+              </ul>
+              <a href="/change-password" class="btn btn-primary btn-full">🔒 Change My Password</a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
