@@ -12,6 +12,43 @@
   requestAnimationFrame(()=>document.body.classList.add('page-ready'));
 window.addEventListener('pageshow',()=>hidePageLoader());
 
+  window.toggleSidebar=function(){
+    const sidebar=document.getElementById('sidebar');
+    const menu=document.querySelector('.mobile-menu-btn');
+    if(!sidebar) return;
+    const open=!sidebar.classList.contains('open');
+    sidebar.classList.toggle('open',open);
+    if(menu){menu.setAttribute('aria-expanded',open?'true':'false');menu.setAttribute('aria-label',open?'Close menu':'Open menu');}
+    document.body.classList.toggle('sidebar-open',open);
+  };
+
+  // Mobile sidebar: use delegated events so the hamburger works reliably
+  // even when inline handlers/CSP or dynamically-rendered content are involved.
+  document.addEventListener('click',function(e){
+    const menu=e.target.closest('.mobile-menu-btn');
+    if(menu){
+      e.preventDefault();
+      e.stopPropagation();
+      const sidebar=document.getElementById('sidebar');
+      if(!sidebar) return;
+      const open=!sidebar.classList.contains('open');
+      sidebar.classList.toggle('open',open);
+      menu.setAttribute('aria-expanded',open?'true':'false');
+      menu.setAttribute('aria-label',open?'Close menu':'Open menu');
+      document.body.classList.toggle('sidebar-open',open);
+      return;
+    }
+    const sidebar=document.getElementById('sidebar');
+    if(sidebar && sidebar.classList.contains('open') && window.innerWidth <= 768){
+      if(!e.target.closest('#sidebar')){
+        sidebar.classList.remove('open');
+        const menuBtn=document.querySelector('.mobile-menu-btn');
+        if(menuBtn){menuBtn.setAttribute('aria-expanded','false');menuBtn.setAttribute('aria-label','Open menu');}
+        document.body.classList.remove('sidebar-open');
+      }
+    }
+  },true);
+
   document.addEventListener('click',function(e){
     const a=e.target.closest('a');
     if(!a) return;

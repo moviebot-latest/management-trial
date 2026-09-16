@@ -1017,7 +1017,8 @@ a{color:inherit}
   .topbar-right .btn-primary{padding:9px 11px;font-size:12px}
   .btn-logout{padding:9px 11px;font-size:12px}
   .mobile-menu-btn{display:inline-flex;align-items:center;justify-content:center}
-  .sidebar{box-shadow:10px 0 30px rgba(15,23,42,.14)}
+  .sidebar{box-shadow:10px 0 30px rgba(15,23,42,.14);z-index:200;transition:transform .25s ease,box-shadow .25s ease;will-change:transform}
+  .mobile-menu-btn{position:relative;z-index:300;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   .page-body{padding:14px}
   .stats-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .stat-card{padding:14px;border-radius:14px}
