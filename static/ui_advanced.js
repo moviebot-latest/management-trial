@@ -10,6 +10,7 @@
   };
   window.hidePageLoader=function(){overlay.classList.remove('show');};
   requestAnimationFrame(()=>document.body.classList.add('page-ready'));
+window.addEventListener('pageshow',()=>hidePageLoader());
 
   document.addEventListener('click',function(e){
     const a=e.target.closest('a');
@@ -17,7 +18,7 @@
     const href=a.getAttribute('href')||'';
     if(!href || href.startsWith('#') || href.startsWith('javascript:') || a.target==='_blank' || a.hasAttribute('download')) return;
     if(href.startsWith('http') && !href.startsWith(location.origin)) return;
-    showPageLoader(href.includes('logout')?'Signing you out securely…':'Opening page…');
+    showPageLoader(href.includes('logout')?'Signing you out securely…':href.includes('analytics')?'Loading analytics…':href.includes('settings')?'Opening settings…':href.includes('audit')?'Loading registrations…':'Opening securely…');
   },true);
 
   document.addEventListener('submit',function(e){
