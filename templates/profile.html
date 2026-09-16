@@ -38,7 +38,7 @@
         <span class="badge {% if role=='admin' %}badge-admin{% else %}badge-active{% endif %}">{{ role|capitalize }}</span>
         {% if role != 'admin' %}<a href="/change-password" class="btn btn-ghost topbar-action">🔒 Password</a>{% endif %}
         <a href="/logout" class="btn btn-logout">↪ Logout</a>
-        <button class="mobile-menu-btn" type="button" onclick="toggleSidebar()">☰</button>
+        <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
     </header>
 
@@ -155,9 +155,6 @@
     </div>
   </div>
 </div>
-<script src="/static/ui_advanced.js"></script>
-<script>
-function toggleSidebar(){document.getElementById('sidebar')?.classList.toggle('open');}
-</script>
+<script src="/static/ui_advanced.js?v=menu2"></script>
 </body>
 </html>

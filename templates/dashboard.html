@@ -109,7 +109,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <button class="btn btn-primary" type="button" onclick="openModal('createModal')">+ New User</button>
         {% endif %}
         <a href="/logout" class="btn btn-logout">↪ Logout</a>
-        <button class="mobile-menu-btn" type="button" aria-label="Open menu" onclick="toggleSidebar()">☰</button>
+        <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
     </header>
 
@@ -603,10 +603,7 @@ function openEdit(btn){
 </script>
 
 
-<script>
-function toggleSidebar(){document.getElementById('sidebar')?.classList.toggle('open');}
-</script>
 
-<script src="/static/ui_advanced.js"></script>
+<script src="/static/ui_advanced.js?v=menu2"></script>
 </body>
 </html>
