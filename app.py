@@ -374,13 +374,10 @@ def login_page():
     user = db_retry(do_login)
 
     if not user:
-        log_action(username, "LOGIN_FAILED", "User not found")
         flash("Invalid username or password.", "error")
         return render_template("login.html"), 401
 
     if user.is_locked():
-        log_action(username, "LOGIN_BLOCKED",
-                   f"Account locked for {user.lockout_remaining_minutes()} more min")
         flash(
             f"❌ Account locked. Try again in "
             f"{user.lockout_remaining_minutes()} minute(s).", "error"
@@ -388,15 +385,12 @@ def login_page():
         return render_template("login.html"), 403
 
     if not user.is_active:
-        log_action(username, "LOGIN_BLOCKED", "Account inactive")
         flash("Your account is inactive. Contact an administrator.", "error")
         return render_template("login.html"), 403
 
     if not check_password_hash(user.password_hash, password):
         user.record_failed_attempt()
         db.session.commit()
-        log_action(username, "LOGIN_FAILED",
-                   f"Wrong password (attempt {user.failed_attempts})")
         remaining = MAX_FAILED_ATTEMPTS - user.failed_attempts
         if remaining > 0:
             flash(f"Invalid username or password. {remaining} attempt(s) remaining.",
@@ -408,7 +402,6 @@ def login_page():
 
     # ✔ Successful login
     user.unlock()
-    user.last_login = datetime.utcnow()
     db.session.commit()
 
     session.clear()
@@ -418,7 +411,6 @@ def login_page():
     session["name"]      = user.name
     session["role"]      = user.role
 
-    log_action(user.username, "LOGIN_SUCCESS", f"Role: {user.role}")
     return redirect(url_for("dashboard"))
 
 
@@ -485,8 +477,6 @@ def register():
 @app.route("/logout")
 @login_required
 def logout():
-    username = session.get("username", "unknown")
-    log_action(username, "LOGOUT")
     session.clear()
     resp = make_response(redirect(url_for("login_page")))
     resp.set_cookie("session", "", expires=0)
@@ -558,7 +548,9 @@ def dashboard():
     pagination = db_retry(lambda: build_query().paginate(page=page, per_page=15, error_out=False))
     users      = pagination.items
 
-    recent_logs     = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
+    recent_logs = AuditLog.query.filter_by(action="REGISTER").order_by(
+        AuditLog.timestamp.desc()
+    ).limit(6).all()
     all_departments = VALID_DEPARTMENTS
 
     return render_template("dashboard.html",
@@ -588,10 +580,32 @@ def dashboard():
 @login_required
 def profile():
     user = User.query.get_or_404(session["user_id"])
+
+    # Account completion is derived only from fields that currently exist in the
+    # database, so the premium profile UI does not require a schema migration.
+    completion_fields = [
+        bool((user.name or "").strip()),
+        bool((user.email or "").strip()),
+        bool((user.gender or "").strip()),
+        bool((user.department or "").strip()),
+        bool((user.employee_id or "").strip()),
+    ]
+    profile_completion = round(sum(completion_fields) / len(completion_fields) * 100)
+    missing_items = []
+    if not user.name: missing_items.append("Full name")
+    if not user.email: missing_items.append("Email address")
+    if not user.gender: missing_items.append("Gender")
+    if not user.department: missing_items.append("Department")
+    if not user.employee_id: missing_items.append("Employee ID")
+
+    security_score = 100 if user.is_active and not user.is_locked() else 60
     return render_template("profile.html",
                            user=user,
                            role=session["role"],
-                           valid_departments=VALID_DEPARTMENTS)
+                           valid_departments=VALID_DEPARTMENTS,
+                           profile_completion=profile_completion,
+                           missing_items=missing_items,
+                           security_score=security_score)
 
 
 @app.route("/profile/edit", methods=["POST"])
@@ -624,8 +638,6 @@ def edit_profile():
         user.department = department
         db.session.commit()
         session["name"] = name
-        log_action(user.username, "PROFILE_UPDATED",
-                   f"Name/email/dept updated. Dept: {old_dept} → {department}")
         flash("✅ Profile updated successfully!", "success")
     except IntegrityError:
         db.session.rollback()
@@ -639,7 +651,7 @@ def edit_profile():
 @login_required
 def change_password():
     if session.get("role") == "admin":
-        flash("Admin password is managed from the server environment.", "error")
+        flash("Admin password is managed only in Vercel Environment Variables.", "error")
         return redirect(url_for("dashboard"))
     user = User.query.get_or_404(session["user_id"])
     if request.method == "GET":
@@ -656,7 +668,6 @@ def change_password():
                                prefill_username=user.username), 400
 
     if not check_password_hash(user.password_hash, current):
-        log_action(user.username, "PASSWORD_CHANGE_FAILED", "Wrong current password")
         return err("Current password is incorrect.")
     if new_pw != confirm:
         return err("New passwords do not match.")
@@ -669,7 +680,6 @@ def change_password():
     user.password_hash = generate_password_hash(new_pw)
     db.session.commit()
     session.clear()
-    log_action(user.username, "PASSWORD_CHANGED")
     flash("✅ Password changed successfully. Please log in again.", "success")
     return redirect(url_for("login_page"))
 
@@ -740,7 +750,8 @@ def settings():
                            server_time=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
                            max_attempts=MAX_FAILED_ATTEMPTS,
                            lockout_mins=LOCKOUT_MINUTES,
-                           valid_departments=VALID_DEPARTMENTS)
+                           valid_departments=VALID_DEPARTMENTS,
+                           admin_username=os.environ.get("ADMIN_USERNAME", "admin").strip())
 
 
 @app.route("/admin/settings/clear-logs", methods=["POST"])
@@ -749,8 +760,6 @@ def clear_logs():
     try:
         deleted = AuditLog.query.delete()
         db.session.commit()
-        log_action(session["username"], "ADMIN_CLEAR_LOGS",
-                   f"{deleted} log records permanently deleted")
         flash(f"✅ {deleted} audit log records have been permanently deleted.", "success")
     except Exception as e:
         db.session.rollback()
@@ -767,7 +776,7 @@ def audit_logs():
     action_filter = request.args.get("action", "").strip()
     page          = request.args.get("page",   1, type=int)
 
-    q = AuditLog.query
+    q = AuditLog.query.filter_by(action="REGISTER")
     if search:
         pat = f"%{search}%"
         q = q.filter(
@@ -775,12 +784,12 @@ def audit_logs():
                    AuditLog.action.ilike(pat),
                    AuditLog.details.ilike(pat))
         )
-    if action_filter:
-        q = q.filter(AuditLog.action.ilike(f"%{action_filter}%"))
+    # Only registration events are retained/displayed by design.
+    action_filter = "REGISTER"
 
     pagination  = q.order_by(AuditLog.timestamp.desc()).paginate(
         page=page, per_page=50, error_out=False)
-    total_logs  = AuditLog.query.count()
+    total_logs  = AuditLog.query.filter_by(action="REGISTER").count()
 
     return render_template("audit_logs.html",
                            current_name=session["name"],
@@ -833,8 +842,8 @@ def create_user():
         )
         db.session.add(user)
         db.session.commit()
-        log_action(session["username"], "ADMIN_CREATE_USER",
-                   f"Created: {username} ({name}) in {department}")
+        log_action(username, "REGISTER",
+                   f"New user registered by admin: {name} | {department} | EMP#{emp_id}")
         flash(f"✅ User ‘{username}’ ({emp_id}) created successfully.", "success")
     except IntegrityError:
         db.session.rollback()
@@ -846,6 +855,9 @@ def create_user():
 @admin_required
 def edit_user(user_id):
     user       = User.query.get_or_404(user_id)
+    if user.role == "admin":
+        flash("Admin username and password are managed only in Vercel Environment Variables.", "error")
+        return redirect(url_for("dashboard"))
     name       = request.form.get("name",       "").strip()
     gender     = request.form.get("gender",     "").strip()
     department = request.form.get("department", "").strip()
@@ -881,8 +893,6 @@ def edit_user(user_id):
                 return err(pw_err)
             user.password_hash = generate_password_hash(password)
         db.session.commit()
-        log_action(session["username"], "ADMIN_EDIT_USER",
-                   f"Edited: {username} ({name}) dept={department}")
         flash(f"✅ User ‘{username}’ updated.", "success")
     except IntegrityError:
         db.session.rollback()
@@ -894,13 +904,15 @@ def edit_user(user_id):
 @admin_required
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
+    if user.role == "admin":
+        flash("The environment-managed admin account cannot be deleted.", "error")
+        return redirect(url_for("dashboard"))
     if user.id == session["user_id"]:
         flash("You cannot delete your own account.", "error")
         return redirect(url_for("dashboard"))
     uname = user.username
     db.session.delete(user)
     db.session.commit()
-    log_action(session["username"], "ADMIN_DELETE_USER", f"Deleted user: {uname}")
     flash(f"✅ User ‘{uname}’ deleted.", "success")
     return redirect(url_for("dashboard"))
 
@@ -909,14 +921,15 @@ def delete_user(user_id):
 @admin_required
 def toggle_user_status(user_id):
     user = User.query.get_or_404(user_id)
+    if user.role == "admin":
+        flash("The environment-managed admin account cannot be deactivated.", "error")
+        return redirect(url_for("dashboard"))
     if user.id == session["user_id"]:
         flash("You cannot deactivate your own account.", "error")
         return redirect(url_for("dashboard"))
     user.is_active = not user.is_active
     db.session.commit()
     status = "activated" if user.is_active else "deactivated"
-    log_action(session["username"], "ADMIN_TOGGLE_STATUS",
-               f"User {user.username} {status}")
     flash(f"✅ User ‘{user.username}’ {status}.", "success")
     return redirect(url_for("dashboard"))
 
@@ -927,8 +940,6 @@ def unlock_user(user_id):
     user = User.query.get_or_404(user_id)
     user.unlock()
     db.session.commit()
-    log_action(session["username"], "ADMIN_UNLOCK_USER",
-               f"Unlocked: {user.username}")
     flash(f"✅ User ‘{user.username}’ has been unlocked.", "success")
     return redirect(url_for("dashboard"))
 
@@ -941,19 +952,15 @@ def export_users():
     writer = csv.writer(output)
     writer.writerow([
         "Employee ID", "Name", "Gender", "Department",
-        "Email", "Username", "Role", "Active",
-        "Last Login", "Created At"
+        "Email", "Username", "Role", "Active", "Created At"
     ])
     for u in users:
         writer.writerow([
             u.employee_id, u.name, u.gender, u.department,
             u.email, u.username, u.role,
             "Yes" if u.is_active else "No",
-            u.last_login.strftime("%Y-%m-%d %H:%M") if u.last_login else "",
             u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "",
         ])
-    log_action(session["username"], "ADMIN_EXPORT_USERS",
-               f"{len(users)} records exported")
     resp = Response(
         output.getvalue(),
         mimetype="text/csv",
@@ -970,6 +977,17 @@ def export_users():
 def _init_db():
     """Create/migrate tables and safely bootstrap the configured admin."""
     db.create_all()
+
+    # Privacy cleanup: legacy deployments stored login/logout audit events and
+    # last-login timestamps. New deployments retain registration events only.
+    try:
+        db.session.query(AuditLog).filter(
+            AuditLog.action != "REGISTER"
+        ).delete(synchronize_session=False)
+        db.session.query(User).update({User.last_login: None}, synchronize_session=False)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     inspector = inspect(db.engine)
     user_columns = {c["name"] for c in inspector.get_columns("user")}
@@ -1053,12 +1071,15 @@ def _init_db():
             if os.environ.get("ADMIN_EMAIL", "").strip():
                 admin.email = admin_email
                 changed = True
-        # ADMIN_PASSWORD is used only for the initial admin bootstrap.
-        # Do not overwrite a password changed from the website on every
-        # Vercel cold start / database initialization.
+        # ADMIN_PASSWORD is the source of truth for the admin account.
+        # Admin password cannot be changed from the website; changing this
+        # environment variable and redeploying updates the stored hash.
+        if not check_password_hash(admin.password_hash, admin_password):
+            admin.password_hash = generate_password_hash(admin_password)
+            changed = True
         if changed:
             db.session.commit()
-            print(f"[INIT] Admin synchronized: {admin.username}", flush=True)
+            print(f"[INIT] Admin synchronized from environment: {admin.username}", flush=True)
 
 
 # Vercel imports the Flask app while creating the function.
