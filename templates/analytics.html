@@ -11,7 +11,7 @@
 </head>
 <body>
 <div class="app-shell">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-top">
       <div class="sidebar-brand">
         <div class="sidebar-brand-logo">MS</div>
@@ -46,6 +46,7 @@
       </div>
       <div class="topbar-right">
         <a href="{{ url_for('export_users') }}" class="btn btn-ghost">&#x2B73; Export CSV</a>
+        <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
     </header>
 
