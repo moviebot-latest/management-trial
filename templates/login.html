@@ -33,10 +33,10 @@
         {% for cat, msg in messages %}<div class="flash {{ cat }}"><span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}</div>{% endfor %}
       {% endwith %}
 
-      <form id="loginForm" method="post" action="{{ url_for('login_page') }}" novalidate>
+      <form id="loginForm" method="post" action="{{ url_for('login_page') }}" novalidate autocomplete="off">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-        <div class="field login-field"><label for="username">Username</label><div class="input-shell"><span>👤</span><input id="username" name="username" type="text" autocomplete="username" placeholder="Enter your username" required maxlength="80" autofocus></div></div>
-        <div class="field login-field"><label for="password">Password</label><div class="password-wrap input-shell"><span>🔐</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="eye-btn" onclick="togglePw('password',this)" aria-label="Show password">👁️</button></div></div>
+        <div class="field login-field"><label for="username">Username</label><div class="input-shell"><span>👤</span><input id="username" name="username" type="text" autocomplete="off" placeholder="Enter your username" required maxlength="80" autofocus></div></div>
+        <div class="field login-field"><label for="password">Password</label><div class="password-wrap input-shell"><span>🔐</span><input id="password" name="password" type="password" autocomplete="off" placeholder="Enter your password" required><button type="button" class="eye-btn" onclick="togglePw('password',this)" aria-label="Show password">👁️</button></div></div>
         <button id="loginBtn" class="submit-btn login-submit" type="submit"><span>Sign In Securely</span><strong>→</strong></button>
       </form>
       <div class="auth-footer"><a href="/register">Create account</a><span>•</span><span>Protected by secure sessions</span></div>
@@ -61,24 +61,73 @@
 </div>
 <script src="/static/ui_advanced.js"></script>
 <script>
-function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'🙈':'👁️';}
+function togglePw(id,btn){
+  const i=document.getElementById(id),show=i.type==='password';
+  i.type=show?'text':'password';
+  btn.textContent=show?'🙈':'👁️';
+}
 const form=document.getElementById('loginForm'), loader=document.getElementById('loginLoader');
-const stages=[['stepUser','Checking username…'],['stepPass','Checking password…'],['stepServer','Verifying with server…'],['stepDone','Login complete ✓']];
-function stage(i){stages.forEach((x,n)=>{const el=document.getElementById(x[0]);el.classList.toggle('active',n===i);el.classList.toggle('done',n<i);el.querySelector('b').textContent=n<i?'✓':n===i?'…':'•';});document.getElementById('verifySub').textContent=stages[i][1];document.getElementById('verifyProgress').style.width=((i+1)*25)+'%';}
+const stages=[
+  ['stepUser','Checking username…'],
+  ['stepPass','Checking password…'],
+  ['stepServer','Verifying with server…'],
+  ['stepDone','Login complete ✓']
+];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function stage(i){
+  stages.forEach((x,n)=>{
+    const el=document.getElementById(x[0]);
+    el.classList.toggle('active',n===i);
+    el.classList.toggle('done',n<i);
+    el.querySelector('b').textContent=n<i?'✓':n===i?'…':'•';
+  });
+  document.getElementById('verifySub').textContent=stages[i][1];
+  document.getElementById('verifyProgress').style.width=((i+1)*25)+'%';
+}
 form.addEventListener('submit',async function(e){
   e.preventDefault();
-  const u=document.getElementById('username').value.trim(), p=document.getElementById('password').value;
-  if(!u||!p){return;}
-  document.getElementById('loginBtn').disabled=true; loader.classList.add('show'); loader.setAttribute('aria-hidden','false');
-  stage(0); await new Promise(r=>setTimeout(r,420));
-  stage(1); await new Promise(r=>setTimeout(r,420));
-  stage(2);
+  const u=document.getElementById('username').value.trim();
+  const p=document.getElementById('password').value;
+  if(!u||!p){
+    form.reportValidity();
+    return;
+  }
+  const btn=document.getElementById('loginBtn');
+  btn.disabled=true;
+  loader.classList.add('show');
+  loader.setAttribute('aria-hidden','false');
+  const started=performance.now();
+  stage(0);
+  const request=fetch(form.action,{
+    method:'POST',body:new FormData(form),credentials:'same-origin',redirect:'follow',
+    headers:{'X-Requested-With':'XMLHttpRequest'}
+  });
+  await sleep(260); stage(1);
+  await sleep(260); stage(2);
   try{
-    const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',redirect:'follow',headers:{'X-Requested-With':'XMLHttpRequest'}});
-    if(response.redirected && response.url && !response.url.endsWith('/login') && !response.url.endsWith('/')){stage(3);await new Promise(r=>setTimeout(r,520));window.location.assign(response.url);return;}
+    const response=await request;
     const html=await response.text();
+    const minWait=Math.max(0,1100-(performance.now()-started));
+    await sleep(minWait);
+    if(response.redirected && response.url && !response.url.endsWith('/login') && !response.url.endsWith('/')){
+      stage(3);
+      await sleep(220);
+      window.location.assign(response.url);
+      return;
+    }
+    loader.classList.remove('show');
+    loader.setAttribute('aria-hidden','true');
+    btn.disabled=false;
     document.open();document.write(html);document.close();
-  }catch(err){window.location.reload();}
+  }catch(err){
+    loader.classList.remove('show');
+    loader.setAttribute('aria-hidden','true');
+    btn.disabled=false;
+    const flash=document.createElement('div');
+    flash.className='flash error';
+    flash.innerHTML='<span class="flash-icon">⚠️</span>Network error. Please try again.';
+    form.prepend(flash);
+  }
 });
 </script>
 </body>

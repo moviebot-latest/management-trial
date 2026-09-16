@@ -204,11 +204,11 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <div class="panel-head">
           <div>
             <h2>📋 Activity Log</h2>
-            <p>Recent system events</p>
+            <p>Registrations only • login activity is not stored</p>
           </div>
         </div>
         <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
-          <div class="audit-list">
+          <div class="audit-list dashboard-activity-list">
             {% for log in recent_logs %}
             <div class="audit-row">
               <div class="audit-dot
@@ -279,7 +279,6 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
               <th>Email</th>
               <th>Username</th>
               <th>Status</th>
-              <th>Last Login</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -304,9 +303,6 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
                 {% else %}
                   <span class="badge badge-active">Active</span>
                 {% endif %}
-              </td>
-              <td style="font-size:12px;color:var(--gray-400)">
-                {{ u.last_login.strftime('%d %b, %H:%M') if u.last_login else 'Never' }}
               </td>
               <td>
                 <div class="cell-actions">
@@ -345,7 +341,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" style="text-align:center;padding:32px;color:var(--gray-300);font-style:italic">
+              <td colspan="7" style="text-align:center;padding:32px;color:var(--gray-300);font-style:italic">
                 No users found. {% if search or dept_filter or status_filter %}Try clearing the filters.{% endif %}
               </td>
             </tr>

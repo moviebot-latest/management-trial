@@ -1,180 +1,163 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>My Profile — Management System</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>My Account — Management System</title>
+  <meta name="theme-color" content="#6366f1"><meta name="robots" content="noindex,nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="app-shell">
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-top">
-      <div class="sidebar-brand">
-        <div class="sidebar-brand-logo">MS</div>
-        <div><div class="sidebar-brand-name">Mgmt System</div><div class="sidebar-brand-sub">v3 &mdash; Advanced</div></div>
-      </div>
-    </div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top"><div class="sidebar-brand"><div class="sidebar-brand-logo">MS</div><div><div class="sidebar-brand-name">Mgmt System</div><div class="sidebar-brand-sub">v3 — Advanced</div></div></div></div>
     <nav class="sidebar-nav">
       <div class="sidebar-section-title">Navigation</div>
       <a href="{{ url_for('dashboard') }}" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
-      <a href="{{ url_for('profile') }}" class="nav-item active"><span class="nav-icon">👤</span> My Profile</a>
-      <a href="/change-password" class="nav-item"><span class="nav-icon">🔒</span> Change Password</a>
+      <a href="{{ url_for('profile') }}" class="nav-item active"><span class="nav-icon">👤</span> My Account</a>
+      {% if role != 'admin' %}<a href="/change-password" class="nav-item"><span class="nav-icon">🔒</span> Change Password</a>{% endif %}
       {% if role == 'admin' %}
       <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
       <a href="{{ url_for('analytics') }}" class="nav-item"><span class="nav-icon">📈</span> Analytics</a>
       <a href="{{ url_for('settings') }}" class="nav-item"><span class="nav-icon">⚙️</span> Settings</a>
       <a href="{{ url_for('audit_logs') }}" class="nav-item"><span class="nav-icon">📋</span> Audit Logs</a>
+      <a href="{{ url_for('export_users') }}" class="nav-item"><span class="nav-icon">📥</span> Export CSV</a>
       {% endif %}
     </nav>
     <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="sidebar-avatar">{{ user.name[:1]|upper }}</div>
-        <div><div class="sidebar-user-name">{{ user.name }}</div><div class="sidebar-user-role">{{ user.role|capitalize }}</div></div>
-      </div>
+      <div class="sidebar-user"><div class="sidebar-avatar">{{ user.name[:1]|upper }}</div><div><div class="sidebar-user-name">{{ user.name }}</div><div class="sidebar-user-role">{{ user.role|capitalize }}</div></div></div>
       <a href="/logout" class="sidebar-logout"><span>→</span> Sign Out</a>
     </div>
   </aside>
 
   <div class="main-content">
     <header class="topbar">
-      <div class="topbar-left">
-        <div class="topbar-title">My Profile</div>
-        <div class="topbar-sub">View and manage your personal information</div>
-      </div>
+      <div class="topbar-left"><div class="topbar-title">My Account</div><div class="topbar-sub">Your personal workspace, security and account details</div></div>
       <div class="topbar-right">
-        <span class="badge badge-active">{{ user.role|capitalize }}</span>
+        <span class="badge {% if role=='admin' %}badge-admin{% else %}badge-active{% endif %}">{{ role|capitalize }}</span>
+        {% if role != 'admin' %}<a href="/change-password" class="btn btn-ghost topbar-action">🔒 Password</a>{% endif %}
+        <a href="/logout" class="btn btn-logout">↪ Logout</a>
+        <button class="mobile-menu-btn" type="button" onclick="toggleSidebar()">☰</button>
       </div>
     </header>
 
-    <div style="padding:0 28px">
+    <div class="page-body account-page">
       {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for cat, msg in messages %}
-          <div class="flash {{ cat }}" style="margin-top:14px">
-            <span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}
-          </div>
-        {% endfor %}
+        {% for cat,msg in messages %}<div class="flash {{ cat }} account-flash"><span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}</div>{% endfor %}
       {% endwith %}
-    </div>
 
-    <div class="page-body">
-
-      <!-- Profile Header Card -->
-      <div class="panel" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;margin-bottom:24px">
-        <div class="panel-body" style="display:flex;align-items:center;gap:28px;padding:32px">
-          <div style="width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.25);display:grid;place-items:center;font-size:38px;font-weight:900;color:#fff;flex-shrink:0;border:4px solid rgba(255,255,255,.3)">{{ user.name[:1]|upper }}</div>
-          <div>
-            <h2 style="font-size:24px;font-weight:900;color:#fff;margin-bottom:4px">{{ user.name }}</h2>
-            <p style="color:rgba(255,255,255,.8);font-size:14px">@{{ user.username }} &bull; {{ user.department }} &bull; <span style="background:rgba(255,255,255,.2);padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600">{{ user.role|capitalize }}</span></p>
-            <p style="color:rgba(255,255,255,.65);font-size:13px;margin-top:8px">📅 Member since {{ user.created_at.strftime('%d %B %Y') }}</p>
-          </div>
-          <div style="margin-left:auto">
-            <div style="background:rgba(255,255,255,.15);border-radius:16px;padding:16px 24px;text-align:center">
-              <div style="font-size:22px;font-weight:900;color:#fff">{{ user.employee_id }}</div>
-              <div style="font-size:11px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Employee ID</div>
-            </div>
-          </div>
+      <section class="account-hero">
+        <div class="account-hero-glow"></div>
+        <div class="account-avatar-wrap"><div class="account-avatar">{{ user.name[:1]|upper }}</div><span class="online-dot"></span></div>
+        <div class="account-hero-main">
+          <div class="eyebrow">PERSONAL WORKSPACE</div>
+          <h1>{{ user.name }}</h1>
+          <p>@{{ user.username }} <span>•</span> {{ user.department }} <span>•</span> {{ user.role|capitalize }}</p>
+          <div class="hero-pills"><span>● {{ 'Active' if user.is_active else 'Inactive' }}</span><span>EMP · {{ user.employee_id }}</span></div>
         </div>
+        <div class="completion-card">
+          <div class="completion-top"><span>Profile completion</span><strong>{{ profile_completion }}%</strong></div>
+          <div class="completion-track"><span style="width:{{ profile_completion }}%"></span></div>
+          <small>{% if profile_completion == 100 %}Everything looks complete ✨{% else %}Finish your profile for a complete account{% endif %}</small>
+        </div>
+      </section>
+
+      <section class="account-stat-grid">
+        <div class="account-mini-card"><div class="mini-icon purple">👤</div><div><b>Account</b><span>{{ user.role|capitalize }} access</span></div><strong>100%</strong></div>
+        <div class="account-mini-card"><div class="mini-icon green">🛡️</div><div><b>Security</b><span>{{ 'Protected' if security_score==100 else 'Attention needed' }}</span></div><strong>{{ security_score }}%</strong></div>
+        <div class="account-mini-card"><div class="mini-icon blue">🏢</div><div><b>Department</b><span>{{ user.department }}</span></div><strong>✓</strong></div>
+        <div class="account-mini-card"><div class="mini-icon amber">📅</div><div><b>Member since</b><span>{{ user.created_at.strftime('%d %b %Y') }}</span></div><strong>•</strong></div>
+      </section>
+
+      <div class="account-layout">
+        <main class="account-main-column">
+          <section class="panel account-panel reveal-card">
+            <div class="panel-head account-panel-head"><div><h2>✏️ Personal Information</h2><p>Keep your profile details up to date.</p></div><span class="section-badge">EDITABLE</span></div>
+            <div class="panel-body">
+              <form method="post" action="{{ url_for('edit_profile') }}" class="account-form" novalidate>
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                <div class="account-form-grid">
+                  <div class="field"><label>Full Name</label><div class="field-premium"><span>👤</span><input name="name" type="text" value="{{ user.name }}" required maxlength="120"></div></div>
+                  <div class="field"><label>Email Address</label><div class="field-premium"><span>✉️</span><input name="email" type="email" value="{{ user.email }}" required maxlength="160"></div></div>
+                  <div class="field"><label>Gender</label><div class="field-premium"><span>⚧</span><select name="gender" required>{% for g in ['Male','Female','Other','Prefer not to say'] %}<option {% if user.gender==g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></div></div>
+                  <div class="field"><label>Department</label><div class="field-premium"><span>🏢</span><select name="department" required>{% for d in valid_departments %}<option {% if user.department==d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select></div></div>
+                </div>
+                <div class="form-actions"><span>Changes are protected by your secure session.</span><button type="submit" class="btn btn-primary">✓ Save Changes</button></div>
+              </form>
+            </div>
+          </section>
+
+          <section class="panel account-panel reveal-card">
+            <div class="panel-head account-panel-head"><div><h2>💼 Account Overview</h2><p>Official information linked to your account.</p></div></div>
+            <div class="panel-body"><div class="overview-grid">
+              <div class="overview-item"><span>Username</span><b>{{ user.username }}</b><small>Permanent account identifier</small></div>
+              <div class="overview-item"><span>Employee ID</span><b class="mono">{{ user.employee_id }}</b><small>Unique employee identifier</small></div>
+              <div class="overview-item"><span>Department</span><b>{{ user.department }}</b><small>Current assigned department</small></div>
+              <div class="overview-item"><span>Account status</span><b><span class="status-chip active">● {{ 'Active' if user.is_active else 'Inactive' }}</span></b><small>Current access status</small></div>
+              <div class="overview-item"><span>Joined</span><b>{{ user.created_at.strftime('%d %B %Y') }}</b><small>Account creation date</small></div>
+              <div class="overview-item"><span>Last login</span><b>{{ user.last_login.strftime('%d %b %Y, %H:%M') if user.last_login else 'Not recorded' }}</b><small>System login timestamp</small></div>
+            </div></div>
+          </section>
+        </main>
+
+        <aside class="account-side-column">
+          <section class="panel account-panel reveal-card completion-panel">
+            <div class="panel-head account-panel-head"><div><h2>✨ Profile Health</h2><p>Your account completeness</p></div></div>
+            <div class="panel-body">
+              <div class="completion-ring" style="--progress:{{ profile_completion * 3.6 }}deg"><div><strong>{{ profile_completion }}%</strong><span>complete</span></div></div>
+              <div class="check-list">
+                <div class="check-row done"><i>✓</i><span>Basic identity</span><b>Done</b></div>
+                <div class="check-row done"><i>✓</i><span>Email verified field</span><b>Done</b></div>
+                <div class="check-row done"><i>✓</i><span>Department assigned</span><b>Done</b></div>
+                <div class="check-row {% if user.employee_id %}done{% endif %}"><i>{% if user.employee_id %}✓{% else %}○{% endif %}</i><span>Employee ID</span><b>{% if user.employee_id %}Done{% else %}Pending{% endif %}</b></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel account-panel reveal-card">
+            <div class="panel-head account-panel-head"><div><h2>🔔 Notifications</h2><p>Useful account notices</p></div><span class="notify-count">3</span></div>
+            <div class="panel-body notice-stack">
+              <div class="notice success"><i>✓</i><div><b>Account active</b><span>Your account currently has access.</span></div></div>
+              <div class="notice info"><i>ℹ</i><div><b>Profile center</b><span>Keep your contact information current.</span></div></div>
+              <div class="notice warn"><i>!</i><div><b>Security reminder</b><span>Use a unique password and never share it.</span></div></div>
+            </div>
+          </section>
+
+          <section class="panel account-panel reveal-card security-card">
+            <div class="panel-head account-panel-head"><div><h2>🛡️ Security Center</h2><p>Protection status at a glance</p></div></div>
+            <div class="panel-body">
+              <div class="security-score"><div><strong>{{ security_score }}%</strong><span>Security health</span></div><span class="secure-badge">✓ Protected</span></div>
+              <div class="security-line"><span>Secure password hash</span><b>✓</b></div>
+              <div class="security-line"><span>Session protection</span><b>✓</b></div>
+              <div class="security-line"><span>Failed-login lockout</span><b>✓</b></div>
+              {% if role != 'admin' %}<a href="/change-password" class="btn btn-primary btn-full" style="margin-top:14px">🔒 Manage Password</a>{% else %}<div class="admin-password-note">🔐 Admin password is managed only through the server environment.</div>{% endif %}
+            </div>
+          </section>
+
+          <section class="panel account-panel reveal-card">
+            <div class="panel-head account-panel-head"><div><h2>📁 Document Vault</h2><p>Workspace for future documents</p></div><span class="coming-badge">SOON</span></div>
+            <div class="panel-body vault-empty"><div>📄</div><b>Document management</b><span>Document upload and verification can be enabled here without changing your profile.</span></div>
+          </section>
+        </aside>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
-
-        <!-- Edit Profile Form -->
-        <div class="panel">
-          <div class="panel-head">
-            <div><h2>✏️ Edit Profile</h2><p>Update your personal information</p></div>
-          </div>
-          <div class="panel-body">
-            <form method="post" action="{{ url_for('edit_profile') }}" novalidate>
-              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-              <div class="field">
-                <label>Full Name</label>
-                <input name="name" type="text" value="{{ user.name }}" required maxlength="120" placeholder="Your full name">
-              </div>
-              <div class="field">
-                <label>Email Address</label>
-                <input name="email" type="email" value="{{ user.email }}" required maxlength="160" placeholder="name@example.com">
-              </div>
-              <div class="field">
-                <label>Gender</label>
-                <select name="gender" required>
-                  {% for g in ['Male','Female','Other','Prefer not to say'] %}
-                    <option {% if user.gender==g %}selected{% endif %}>{{ g }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="field">
-                <label>Department</label>
-                <select name="department" required>
-                  {% for d in valid_departments %}
-                    <option {% if user.department==d %}selected{% endif %}>{{ d }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <button type="submit" class="btn btn-primary btn-full" style="margin-top:8px">✔ Save Changes</button>
-            </form>
-          </div>
+      <section class="account-timeline panel reveal-card">
+        <div class="panel-head account-panel-head"><div><h2>🕒 Account Timeline</h2><p>Important account milestones</p></div></div>
+        <div class="timeline-row">
+          <div class="timeline-node done">✓</div><div><b>Account created</b><span>{{ user.created_at.strftime('%d %B %Y') }} · Your account was registered.</span></div>
+          <div class="timeline-line"></div>
+          <div class="timeline-node done">✓</div><div><b>Profile initialized</b><span>{{ user.department }} · Employee ID {{ user.employee_id }}</span></div>
+          <div class="timeline-line"></div>
+          <div class="timeline-node live">●</div><div><b>Account active</b><span>Current access status · {{ user.role|capitalize }}</span></div>
         </div>
-
-        <!-- Account Info + Security -->
-        <div style="display:flex;flex-direction:column;gap:24px">
-
-          <!-- Account Details -->
-          <div class="panel">
-            <div class="panel-head"><div><h2>💼 Account Details</h2><p>Your read-only account info</p></div></div>
-            <div class="panel-body">
-              <div class="info-grid">
-                <div class="info-cell">
-                  <div class="lbl">Username</div>
-                  <div class="val" style="font-family:monospace">{{ user.username }}</div>
-                </div>
-                <div class="info-cell">
-                  <div class="lbl">Employee ID</div>
-                  <div class="val" style="font-family:monospace">{{ user.employee_id }}</div>
-                </div>
-                <div class="info-cell">
-                  <div class="lbl">Role</div>
-                  <div class="val"><span class="badge badge-active">{{ user.role|capitalize }}</span></div>
-                </div>
-                <div class="info-cell">
-                  <div class="lbl">Account Status</div>
-                  <div class="val"><span class="badge badge-active">✅ Active</span></div>
-                </div>
-                <div class="info-cell" style="grid-column:1/-1">
-                  <div class="lbl">Last Login</div>
-                  <div class="val">{{ user.last_login.strftime('%d %B %Y at %H:%M') if user.last_login else 'Not recorded' }}</div>
-                </div>
-                <div class="info-cell" style="grid-column:1/-1">
-                  <div class="lbl">Joined On</div>
-                  <div class="val">{{ user.created_at.strftime('%d %B %Y') }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Security Panel -->
-          <div class="panel">
-            <div class="panel-head"><div><h2>🔒 Security</h2><p>Manage your password and security</p></div></div>
-            <div class="panel-body">
-              <ul class="security-tips" style="margin-bottom:18px">
-                <li><span class="tip-icon">✔</span> Password is encrypted (Bcrypt)</li>
-                <li><span class="tip-icon">✔</span> Session expires after 30 min</li>
-                <li><span class="tip-icon">✔</span> Account auto-locks after 5 failed attempts</li>
-              </ul>
-              <a href="/change-password" class="btn btn-primary btn-full">🔒 Change My Password</a>
-            </div>
-          </div>
-
-        </div>
-      </div>
+      </section>
     </div>
   </div>
 </div>
 <script src="/static/ui_advanced.js"></script>
+<script>
+function toggleSidebar(){document.getElementById('sidebar')?.classList.toggle('open');}
+</script>
 </body>
 </html>

@@ -91,6 +91,27 @@
           </div>
         </div>
 
+        <!-- Admin Credentials -->
+        <div class="panel admin-credentials-panel">
+          <div class="panel-head"><div><h2>👑 Admin Account</h2><p>Credentials are controlled by the deployment environment</p></div><span class="badge badge-admin">ENV MANAGED</span></div>
+          <div class="panel-body">
+            <div class="info-grid">
+              <div class="info-cell">
+                <div class="lbl">Admin Username</div>
+                <div class="val" style="font-family:monospace">{{ admin_username }}</div>
+              </div>
+              <div class="info-cell">
+                <div class="lbl">Admin Password</div>
+                <div class="val" style="font-family:monospace;letter-spacing:2px">••••••••••••</div>
+              </div>
+            </div>
+            <div class="env-lock-note">
+              <strong>🔐 Website password change disabled</strong>
+              <span>Admin username and password are read from <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code>. To change them, update Vercel → Settings → Environment Variables and redeploy.</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Security Config (display) -->
         <div class="panel">
           <div class="panel-head"><div><h2>🔒 Security Config</h2><p>Current security settings</p></div></div>
