@@ -21,6 +21,21 @@
   .lnav-name{font-weight:800;font-size:17px;color:#0f172a}
   .lnav-links{display:flex;align-items:center;gap:8px}
   .lnav-link{text-decoration:none;color:#475569;font-weight:500;font-size:14px;padding:8px 14px;border-radius:8px;transition:.2s}
+  .lnav-toggle{display:none;border:1px solid #e2e8f0;background:#fff;color:#334155;width:42px;height:42px;border-radius:11px;align-items:center;justify-content:center;font-size:21px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .lnav-mobile{display:none}
+  @media(max-width:768px){
+    .lnav{height:64px;padding:0 14px;gap:10px}
+    .lnav-name{font-size:15px;line-height:1.1;max-width:150px}
+    .lnav-links{display:none}
+    .lnav-toggle{display:inline-flex;flex:0 0 42px}
+    .lnav-mobile{position:absolute;top:64px;left:10px;right:10px;background:rgba(255,255,255,.98);backdrop-filter:blur(18px);border:1px solid #e2e8f0;border-radius:16px;padding:10px;box-shadow:0 18px 50px rgba(15,23,42,.15);display:none;flex-direction:column;gap:4px}
+    .lnav-mobile.open{display:flex;animation:navDrop .18s ease-out}
+    .lnav-mobile a{display:block;text-decoration:none;color:#334155;font-weight:650;font-size:14px;padding:13px 14px;border-radius:11px}
+    .lnav-mobile a:hover{background:#f1f5f9;color:#6366f1}
+    .lnav-mobile .mobile-cta{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;margin-top:4px;text-align:center}
+    @keyframes navDrop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  }
+  @media(max-width:380px){.lnav-name{max-width:125px;font-size:14px}.lnav{padding:0 10px}}
   .lnav-link:hover{background:#f1f5f9;color:#6366f1}
   .lnav-btn{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff!important;border-radius:10px;padding:9px 20px!important;font-weight:700;font-size:14px;box-shadow:0 4px 14px rgba(99,102,241,.35);transition:.2s!important}
   .lnav-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.45);background:linear-gradient(135deg,#6366f1,#8b5cf6)!important}
@@ -139,6 +154,14 @@
     <a href="#how" class="lnav-link">How it Works</a>
     <a href="/login" class="lnav-link">Sign In</a>
     <a href="/register" class="lnav-link lnav-btn">Get Started &rarr;</a>
+  </div>
+  <button class="lnav-toggle" id="landingNavToggle" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+  <div class="lnav-mobile" id="landingMobileNav" aria-hidden="true">
+    <a href="#features">Features</a>
+    <a href="#security">Security</a>
+    <a href="#how">How it Works</a>
+    <a href="/login">Sign In</a>
+    <a href="/register" class="mobile-cta">Get Started &rarr;</a>
   </div>
 </nav>
 
@@ -313,5 +336,19 @@ window.addEventListener('scroll',()=>{
 });
 </script>
 <script src="/static/ui_advanced.js"></script>
+
+<script>
+(function(){
+  const btn=document.getElementById('landingNavToggle');
+  const menu=document.getElementById('landingMobileNav');
+  if(!btn||!menu)return;
+  function closeMenu(){menu.classList.remove('open');menu.setAttribute('aria-hidden','true');btn.setAttribute('aria-expanded','false');btn.setAttribute('aria-label','Open navigation');btn.textContent='☰';}
+  function toggleMenu(){const open=!menu.classList.contains('open');if(open){menu.classList.add('open');menu.setAttribute('aria-hidden','false');btn.setAttribute('aria-expanded','true');btn.setAttribute('aria-label','Close navigation');btn.textContent='✕';}else closeMenu();}
+  btn.addEventListener('click',toggleMenu);
+  menu.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));
+  document.addEventListener('click',e=>{if(!menu.contains(e.target)&&!btn.contains(e.target))closeMenu();});
+  window.addEventListener('resize',()=>{if(window.innerWidth>768)closeMenu();});
+})();
+</script>
 </body>
 </html>
