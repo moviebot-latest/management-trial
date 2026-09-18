@@ -207,9 +207,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
             <p>Live system activity • registrations, logins, logout &amp; admin actions</p>
           </div>
           <div class="activity-tabs" role="tablist" aria-label="Activity filter">
-            <button type="button" class="activity-tab active" data-activity-filter="all">All</button>
-            <button type="button" class="activity-tab" data-activity-filter="REGISTER">Registration</button>
-            <button type="button" class="activity-tab" data-activity-filter="LOGIN">Login Activity</button>
+            <button type="button" class="activity-tab active" data-activity-filter="all" aria-selected="true">All</button>
+            <button type="button" class="activity-tab" data-activity-filter="REGISTER" aria-selected="false">Registration</button>
+            <button type="button" class="activity-tab" data-activity-filter="LOGIN" aria-selected="false">Login Activity</button>
           </div>
         </div>
         <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
@@ -589,6 +589,31 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 // Modal
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+// Activity Log filters — works with touch/click on mobile and desktop.
+(function(){
+  function applyActivityFilter(filter){
+    const rows=document.querySelectorAll('.dashboard-activity-list .audit-row');
+    rows.forEach(function(row){
+      const action=(row.getAttribute('data-audit-action')||'').toUpperCase();
+      let show=true;
+      if(filter==='REGISTER') show=(action==='REGISTER');
+      else if(filter==='LOGIN') show=(action.indexOf('LOGIN_')===0);
+      row.hidden=!show;
+    });
+    document.querySelectorAll('.activity-tab').forEach(function(btn){
+      const active=(btn.getAttribute('data-activity-filter')===filter);
+      btn.classList.toggle('active',active);
+      btn.setAttribute('aria-selected',active?'true':'false');
+    });
+  }
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest('.activity-tab');
+    if(!btn) return;
+    e.preventDefault();
+    applyActivityFilter((btn.getAttribute('data-activity-filter')||'all').toUpperCase());
+  });
+})();
 window.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));});
 
