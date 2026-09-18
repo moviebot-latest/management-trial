@@ -209,3 +209,11 @@ python app.py
 ---
 
 **Built with ❤️ using Flask + Neon PostgreSQL + Render**
+
+## Brevo Email OTP
+
+Normal self-registration now requires email verification before the account is created. The app sends a 6-digit, 10-minute OTP through Brevo's transactional email API. OTPs are hashed, attempts are limited, resend is rate-limited, and no OTP is stored in plaintext.
+
+Set these Vercel Environment Variables: `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and optional `BREVO_SENDER_NAME`. The Brevo API key must stay server-side; never put it in HTML/JavaScript or Git. Brevo requires a registered/verified sender for transactional email. Gmail addresses can be recipients; for reliable sending, use a verified sender/domain in Brevo.
+
+Brevo's current Free plan provides 300 email sends per day and is free without a credit card.

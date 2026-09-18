@@ -3,6 +3,9 @@ import csv
 import io
 import secrets
 import re
+import json
+import urllib.request
+import urllib.error
 from datetime import date, timedelta, datetime, timezone
 from functools import wraps
 from flask import (
@@ -57,6 +60,11 @@ db = SQLAlchemy(app)
 
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
+
+# Email OTP security
+OTP_EXPIRY_MINUTES = 10
+OTP_RESEND_SECONDS = 60
+OTP_MAX_ATTEMPTS = 5
 
 VALID_GENDERS = {"Male", "Female", "Other", "Prefer not to say"}
 DEPARTMENT_CODES = {
@@ -121,6 +129,21 @@ class User(db.Model):
             lu = lu.replace(tzinfo=timezone.utc)
         secs = (lu - datetime.now(timezone.utc)).total_seconds()
         return max(0, int(secs // 60) + 1)
+
+
+class EmailVerification(db.Model):
+    id              = db.Column(db.Integer, primary_key=True)
+    email           = db.Column(db.String(160), unique=True, nullable=False, index=True)
+    username        = db.Column(db.String(80), nullable=False)
+    name            = db.Column(db.String(120), nullable=False)
+    gender          = db.Column(db.String(30), nullable=False)
+    department      = db.Column(db.String(80), nullable=False)
+    password_hash   = db.Column(db.String(255), nullable=False)
+    otp_hash        = db.Column(db.String(255), nullable=False)
+    expires_at      = db.Column(db.DateTime, nullable=False)
+    last_sent_at    = db.Column(db.DateTime, nullable=False)
+    attempts        = db.Column(db.Integer, nullable=False, default=0)
+    created_at      = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
 
 
 class AuditLog(db.Model):
@@ -236,6 +259,92 @@ def is_reserved_username(username):
     admin_u = os.environ.get("ADMIN_USERNAME", "admin").strip().casefold()
     u = username.strip().casefold()
     return u == admin_u or u == "admin"
+
+
+def _utcnow_naive():
+    return datetime.utcnow()
+
+
+def _brevo_configured():
+    return bool(os.environ.get("BREVO_API_KEY", "").strip() and
+                os.environ.get("BREVO_SENDER_EMAIL", "").strip())
+
+
+def send_brevo_otp(email, otp, name):
+    """Send a verification OTP through Brevo transactional email API."""
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
+    sender_name = os.environ.get("BREVO_SENDER_NAME", "Management System").strip() or "Management System"
+    if not api_key or not sender_email:
+        raise RuntimeError("Brevo email service is not configured.")
+
+    safe_name = (name or "there").strip()[:120]
+    html = f"""<!doctype html><html><body style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\">
+      <div style=\"max-width:520px;margin:auto;background:white;border-radius:18px;padding:30px;box-shadow:0 8px 30px rgba(0,0,0,.08)\">
+      <h2 style=\"margin-top:0\">🔐 Verify your email</h2>
+      <p>Hi {safe_name},</p><p>Use this one-time verification code to finish creating your Management System account:</p>
+      <div style=\"font-size:32px;font-weight:800;letter-spacing:10px;text-align:center;padding:18px;background:#f1efff;border-radius:14px\">{otp}</div>
+      <p style=\"color:#667085\">This code expires in {OTP_EXPIRY_MINUTES} minutes. If you did not request this, you can ignore this email.</p>
+      </div></body></html>"""
+    payload = json.dumps({
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": email, "name": safe_name}],
+        "subject": "Your Management System verification code",
+        "htmlContent": html,
+        "textContent": f"Your Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=payload,
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            if response.status < 200 or response.status >= 300:
+                raise RuntimeError("Brevo rejected the email request.")
+            return True
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")[:300]
+        raise RuntimeError(f"Brevo email send failed ({exc.code}). {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError("Brevo email service is temporarily unavailable.") from exc
+
+
+def create_email_otp(email, name, gender, department, username, password_hash):
+    now = _utcnow_naive()
+    existing = EmailVerification.query.filter_by(email=email).first()
+    if existing and (now - existing.last_sent_at).total_seconds() < OTP_RESEND_SECONDS:
+        wait = OTP_RESEND_SECONDS - int((now - existing.last_sent_at).total_seconds())
+        raise ValueError(f"Please wait {max(1, wait)} seconds before requesting another code.")
+
+    # Remove stale pending records for the same username without exposing details.
+    EmailVerification.query.filter(EmailVerification.username == username, EmailVerification.email != email).delete(synchronize_session=False)
+
+    otp = f"{secrets.randbelow(1000000):06d}"
+    row = existing or EmailVerification(email=email, username=username, name=name, gender=gender, department=department, password_hash=password_hash, otp_hash=generate_password_hash(otp))
+    row.email = email
+    row.username = username
+    row.name = name
+    row.gender = gender
+    row.department = department
+    row.password_hash = password_hash
+    row.otp_hash = generate_password_hash(otp)
+    row.expires_at = now + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    row.last_sent_at = now
+    row.attempts = 0
+    db.session.add(row)
+    db.session.commit()
+    try:
+        send_brevo_otp(email, otp, name)
+    except Exception:
+        db.session.delete(row)
+        db.session.commit()
+        raise
 
 
 def user_stats():
@@ -414,28 +523,49 @@ def login_page():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/register/check-username", methods=["POST"])
+def check_registration_username():
+    username = request.form.get("username", "").strip()
+    valid = bool(re.fullmatch(r"[a-zA-Z0-9_.\-]+", username)) and not is_reserved_username(username)
+    exists = bool(username and User.query.filter(db.func.lower(User.username) == username.casefold()).first())
+    return jsonify({"available": bool(valid and not exists)})
+
+
+@app.route("/register/check-email", methods=["POST"])
+def check_registration_email():
+    email = request.form.get("email", "").strip().lower()
+    valid = bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email))
+    exists = bool(email and User.query.filter(db.func.lower(User.email) == email.casefold()).first())
+    return jsonify({"available": bool(valid and not exists)})
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if session.get("user_id"):
         return redirect(url_for("dashboard"))
 
-    if request.method == "GET":
-        return render_template("register.html")
+    pending_email = session.get("pending_registration_email", "")
+    otp_sent = bool(pending_email)
 
-    name       = request.form.get("name",       "").strip()
-    gender     = request.form.get("gender",     "").strip()
+    if request.method == "GET":
+        return render_template("register.html", otp_sent=otp_sent, pending_email=pending_email)
+
+    name       = request.form.get("name", "").strip()
+    gender     = request.form.get("gender", "").strip()
     department = request.form.get("department", "").strip()
-    email      = request.form.get("email",      "").strip().lower()
-    username   = request.form.get("username",   "").strip()
-    password   = request.form.get("password",   "")
-    confirm    = request.form.get("confirm",    "")
+    email      = request.form.get("email", "").strip().lower()
+    username   = request.form.get("username", "").strip()
+    password   = request.form.get("password", "")
+    confirm    = request.form.get("confirm", "")
 
     def err(msg):
         flash(msg, "error")
-        return render_template("register.html"), 400
+        return render_template("register.html", otp_sent=False, pending_email=""), 400
 
     if not all([name, gender, department, email, username, password, confirm]):
         return err("All fields are required.")
+    if not _brevo_configured():
+        return err("Email verification is not configured yet. Please contact the administrator.")
     if gender not in VALID_GENDERS:
         return err("Invalid gender selected.")
     if department not in VALID_DEPARTMENTS:
@@ -452,26 +582,100 @@ def register():
     if not ok:
         return err(pw_err)
 
+    # Final availability checks are server-side. Do not return any other user's data.
+    if User.query.filter(db.func.lower(User.username) == username.casefold()).first() or User.query.filter(db.func.lower(User.email) == email.casefold()).first():
+        return err("That username or email cannot be used. Please try a different one.")
+
     try:
-        emp_id = next_employee_id(department)
+        create_email_otp(email, name, gender, department, username, generate_password_hash(password))
+        session["pending_registration_email"] = email
+        flash("📧 Verification code sent to your email. Check your Gmail inbox.", "success")
+        return render_template("register.html", otp_sent=True, pending_email=email)
+    except ValueError as exc:
+        db.session.rollback()
+        return err(str(exc))
+    except Exception:
+        db.session.rollback()
+        return err("We could not send the verification email right now. Please try again later.")
+
+
+@app.route("/register/verify-otp", methods=["POST"])
+def verify_registration_otp():
+    email = request.form.get("email", "").strip().lower()
+    otp = request.form.get("otp", "").strip()
+    if not email or not re.fullmatch(r"\d{6}", otp):
+        flash("Enter the 6-digit verification code.", "error")
+        return redirect(url_for("register"))
+
+    row = EmailVerification.query.filter(db.func.lower(EmailVerification.email) == email.casefold()).first()
+    if not row:
+        flash("Verification session expired. Please request a new code.", "error")
+        return redirect(url_for("register"))
+
+    now = _utcnow_naive()
+    if row.expires_at < now:
+        db.session.delete(row)
+        db.session.commit()
+        session.pop("pending_registration_email", None)
+        flash("⏰ Verification code expired. Please request a new code.", "error")
+        return redirect(url_for("register"))
+    if row.attempts >= OTP_MAX_ATTEMPTS:
+        flash("Too many incorrect attempts. Please request a new code.", "error")
+        return redirect(url_for("register"))
+
+    if not check_password_hash(row.otp_hash, otp):
+        row.attempts += 1
+        db.session.commit()
+        remaining = max(0, OTP_MAX_ATTEMPTS - row.attempts)
+        flash("❌ Invalid verification code." + (f" {remaining} attempt(s) remaining." if remaining else " Please request a new code."), "error")
+        return redirect(url_for("register"))
+
+    # Re-check uniqueness immediately before account creation to close race conditions.
+    if (User.query.filter(db.func.lower(User.username) == row.username.casefold()).first() or
+        User.query.filter(db.func.lower(User.email) == row.email.casefold()).first()):
+        db.session.delete(row)
+        db.session.commit()
+        session.pop("pending_registration_email", None)
+        flash("That username or email cannot be used. Please choose different details.", "error")
+        return redirect(url_for("register"))
+
+    try:
+        emp_id = next_employee_id(row.department)
         user = User(
-            employee_id   = emp_id,
-            name          = name,
-            gender        = gender,
-            department    = department,
-            email         = email,
-            username      = username,
-            password_hash = generate_password_hash(password),
+            employee_id=emp_id, name=row.name, gender=row.gender, department=row.department,
+            email=row.email, username=row.username, password_hash=row.password_hash, role="user", is_active=True
         )
         db.session.add(user)
+        db.session.delete(row)
         db.session.commit()
-        log_action(username, "REGISTER",
-                   f"New user registered: {name} | {department} | EMP#{emp_id}")
-        flash("✅ Registration successful! You can now log in.", "success")
+        log_action(user.username, "REGISTER", f"Verified email and registered: {user.name} | {user.department} | EMP#{emp_id}")
+        session.pop("pending_registration_email", None)
+        flash("✅ Email verified! Account created successfully. You can now sign in.", "success")
         return redirect(url_for("login_page"))
     except IntegrityError:
         db.session.rollback()
-        return err("Username or email already exists. Please choose a different one.")
+        flash("Account could not be created. Please try again.", "error")
+        return redirect(url_for("register"))
+
+
+@app.route("/register/resend-otp", methods=["POST"])
+def resend_registration_otp():
+    email = request.form.get("email", "").strip().lower()
+    row = EmailVerification.query.filter(db.func.lower(EmailVerification.email) == email.casefold()).first() if email else None
+    if not row:
+        flash("Verification session expired. Please start registration again.", "error")
+        return redirect(url_for("register"))
+    try:
+        create_email_otp(row.email, row.name, row.gender, row.department, row.username, row.password_hash)
+        session["pending_registration_email"] = row.email
+        flash("📧 A new verification code has been sent.", "success")
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        flash("We could not resend the verification email. Please try again later.", "error")
+    return redirect(url_for("register"))
 
 
 @app.route("/logout")
@@ -489,6 +693,32 @@ def auth_status():
     resp = jsonify({"authenticated": bool(session.get("user_id"))})
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.route("/public-stats")
+def public_stats():
+    """Return only aggregate, non-sensitive live landing-page statistics."""
+    def query():
+        today = date.today()
+        total = User.query.count()
+        active = User.query.filter_by(is_active=True).count()
+        departments = db.session.query(User.department).distinct().count()
+        new_today = User.query.filter(db.func.date(User.created_at) == today).count()
+        return {
+            "total_users": total,
+            "active_users": active,
+            "departments": departments,
+            "new_today": new_today,
+            "updated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    try:
+        data = db_retry(query)
+        resp = jsonify(data)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return resp
+    except Exception:
+        resp = jsonify({"error": "stats_unavailable"}), 503
+        return resp
 
 
 @app.route("/health")
