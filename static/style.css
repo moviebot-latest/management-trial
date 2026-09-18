@@ -1325,3 +1325,51 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .activity-tabs::-webkit-scrollbar{display:none}
   .activity-tab{flex:0 0 auto;padding:8px 12px}
 }
+
+/* ============================================================
+   V15 PERFORMANCE LAYER — keep the visual design, reduce jank
+   ============================================================ */
+/* Use compositor-friendly, short transitions for frequently used UI. */
+:root { --v15-fast: .16s; }
+
+/* Avoid expensive blur while keeping the same translucent appearance. */
+@media (max-width: 900px) {
+  .modal-overlay,
+  .login-loader,
+  .ai-loader-shell { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+  /* Keep animations, but make decorative motion cheaper on touch devices. */
+  .auth-side:after { animation-duration: 12s !important; }
+  .panel:hover, .stat-card:hover, .btn:hover, .nav-item:hover { transform: none !important; }
+  .panel, .stat-card, .auth-form-box { transition-duration: var(--v15-fast) !important; }
+}
+
+@media (max-width: 600px) {
+  /* Prevent nested scrolling from fighting the page scroll. */
+  .activity-tabs { -webkit-overflow-scrolling: touch; }
+  .users-table-wrap, .table-wrap, .data-table-wrap { -webkit-overflow-scrolling: touch; }
+
+  /* Keep the graphical login verification, but reduce simultaneous motion. */
+  .ai-grid { animation-duration: 14s !important; }
+  .ai-scanline { animation-duration: 3.5s !important; }
+  .ai-stars i { animation-duration: 3.2s !important; }
+  .orbit-a { animation-duration: 5.5s !important; }
+  .orbit-b { animation-duration: 7s !important; }
+  .orbit-c { animation-duration: 10s !important; }
+  .core-ring.outer { animation-duration: 2.2s !important; }
+  .core-ring.inner { animation-duration: 1.6s !important; }
+  .core-glow { animation-duration: 2.6s !important; }
+  .core-logo { animation-duration: 2.8s !important; }
+  .core-beam { animation-duration: 2s !important; }
+  .ai-progress i { animation-duration: 1.6s !important; }
+
+  /* Reduce paint cost of large shadows on small screens, without removing cards. */
+  .panel { box-shadow: 0 4px 18px rgba(15,23,42,.055) !important; }
+  .stat-card { box-shadow: 0 5px 16px rgba(15,23,42,.075) !important; }
+}
+
+/* Respect touch/keyboard input: hover effects should not run after a tap. */
+@media (hover: none) {
+  .btn:hover, .stat-card:hover, .panel:hover, .nav-item:hover,
+  .activity-tab:hover, .submit-btn:hover { transform: none !important; }
+}

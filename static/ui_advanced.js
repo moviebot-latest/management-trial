@@ -10,6 +10,19 @@
   };
   window.hidePageLoader=function(){overlay.classList.remove('show');};
   requestAnimationFrame(()=>document.body.classList.add('page-ready'));
+
+  // V15: do not flash a full-screen loader for instant/cached navigation.
+  let loaderTimer=null;
+  const originalShowPageLoader=window.showPageLoader;
+  window.showPageLoader=function(text){
+    clearTimeout(loaderTimer);
+    loaderTimer=setTimeout(()=>originalShowPageLoader(text),120);
+  };
+  const originalHidePageLoader=window.hidePageLoader;
+  window.hidePageLoader=function(){
+    clearTimeout(loaderTimer);
+    originalHidePageLoader();
+  };
 window.addEventListener('pageshow',()=>hidePageLoader());
 
   window.toggleSidebar=function(){
