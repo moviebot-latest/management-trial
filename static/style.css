@@ -1301,3 +1301,27 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .mock-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stats-strip { width: 100%; }
 }
+
+/* ============================================================
+   ACTIVITY FILTERS — registration / login / all
+   ============================================================ */
+.activity-tabs{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px;
+}
+.activity-tab{
+  border:1px solid var(--gray-200); background:var(--white); color:var(--gray-500);
+  border-radius:999px; padding:7px 11px; font-size:11px; font-weight:800;
+  cursor:pointer; transition:all .2s ease; font-family:inherit;
+}
+.activity-tab:hover{transform:translateY(-1px);border-color:#c7d2fe;color:var(--brand);background:#f8f7ff}
+.activity-tab.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 5px 14px rgba(99,102,241,.22)}
+.dashboard-activity-list [hidden]{display:none!important}
+
+.audit-page-toolbar{position:relative}
+.audit-page-toolbar select{cursor:pointer}
+
+@media(max-width:600px){
+  .activity-tabs{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:none}
+  .activity-tabs::-webkit-scrollbar{display:none}
+  .activity-tab{flex:0 0 auto;padding:8px 12px}
+}
