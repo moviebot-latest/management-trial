@@ -44,7 +44,10 @@
         <div class="topbar-sub">Complete activity trail &mdash; {{ total_logs }} records</div>
       </div>
       <div class="topbar-right">
-        <a href="{{ url_for('settings') }}" class="btn btn-danger" style="font-size:12px">Clear Logs</a>
+        <form method="post" action="{{ url_for('clear_logs') }}" onsubmit="return confirm('Delete all audit logs? This cannot be undone.');" style="margin:0">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-danger" style="font-size:12px">Clear Logs</button>
+        </form>
         <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
     </header>

@@ -204,13 +204,18 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <div class="panel-head">
           <div>
             <h2>📋 Activity Log</h2>
-            <p>Registrations only • login activity is not stored</p>
+            <p>Live system activity • registrations, logins, logout &amp; admin actions</p>
+          </div>
+          <div class="activity-tabs" role="tablist" aria-label="Activity filter">
+            <button type="button" class="activity-tab active" data-activity-filter="all">All</button>
+            <button type="button" class="activity-tab" data-activity-filter="REGISTER">Registration</button>
+            <button type="button" class="activity-tab" data-activity-filter="LOGIN">Login Activity</button>
           </div>
         </div>
         <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
           <div class="audit-list dashboard-activity-list">
             {% for log in recent_logs %}
-            <div class="audit-row">
+            <div class="audit-row" data-audit-action="{{ log.action }}">
               <div class="audit-dot
                 {% if 'LOGIN_SUCCESS' in log.action %}dot-success
                 {% elif 'LOGOUT' in log.action %}dot-neutral
@@ -436,7 +441,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 <div id="createModal" class="modal-overlay">
   <div class="modal-box">
     <div class="modal-header">
-      <div><h2>Create New User</h2><p>Fill in all details to create an account</p></div>
+      <div><h2>Create New User</h2><p>Fill in all details. The user email must be verified by OTP before the account is created.</p></div>
       <button class="modal-close" type="button" onclick="closeModal('createModal')">&#215;</button>
     </div>
     <form id="createForm" method="post" action="{{ url_for('create_user') }}" novalidate
@@ -490,6 +495,36 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
     </form>
   </div>
 </div>
+
+<!-- Admin-created user email verification -->
+{% if role == 'admin' and admin_pending_email %}
+<div id="adminOtpModal" class="modal-overlay open">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+      <div><h2>Verify New User Email</h2><p>Enter the 6-digit OTP sent to <strong>{{ admin_pending_email }}</strong>.</p></div>
+      <button class="modal-close" type="button" onclick="closeModal('adminOtpModal')">&#215;</button>
+    </div>
+    <div class="flash success" style="margin-bottom:16px">📧 The new account will be created only after this email is verified.</div>
+    <form method="post" action="{{ url_for('verify_admin_user_otp') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="email" value="{{ admin_pending_email }}">
+      <div class="field">
+        <label for="admin-user-otp">Verification code</label>
+        <input id="admin-user-otp" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="Enter 6-digit OTP" required autofocus style="letter-spacing:8px;text-align:center;font-size:24px;font-weight:800">
+      </div>
+      <div class="modal-foot" style="padding-bottom:0">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('adminOtpModal')">Close</button>
+        <button type="submit" class="btn btn-primary">🔐 Verify &amp; Create</button>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('resend_admin_user_otp') }}" style="text-align:center;margin-top:10px">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="email" value="{{ admin_pending_email }}">
+      <button type="submit" style="border:0;background:none;color:#6366f1;font-weight:800;cursor:pointer">↻ Resend verification code</button>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 <!-- Edit User -->
 <div id="editModal" class="modal-overlay">
