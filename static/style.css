@@ -1049,6 +1049,32 @@ a{color:inherit}
   .stat-value{font-size:24px}
 }
 
+/* Desktop narrow-screen fix: keep the main area inside the viewport and make the
+   top-right action group horizontally scrollable when several actions do not fit.
+   This prevents the Logout button from being clipped off-screen. */
+@media(min-width:769px){
+  .main-content{
+    margin-left:240px;
+    width:calc(100% - 240px);
+    min-width:0;
+    max-width:calc(100% - 240px);
+  }
+  .topbar{min-width:0;}
+  .topbar-left{min-width:0;flex:1 1 auto;}
+  .topbar-right{
+    min-width:0;
+    max-width:62%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    flex:0 1 auto;
+    flex-wrap:nowrap;
+    padding-bottom:2px;
+    scrollbar-width:thin;
+    scrollbar-color:#cbd5e1 transparent;
+  }
+  .topbar-right>*{flex:0 0 auto;}
+}
+
 /* ============================================================
    ADVANCED UI SYSTEM — motion, glass, loaders, accessibility
    ============================================================ */
@@ -1061,7 +1087,7 @@ a{color:inherit}
   --ui-glass:rgba(255,255,255,.82);
 }
 body{overflow-x:hidden}
-body:not(.page-ready) .app-shell,body:not(.page-ready) .auth-page{opacity:0}
+
 body.page-ready .app-shell,body.page-ready .auth-page{animation:pageIn .55s cubic-bezier(.22,1,.36,1) both}
 @keyframes pageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 

@@ -60,7 +60,7 @@ window.addEventListener('pageshow',()=>hidePageLoader());
 
   document.addEventListener('submit',function(e){
     const form=e.target;
-    if(form.dataset.noLoader==='true' || form.id==='loginForm') return;
+    if(form.dataset.noLoader==='true' || form.id==='loginForm' || form.id==='regForm') return;
     const btn=form.querySelector('button[type="submit"]:last-of-type') || form.querySelector('button[type="submit"]');
     if(btn){btn.dataset.originalText=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="btn-spinner"></span> Processing…';}
     showPageLoader('Processing securely…');
