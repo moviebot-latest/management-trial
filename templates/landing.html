@@ -41,7 +41,7 @@
   .lnav-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.45);background:linear-gradient(135deg,#6366f1,#8b5cf6)!important}
 
   /* HERO */
-  .hero{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:100px 5vw 60px;background:linear-gradient(135deg,#f0f4ff 0%,#faf5ff 50%,#fff 100%);position:relative;overflow:hidden}
+  .hero{min-height:100svh;display:flex;align-items:center;justify-content:center;padding:92px 5vw 54px;background:linear-gradient(135deg,#f0f4ff 0%,#faf5ff 50%,#fff 100%);position:relative;overflow:hidden}
   .hero::before{content:'';position:absolute;top:-80px;right:-80px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.12),transparent 70%);pointer-events:none}
   .hero::after{content:'';position:absolute;bottom:-100px;left:-100px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(139,92,246,.10),transparent 70%);pointer-events:none}
   .hero-inner{max-width:780px;text-align:center;position:relative;z-index:1}
@@ -56,11 +56,11 @@
   .btn-hero-primary:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(99,102,241,.5)}
   .btn-hero-ghost{background:#fff;color:#374151;padding:16px 34px;border-radius:14px;font-weight:600;font-size:16px;text-decoration:none;border:2px solid #e5e7eb;transition:.25s;display:inline-flex;align-items:center;gap:8px}
   .btn-hero-ghost:hover{border-color:#6366f1;color:#6366f1;transform:translateY(-2px)}
-  .hero-mockup{margin-top:64px;border-radius:20px;overflow:hidden;box-shadow:0 30px 80px rgba(15,23,42,.2);border:1px solid #e2e8f0;background:#fff}
+  .hero-mockup{margin-top:52px;width:100%;max-width:780px;border-radius:20px;overflow:hidden;box-shadow:0 30px 80px rgba(15,23,42,.2);border:1px solid #e2e8f0;background:#fff}
   .mock-topbar{background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:14px 22px;display:flex;align-items:center;gap:10px}
   .mock-dot{width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.4)}
   .mock-title{color:rgba(255,255,255,.9);font-size:13px;font-weight:600;margin-left:8px}
-  .mock-body{padding:22px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .mock-body{padding:22px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
   .mock-card{border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:4px}
   .mock-card.b{background:linear-gradient(135deg,#eff6ff,#dbeafe)}
   .mock-card.g{background:linear-gradient(135deg,#f0fdf4,#dcfce7)}
@@ -71,10 +71,31 @@
 
   /* STATS STRIP */
   .stats-strip{background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:40px 5vw;display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-  @media(max-width:700px){.stats-strip{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:700px){
+    .stats-strip{grid-template-columns:repeat(2,minmax(0,1fr));padding:30px 18px;gap:14px}
+    .strip-val{font-size:1.85rem}
+  }
+  @media(max-width:560px){
+    .hero{padding:84px 16px 42px;min-height:auto}
+    .hero-inner{width:100%;max-width:100%}
+    .hero-badge{font-size:11px;padding:6px 12px;margin-bottom:18px}
+    .hero h1{font-size:clamp(2rem,10vw,2.8rem);letter-spacing:-1.2px;margin-bottom:16px}
+    .hero-sub{font-size:15px;line-height:1.55;margin-bottom:26px}
+    .hero-cta{gap:10px}
+    .btn-hero-primary,.btn-hero-ghost{width:100%;justify-content:center;padding:14px 18px;font-size:15px}
+    .hero-mockup{margin-top:36px;border-radius:16px}
+    .mock-topbar{padding:11px 14px}
+    .mock-dot{width:9px;height:9px}
+    .mock-title{font-size:11px;margin-left:4px}
+    .mock-body{padding:12px;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .mock-card{padding:13px;border-radius:12px;min-width:0}
+    .mock-val{font-size:20px}
+    .mock-lbl{font-size:9px}
+  }
   .strip-stat{text-align:center}
   .strip-val{font-size:2.4rem;font-weight:900;color:#fff;letter-spacing:-1px}
   .strip-lbl{font-size:13px;color:rgba(255,255,255,.75);font-weight:500;margin-top:4px}
+  .live-updated{text-align:center;padding:10px 16px 0;font-size:11px;color:#94a3b8;background:#fff}
 
   /* FEATURES */
   .features{padding:100px 5vw;background:#fff}
@@ -187,23 +208,24 @@
         <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
         <span class="mock-title">Admin Dashboard</span>
       </div>
-      <div class="mock-body">
-        <div class="mock-card b"><div class="mock-val">128</div><div class="mock-lbl">Total Users</div></div>
-        <div class="mock-card g"><div class="mock-val">115</div><div class="mock-lbl">Active</div></div>
-        <div class="mock-card p"><div class="mock-val">10</div><div class="mock-lbl">Departments</div></div>
-        <div class="mock-card a"><div class="mock-val">7</div><div class="mock-lbl">New Today</div></div>
+      <div class="mock-body" id="liveMockStats" aria-live="polite">
+        <div class="mock-card b"><div class="mock-val" data-stat="total_users">—</div><div class="mock-lbl">Total Users</div></div>
+        <div class="mock-card g"><div class="mock-val" data-stat="active_users">—</div><div class="mock-lbl">Active Users</div></div>
+        <div class="mock-card p"><div class="mock-val" data-stat="departments">—</div><div class="mock-lbl">Departments</div></div>
+        <div class="mock-card a"><div class="mock-val" data-stat="new_today">—</div><div class="mock-lbl">New Today</div></div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- STATS STRIP -->
-<div class="stats-strip">
-  <div class="strip-stat"><div class="strip-val">10+</div><div class="strip-lbl">Departments</div></div>
-  <div class="strip-stat"><div class="strip-val">100%</div><div class="strip-lbl">Secure</div></div>
-  <div class="strip-stat"><div class="strip-val">&lt;1s</div><div class="strip-lbl">Response Time</div></div>
-  <div class="strip-stat"><div class="strip-val">24/7</div><div class="strip-lbl">Uptime Ready</div></div>
+<div class="stats-strip" id="liveStats" aria-live="polite">
+  <div class="strip-stat"><div class="strip-val" data-stat="total_users">—</div><div class="strip-lbl">Total Users</div></div>
+  <div class="strip-stat"><div class="strip-val" data-stat="active_users">—</div><div class="strip-lbl">Active Users</div></div>
+  <div class="strip-stat"><div class="strip-val" data-stat="departments">—</div><div class="strip-lbl">Departments</div></div>
+  <div class="strip-stat"><div class="strip-val" data-stat="new_today">—</div><div class="strip-lbl">New Today</div></div>
 </div>
+<div class="live-updated" id="liveUpdated" aria-live="polite">Live data • updating automatically</div>
 
 <!-- FEATURES -->
 <section class="features" id="features">
@@ -322,6 +344,28 @@
 </footer>
 
 <script>
+// Live public aggregate statistics. No personal data is returned.
+(function(){
+  const statEls = document.querySelectorAll('[data-stat]');
+  const updated = document.getElementById('liveUpdated');
+  async function refreshStats(){
+    try{
+      const r=await fetch('/public-stats',{cache:'no-store',headers:{'Accept':'application/json'}});
+      if(!r.ok) throw new Error('stats unavailable');
+      const d=await r.json();
+      statEls.forEach(el=>{ if(d[el.dataset.stat] !== undefined) el.textContent=Number(d[el.dataset.stat]).toLocaleString(); });
+      if(updated){
+        const t=new Date(d.updated_at);
+        updated.textContent='Live data • updated '+t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      }
+    }catch(e){
+      if(updated) updated.textContent='Live data temporarily unavailable';
+    }
+  }
+  refreshStats();
+  setInterval(refreshStats,30000);
+})();
+
 // Smooth scroll
 document.querySelectorAll('a[href^="#"]').forEach(a=>{
   a.addEventListener('click',e=>{

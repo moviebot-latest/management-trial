@@ -10,7 +10,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/style.css">
-</head>
+<style>
+.verify-card{margin:18px 0;padding:22px;border:1px solid #ddd6fe;border-radius:20px;background:linear-gradient(135deg,#faf8ff,#fff);box-shadow:0 10px 30px rgba(99,102,241,.10)}
+.verify-orb{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:28px;box-shadow:0 0 0 8px rgba(99,102,241,.08);animation:otpPulse 1.8s infinite}
+@keyframes otpPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 8px rgba(99,102,241,.08)}50%{transform:scale(1.06);box-shadow:0 0 0 15px rgba(99,102,241,.02)}}
+.otp-input{letter-spacing:12px;text-align:center;font-size:28px;font-weight:800}
+.otp-status{margin-top:10px;font-weight:700;color:#6366f1;min-height:24px}.availability{font-size:13px;margin-top:6px;min-height:18px;font-weight:700}.available{color:#059669}.taken{color:#dc2626}.checking{color:#6366f1}
+@media(max-width:640px){.otp-input{letter-spacing:8px;font-size:24px}.verify-card{padding:18px}.auth-side{display:none!important}.auth-form-side{width:100%!important}.auth-form-box{width:100%!important;max-width:520px!important}}
+</style></head>
 <body>
 <div class="auth-page">
 
@@ -38,6 +45,31 @@
         {% endfor %}
       {% endwith %}
 
+      {% if otp_sent %}
+      <div class="verify-card" id="verifyCard">
+        <div class="verify-orb">✉️</div>
+        <h2 style="margin:14px 0 6px">Verify your email</h2>
+        <p style="margin:0;color:#667085">We sent a 6-digit code to <strong>{{ pending_email }}</strong>.</p>
+        <p style="margin:7px 0 0;color:#98a2b3;font-size:14px">Check your Gmail inbox and spam folder. The code expires in 10 minutes.</p>
+
+        <form method="post" action="{{ url_for('verify_registration_otp') }}" style="margin-top:18px">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="email" value="{{ pending_email }}">
+          <div class="field">
+            <label for="otp">Verification code</label>
+            <input id="otp" name="otp" class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="••••••" required autofocus>
+          </div>
+          <div class="otp-status" id="otpStatus">Waiting for your 6-digit code…</div>
+          <button class="submit-btn" type="submit" id="verifyBtn">🔐 Verify & Create Account</button>
+        </form>
+
+        <form method="post" action="{{ url_for('resend_registration_otp') }}" style="margin-top:10px;text-align:center">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="email" value="{{ pending_email }}">
+          <button type="submit" style="border:0;background:none;color:#6366f1;font-weight:800;cursor:pointer">↻ Resend code</button>
+        </form>
+      </div>
+      {% else %}
       <form id="regForm" method="post" action="{{ url_for('register') }}" novalidate>
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
 
@@ -48,7 +80,8 @@
           </div>
           <div class="field">
             <label for="r-email">Email</label>
-            <input id="r-email" name="email" type="email" placeholder="you@example.com" required maxlength="160">
+            <input id="r-email" name="email" type="email" placeholder="you@gmail.com" required maxlength="160">
+            <div class="availability" id="emailStatus"></div>
           </div>
         </div>
 
@@ -72,42 +105,30 @@
 
         <div class="field">
           <label for="r-user">Username</label>
-          <input id="r-user" name="username" placeholder="Choose a unique username" required maxlength="80"
-                 pattern="[a-zA-Z0-9_.\-]+" title="Letters, numbers, _ - . only">
+          <input id="r-user" name="username" placeholder="Example: aman.kumar or aman_26" required maxlength="80" pattern="[a-zA-Z0-9_.\-]+" title="Letters, numbers, _ - . only">
+          <div style="font-size:13px;color:#98a2b3;margin-top:5px">Example usernames: <b>aman.kumar</b> · <b>aman_26</b> · <b>aman-kumar</b></div>
+          <div class="availability" id="usernameStatus"></div>
         </div>
 
         <div class="field">
           <label for="r-pw">Password</label>
           <div class="password-wrap">
-            <input id="r-pw" name="password" type="password" placeholder="Min 8 chars with mix of types"
-                   required minlength="8" oninput="onPw(this.value)">
+            <input id="r-pw" name="password" type="password" placeholder="Min 8 chars with mix of types" required minlength="8" oninput="onPw(this.value)">
             <button type="button" class="eye-btn" onclick="togglePw('r-pw',this)">👁️</button>
           </div>
-          <div class="strength" id="sw" style="display:none">
-            <div class="strength-bars"><span></span><span></span><span></span><span></span></div>
-            <div class="strength-label" id="sl"></div>
-          </div>
-          <ul class="pw-rules" id="pwr" style="display:none">
-            <li id="r-len">8+ characters</li>
-            <li id="r-up">Uppercase (A-Z)</li>
-            <li id="r-lo">Lowercase (a-z)</li>
-            <li id="r-num">Number (0-9)</li>
-            <li id="r-sp">Special char</li>
-          </ul>
+          <div class="strength" id="sw" style="display:none"><div class="strength-bars"><span></span><span></span><span></span><span></span></div><div class="strength-label" id="sl"></div></div>
+          <ul class="pw-rules" id="pwr" style="display:none"><li id="r-len">8+ characters</li><li id="r-up">Uppercase (A-Z)</li><li id="r-lo">Lowercase (a-z)</li><li id="r-num">Number (0-9)</li><li id="r-sp">Special char</li></ul>
         </div>
 
         <div class="field">
           <label for="r-conf">Confirm Password</label>
-          <div class="password-wrap">
-            <input id="r-conf" name="confirm" type="password" placeholder="Repeat your password"
-                   required minlength="8" oninput="onMatch()">
-            <button type="button" class="eye-btn" onclick="togglePw('r-conf',this)">👁️</button>
-          </div>
+          <div class="password-wrap"><input id="r-conf" name="confirm" type="password" placeholder="Repeat your password" required minlength="8" oninput="onMatch()"><button type="button" class="eye-btn" onclick="togglePw('r-conf',this)">👁️</button></div>
           <span class="field-err" id="merr"></span>
         </div>
 
-        <button class="submit-btn" type="submit">Create Account &rarr;</button>
+        <button class="submit-btn" type="submit">📧 Send verification code &rarr;</button>
       </form>
+      {% endif %}
 
       <div class="auth-footer" style="margin-top:16px">
         Already have an account? <a href="/">Sign in</a>
@@ -117,23 +138,13 @@
 
 </div>
 <script>
-function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'\uD83D\uDE48':'\uD83D\uDC41\uFE0F';}
-function onPw(pw){
-  const sw=document.getElementById('sw'),pwr=document.getElementById('pwr');
-  if(!pw){sw.style.display='none';pwr.style.display='none';return;}
-  sw.style.display='block';pwr.style.display='grid';
-  const ch={'r-len':pw.length>=8,'r-up':/[A-Z]/.test(pw),'r-lo':/[a-z]/.test(pw),'r-num':/\d/.test(pw),'r-sp':/[^A-Za-z0-9]/.test(pw)};
-  Object.keys(ch).forEach(id=>document.getElementById(id).className=ch[id]?'met':'');
-  const sc=Object.values(ch).filter(Boolean).length;
-  const bars=sw.querySelectorAll('.strength-bars span'),lbl=document.getElementById('sl');
-  bars.forEach(b=>b.className='');
-  const cls=[null,'weak','medium','medium','strong','vstrong'],nm=['','Weak','Fair','Fair','Strong','Very Strong'];
-  for(let i=0;i<sc;i++)bars[i].className=cls[sc];
-  lbl.textContent=nm[sc];lbl.style.color=sc>=4?'#10b981':sc>=3?'#6366f1':sc>=2?'#f59e0b':'#f43f5e';
-}
+function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'🙈':'👁️';}
+function onPw(pw){const sw=document.getElementById('sw'),pwr=document.getElementById('pwr');if(!pw){sw.style.display='none';pwr.style.display='none';return;}sw.style.display='block';pwr.style.display='grid';const ch={'r-len':pw.length>=8,'r-up':/[A-Z]/.test(pw),'r-lo':/[a-z]/.test(pw),'r-num':/\d/.test(pw),'r-sp':/[^A-Za-z0-9]/.test(pw)};Object.keys(ch).forEach(id=>document.getElementById(id).className=ch[id]?'met':'');const sc=Object.values(ch).filter(Boolean).length,bars=sw.querySelectorAll('.strength-bars span'),lbl=document.getElementById('sl');bars.forEach(b=>b.className='');const cls=[null,'weak','medium','medium','strong','vstrong'],nm=['','Weak','Fair','Fair','Strong','Very Strong'];for(let i=0;i<sc;i++)bars[i].className=cls[sc];lbl.textContent=nm[sc];lbl.style.color=sc>=4?'#10b981':sc>=3?'#6366f1':sc>=2?'#f59e0b':'#f43f5e';}
 function onMatch(){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,e=document.getElementById('merr');e.textContent=c&&p!==c?'Passwords do not match.':''}
-document.getElementById('regForm').addEventListener('submit',function(e){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,er=document.getElementById('merr');if(p!==c){e.preventDefault();er.textContent='Passwords do not match.';document.getElementById('r-conf').focus();}});
+async function checkField(url,inputId,statusId){const input=document.getElementById(inputId),status=document.getElementById(statusId),value=input.value.trim();if(!value){status.textContent='';status.className='availability';return true;}status.textContent='◌ Checking…';status.className='availability checking';const fd=new FormData();fd.append('_csrf_token','{{ csrf_token }}');fd.append(input.name,value);try{const r=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});const data=await r.json();if(data.available){status.textContent='✓ Available';status.className='availability available';return true;}status.textContent='✕ Already used or unavailable — try a different one';status.className='availability taken';return false;}catch(e){status.textContent='Could not verify right now';status.className='availability taken';return false;}}
+let userTimer,emailTimer;document.getElementById('r-user')?.addEventListener('input',()=>{clearTimeout(userTimer);userTimer=setTimeout(()=>checkField('{{ url_for('check_registration_username') }}','r-user','usernameStatus'),450);});document.getElementById('r-email')?.addEventListener('input',()=>{clearTimeout(emailTimer);emailTimer=setTimeout(()=>checkField('{{ url_for('check_registration_email') }}','r-email','emailStatus'),450);});
+document.getElementById('regForm')?.addEventListener('submit',async function(e){e.preventDefault();const form=this,p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,er=document.getElementById('merr');if(p!==c){er.textContent='Passwords do not match.';document.getElementById('r-conf').focus();return;}const uOk=await checkField('{{ url_for('check_registration_username') }}','r-user','usernameStatus');const eOk=await checkField('{{ url_for('check_registration_email') }}','r-email','emailStatus');if(uOk&&eOk)HTMLFormElement.prototype.submit.call(form);});
+document.getElementById('otp')?.addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,6);const s=document.getElementById('otpStatus');if(this.value.length===6){s.textContent='✓ Code ready — verifying securely…';s.style.color='#059669';}else{s.textContent='Waiting for your 6-digit code…';s.style.color='#6366f1';}});
 </script>
-<script src="/static/ui_advanced.js"></script>
 </body>
 </html>
