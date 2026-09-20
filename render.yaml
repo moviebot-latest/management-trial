@@ -5,7 +5,7 @@
 
 services:
   - type: web
-    name: management-system-v3
+    name: management-system-v20
     env: python
     plan: free                          # Free tier on Render
     region: singapore                   # Singapore = India ke kareeb

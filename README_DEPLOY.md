@@ -1,4 +1,4 @@
-# 🚀 Management System v3 — Neon + Render Deployment Guide
+# 🚀 Management System v20 — Neon + Render Deployment Guide
 
 Is guide ko follow karo aur 15 minute mein website **live** ho jaayegi!
 
@@ -15,7 +15,7 @@ Is guide ko follow karo aur 15 minute mein website **live** ho jaayegi!
 ## STEP 1 — GitHub pe Code Upload Karo
 
 1. **GitHub.com pe jaao** → New Repository banao
-   - Name: `management-system-v3`
+   - Name: `management-system-v20`
    - Visibility: **Private** (recommended)
    - Click **Create Repository**
 
@@ -23,15 +23,15 @@ Is guide ko follow karo aur 15 minute mein website **live** ho jaayegi!
 
 ```bash
 # Is folder mein jaao
-cd management_system_v3
+cd management_system_v20
 
 # Git setup
 git init
 git add .
-git commit -m "Initial commit - Management System v3"
+git commit -m "Initial commit - Management System v20"
 
 # GitHub se connect karo (apna repo URL paste karo)
-git remote add origin https://github.com/TUMHARA_USERNAME/management-system-v3.git
+git remote add origin https://github.com/TUMHARA_USERNAME/management-system-v20.git
 git branch -M main
 git push -u origin main
 ```
@@ -68,12 +68,12 @@ git push -u origin main
 
 2. **New +** button → **Web Service** click karo
 
-3. **Connect GitHub** → Apna `management-system-v3` repo select karo
+3. **Connect GitHub** → Apna `management-system-v20` repo select karo
 
 4. Settings fill karo:
    | Setting | Value |
    |---------|-------|
-   | Name | `management-system-v3` |
+   | Name | `management-system-v20` |
    | Region | Singapore |
    | Branch | `main` |
    | Runtime | **Python 3** |
@@ -109,7 +109,7 @@ git push -u origin main
 
 8. Deploy hone mein **2-5 minute** lagte hain.
 
-9. URL milega: `https://management-system-v3-XXXX.onrender.com`
+9. URL milega: `https://management-system-v20-XXXX.onrender.com`
 
 ---
 
