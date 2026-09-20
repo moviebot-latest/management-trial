@@ -282,8 +282,8 @@ def _brevo_configured():
                 os.environ.get("BREVO_SENDER_EMAIL", "").strip())
 
 
-def send_brevo_otp(email, otp, name):
-    """Send a verification OTP through Brevo transactional email API."""
+def send_brevo_otp(email, otp, name, purpose="verification"):
+    """Send a Brevo OTP email for registration verification or password reset."""
     api_key = os.environ.get("BREVO_API_KEY", "").strip()
     sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
     sender_name = os.environ.get("BREVO_SENDER_NAME", "Management System").strip() or "Management System"
@@ -291,19 +291,30 @@ def send_brevo_otp(email, otp, name):
         raise RuntimeError("Brevo email service is not configured.")
 
     safe_name = (name or "there").strip()[:120]
+    is_reset = purpose == "password_reset"
+    title = "🔐 Reset your password" if is_reset else "🔐 Verify your email"
+    intro = ("Use this one-time code to reset your Management System password:"
+             if is_reset else
+             "Use this one-time verification code to finish creating your Management System account:")
+    subject = ("Your Management System password reset code"
+               if is_reset else
+               "Your Management System verification code")
+    plain = (f"Your Management System password reset code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
+             if is_reset else
+             f"Your Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes.")
     html = f"""<!doctype html><html><body style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\">
       <div style=\"max-width:520px;margin:auto;background:white;border-radius:18px;padding:30px;box-shadow:0 8px 30px rgba(0,0,0,.08)\">
-      <h2 style=\"margin-top:0\">🔐 Verify your email</h2>
-      <p>Hi {safe_name},</p><p>Use this one-time verification code to finish creating your Management System account:</p>
+      <h2 style=\"margin-top:0\">{title}</h2>
+      <p>Hi {safe_name},</p><p>{intro}</p>
       <div style=\"font-size:32px;font-weight:800;letter-spacing:10px;text-align:center;padding:18px;background:#f1efff;border-radius:14px\">{otp}</div>
       <p style=\"color:#667085\">This code expires in {OTP_EXPIRY_MINUTES} minutes. If you did not request this, you can ignore this email.</p>
       </div></body></html>"""
     payload = json.dumps({
         "sender": {"name": sender_name, "email": sender_email},
         "to": [{"email": email, "name": safe_name}],
-        "subject": "Your Management System verification code",
+        "subject": subject,
         "htmlContent": html,
-        "textContent": f"Your Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
+        "textContent": plain
     }).encode("utf-8")
     req = urllib.request.Request(
         "https://api.brevo.com/v3/smtp/email",
@@ -361,7 +372,7 @@ def create_password_reset_otp(user):
     db.session.add(row)
     db.session.commit()
     try:
-        send_brevo_otp(user.email, otp, user.name)
+        send_brevo_otp(user.email, otp, user.name, purpose="password_reset")
     except Exception:
         db.session.delete(row)
         db.session.commit()
