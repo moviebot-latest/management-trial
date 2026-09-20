@@ -146,6 +146,18 @@ class EmailVerification(db.Model):
     created_at      = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
 
 
+class PasswordReset(db.Model):
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, nullable=False, index=True)
+    email        = db.Column(db.String(160), nullable=False, index=True)
+    otp_hash     = db.Column(db.String(255), nullable=False)
+    expires_at   = db.Column(db.DateTime, nullable=False)
+    last_sent_at = db.Column(db.DateTime, nullable=False)
+    attempts     = db.Column(db.Integer, nullable=False, default=0)
+    verified_at  = db.Column(db.DateTime, nullable=True)
+    created_at   = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+
+
 class AuditLog(db.Model):
     id         = db.Column(db.Integer,     primary_key=True)
     username   = db.Column(db.String(80),  nullable=False)
@@ -313,6 +325,47 @@ def send_brevo_otp(email, otp, name):
         raise RuntimeError(f"Brevo email send failed ({exc.code}). {detail}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError("Brevo email service is temporarily unavailable.") from exc
+
+
+def mask_email(email):
+    email = (email or '').strip()
+    if '@' not in email:
+        return 'your registered email'
+    local, domain = email.split('@', 1)
+    if len(local) <= 2:
+        masked = local[:1] + '*' * max(1, len(local) - 1)
+    else:
+        masked = local[:2] + '*' * max(2, len(local) - 2)
+    return f"{masked}@{domain}"
+
+
+def create_password_reset_otp(user):
+    now = _utcnow_naive()
+    row = PasswordReset.query.filter_by(user_id=user.id).first()
+    if row and (now - row.last_sent_at).total_seconds() < OTP_RESEND_SECONDS:
+        wait = OTP_RESEND_SECONDS - int((now - row.last_sent_at).total_seconds())
+        raise ValueError(f"Please wait {max(1, wait)} seconds before requesting another code.")
+
+    otp = f"{secrets.randbelow(1000000):06d}"
+    if row is None:
+        row = PasswordReset(user_id=user.id, email=user.email, otp_hash=generate_password_hash(otp),
+                            expires_at=now + timedelta(minutes=OTP_EXPIRY_MINUTES),
+                            last_sent_at=now, attempts=0, verified_at=None)
+    else:
+        row.email = user.email
+        row.otp_hash = generate_password_hash(otp)
+        row.expires_at = now + timedelta(minutes=OTP_EXPIRY_MINUTES)
+        row.last_sent_at = now
+        row.attempts = 0
+        row.verified_at = None
+    db.session.add(row)
+    db.session.commit()
+    try:
+        send_brevo_otp(user.email, otp, user.name)
+    except Exception:
+        db.session.delete(row)
+        db.session.commit()
+        raise
 
 
 def create_email_otp(email, name, gender, department, username, password_hash):
@@ -847,6 +900,13 @@ def profile():
 @app.route("/profile/edit", methods=["POST"])
 @login_required
 def edit_profile():
+    # Personal information is managed by administrators only.
+    # Users must not be able to change name, email, gender or department,
+    # even by manually posting to this endpoint.
+    if session.get("role") != "admin":
+        flash("Personal information can only be changed by an administrator.", "error")
+        return redirect(url_for("profile"))
+
     user       = User.query.get_or_404(session["user_id"])
     name       = request.form.get("name",       "").strip()
     email      = request.form.get("email",      "").strip().lower()
@@ -866,19 +926,173 @@ def edit_profile():
         flash("Invalid email address.", "error")
         return redirect(url_for("profile"))
 
+    existing_email = User.query.filter(
+        db.func.lower(User.email) == email.casefold(), User.id != user.id
+    ).first()
+    if existing_email:
+        flash("That email is already in use by another account.", "error")
+        return redirect(url_for("profile"))
+
     try:
-        old_dept = user.department
+        old_values = (user.name, user.email, user.gender, user.department)
         user.name       = name
         user.email      = email
         user.gender     = gender
         user.department = department
         db.session.commit()
         session["name"] = name
-        flash("✅ Profile updated successfully!", "success")
+        log_action(user.username, "PROFILE_EDIT",
+                   f"Profile updated | name/email/gender/department changed from {old_values[0]} / {old_values[1]} / {old_values[2]} / {old_values[3]}")
+        flash("✅ Profile updated successfully. No Gmail OTP is required for profile edits.", "success")
     except IntegrityError:
         db.session.rollback()
         flash("That email is already in use by another account.", "error")
     return redirect(url_for("profile"))
+
+
+# ════════════════════════ FORGOT PASSWORD ════════════════════════
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if session.get("user_id"):
+        default_username = session.get("username", "")
+    else:
+        default_username = request.args.get("username", "").strip()
+
+    if request.method == "GET":
+        username = default_username
+        reset_sent = bool(session.get("password_reset_user_id"))
+        reset_verified = bool(session.get("password_reset_verified"))
+        masked = session.get("password_reset_masked_email", "")
+        return render_template("forgot_password.html", username=username, reset_sent=reset_sent,
+                               reset_verified=reset_verified, masked_email=masked)
+
+    username = request.form.get("username", "").strip()
+    if not username:
+        flash("Enter your username.", "error")
+        return render_template("forgot_password.html", username=username, reset_sent=False,
+                               reset_verified=False, masked_email=""), 400
+
+    user = User.query.filter(db.func.lower(User.username) == username.casefold()).first()
+    if not user:
+        # Do not reveal whether a username exists.
+        flash("If the account exists, a password reset code will be sent to its registered email.", "success")
+        return render_template("forgot_password.html", username=username, reset_sent=False,
+                               reset_verified=False, masked_email=""), 200
+    if not user.is_active:
+        flash("This account is inactive. Please contact an administrator.", "error")
+        return render_template("forgot_password.html", username=username, reset_sent=False,
+                               reset_verified=False, masked_email=""), 403
+    if not _brevo_configured():
+        flash("Password reset email is not configured. Please contact the administrator.", "error")
+        return render_template("forgot_password.html", username=username, reset_sent=False,
+                               reset_verified=False, masked_email=""), 503
+
+    try:
+        create_password_reset_otp(user)
+        session["password_reset_user_id"] = user.id
+        session["password_reset_masked_email"] = mask_email(user.email)
+        session["password_reset_verified"] = False
+        flash(f"📧 OTP sent to {mask_email(user.email)}. It expires in {OTP_EXPIRY_MINUTES} minutes.", "success")
+        log_action(user.username, "PASSWORD_RESET_REQUEST", "Password reset OTP requested")
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        flash("We could not send the reset email right now. Please try again later.", "error")
+
+    return redirect(url_for("forgot_password"))
+
+
+@app.route("/forgot-password/resend", methods=["POST"])
+def resend_forgot_password_otp():
+    user_id = session.get("password_reset_user_id")
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        session.pop("password_reset_user_id", None)
+        session.pop("password_reset_masked_email", None)
+        session.pop("password_reset_verified", None)
+        flash("Reset session expired. Please start again.", "error")
+        return redirect(url_for("forgot_password"))
+    try:
+        create_password_reset_otp(user)
+        session["password_reset_verified"] = False
+        flash(f"📧 A new OTP was sent to {mask_email(user.email)}.", "success")
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        flash("We could not resend the reset email. Please try again later.", "error")
+    return redirect(url_for("forgot_password"))
+
+
+@app.route("/forgot-password/verify", methods=["POST"])
+def verify_forgot_password_otp():
+    user_id = session.get("password_reset_user_id")
+    otp = request.form.get("otp", "").strip()
+    user = User.query.get(user_id) if user_id else None
+    row = PasswordReset.query.filter_by(user_id=user_id).first() if user_id else None
+
+    if not user or not row or not re.fullmatch(r"\d{6}", otp):
+        flash("Enter the 6-digit OTP sent to your registered email.", "error")
+        return redirect(url_for("forgot_password"))
+    now = _utcnow_naive()
+    if row.expires_at < now:
+        db.session.delete(row)
+        db.session.commit()
+        session["password_reset_verified"] = False
+        flash("⏰ OTP expired. Please request a new code.", "error")
+        return redirect(url_for("forgot_password"))
+    if row.attempts >= OTP_MAX_ATTEMPTS:
+        flash("Too many incorrect attempts. Please resend a new OTP.", "error")
+        return redirect(url_for("forgot_password"))
+    if not check_password_hash(row.otp_hash, otp):
+        row.attempts += 1
+        db.session.commit()
+        remaining = max(0, OTP_MAX_ATTEMPTS - row.attempts)
+        flash("❌ Invalid OTP." + (f" {remaining} attempt(s) remaining." if remaining else " Please resend a new code."), "error")
+        return redirect(url_for("forgot_password"))
+
+    row.verified_at = now
+    db.session.commit()
+    session["password_reset_verified"] = True
+    flash("✅ OTP verified. Enter your new password below.", "success")
+    log_action(user.username, "PASSWORD_RESET_VERIFY", "Password reset OTP verified")
+    return redirect(url_for("forgot_password"))
+
+
+@app.route("/forgot-password/reset", methods=["POST"])
+def reset_password_after_otp():
+    user_id = session.get("password_reset_user_id")
+    user = User.query.get(user_id) if user_id else None
+    row = PasswordReset.query.filter_by(user_id=user_id).first() if user_id else None
+    if not user or not row or not session.get("password_reset_verified") or not row.verified_at:
+        flash("Please verify the OTP first.", "error")
+        return redirect(url_for("forgot_password"))
+
+    new_pw = request.form.get("new_password", "")
+    confirm = request.form.get("confirm_password", "")
+    if new_pw != confirm:
+        flash("New passwords do not match.", "error")
+        return redirect(url_for("forgot_password"))
+    ok, pw_err = validate_password(new_pw)
+    if not ok:
+        flash(pw_err, "error")
+        return redirect(url_for("forgot_password"))
+    if check_password_hash(user.password_hash, new_pw):
+        flash("New password must be different from the current password.", "error")
+        return redirect(url_for("forgot_password"))
+
+    user.password_hash = generate_password_hash(new_pw)
+    user.unlock()
+    db.session.delete(row)
+    db.session.commit()
+    log_action(user.username, "PASSWORD_RESET", "Password reset completed after email OTP verification")
+    session.clear()
+    flash("✅ Password reset successfully. Please sign in with your new password.", "success")
+    return redirect(url_for("login_page"))
 
 
 # ════════════════════════ CHANGE PASSWORD ════════════════════════
@@ -892,7 +1106,7 @@ def change_password():
     user = User.query.get_or_404(session["user_id"])
     if request.method == "GET":
         return render_template("change_password.html",
-                               prefill_username=user.username)
+                               prefill_username=user.username, current_email=user.email)
 
     current  = request.form.get("current_password",  "")
     new_pw   = request.form.get("new_password",      "")
@@ -901,7 +1115,7 @@ def change_password():
     def err(msg):
         flash(msg, "error")
         return render_template("change_password.html",
-                               prefill_username=user.username), 400
+                               prefill_username=user.username, current_email=user.email), 400
 
     if not check_password_hash(user.password_hash, current):
         return err("Current password is incorrect.")
