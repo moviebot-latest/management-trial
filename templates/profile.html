@@ -73,18 +73,15 @@
       <div class="account-layout">
         <main class="account-main-column">
           <section class="panel account-panel reveal-card">
-            <div class="panel-head account-panel-head"><div><h2>✏️ Personal Information</h2><p>Keep your profile details up to date.</p></div><span class="section-badge">EDITABLE</span></div>
+            <div class="panel-head account-panel-head"><div><h2>👤 Personal Information</h2><p>Your official profile information is managed by an administrator.</p></div><span class="section-badge">ADMIN MANAGED</span></div>
             <div class="panel-body">
-              <form method="post" action="{{ url_for('edit_profile') }}" class="account-form" novalidate>
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                <div class="account-form-grid">
-                  <div class="field"><label>Full Name</label><div class="field-premium"><span>👤</span><input name="name" type="text" value="{{ user.name }}" required maxlength="120"></div></div>
-                  <div class="field"><label>Email Address</label><div class="field-premium"><span>✉️</span><input name="email" type="email" value="{{ user.email }}" required maxlength="160"></div></div>
-                  <div class="field"><label>Gender</label><div class="field-premium"><span>⚧</span><select name="gender" required>{% for g in ['Male','Female','Other','Prefer not to say'] %}<option {% if user.gender==g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></div></div>
-                  <div class="field"><label>Department</label><div class="field-premium"><span>🏢</span><select name="department" required>{% for d in valid_departments %}<option {% if user.department==d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select></div></div>
-                </div>
-                <div class="form-actions"><span>Changes are protected by your secure session.</span><button type="submit" class="btn btn-primary">✓ Save Changes</button></div>
-              </form>
+              <div class="account-form-grid">
+                <div class="field"><label>Full Name</label><div class="field-premium"><span>👤</span><input type="text" value="{{ user.name }}" readonly aria-readonly="true"></div></div>
+                <div class="field"><label>Email Address</label><div class="field-premium"><span>✉️</span><input type="email" value="{{ user.email }}" readonly aria-readonly="true"></div></div>
+                <div class="field"><label>Gender</label><div class="field-premium"><span>⚧</span><input type="text" value="{{ user.gender }}" readonly aria-readonly="true"></div></div>
+                <div class="field"><label>Department</label><div class="field-premium"><span>🏢</span><input type="text" value="{{ user.department }}" readonly aria-readonly="true"></div></div>
+              </div>
+              <div class="form-actions"><span>🔒 Name, Gmail, gender and department cannot be changed by the user.</span>{% if role == 'admin' %}<a href="{{ url_for('dashboard') }}" class="btn btn-primary">⚙️ Manage Users</a>{% endif %}</div>
             </div>
           </section>
 
@@ -131,7 +128,7 @@
               <div class="security-line"><span>Secure password hash</span><b>✓</b></div>
               <div class="security-line"><span>Session protection</span><b>✓</b></div>
               <div class="security-line"><span>Failed-login lockout</span><b>✓</b></div>
-              {% if role != 'admin' %}<a href="/change-password" class="btn btn-primary btn-full" style="margin-top:14px">🔒 Manage Password</a>{% else %}<div class="admin-password-note">🔐 Admin password is managed only through the server environment.</div>{% endif %}
+              {% if role != 'admin' %}<a href="/change-password" class="btn btn-primary btn-full" style="margin-top:14px">🔒 Change Password</a><a href="{{ url_for('forgot_password', username=user.username) }}" class="btn btn-ghost btn-full" style="margin-top:10px">📧 Forgot Password / OTP Reset</a>{% else %}<div class="admin-password-note">🔐 Admin password is managed only through the server environment.</div>{% endif %}
             </div>
           </section>
 
