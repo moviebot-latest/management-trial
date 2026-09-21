@@ -1,4 +1,4 @@
-# 🚀 Management System v20 — Neon + Render Deployment Guide
+# 🚀 Library Management System v20 — Neon + Render Deployment Guide
 
 Is guide ko follow karo aur 15 minute mein website **live** ho jaayegi!
 
@@ -28,7 +28,7 @@ cd management_system_v20
 # Git setup
 git init
 git add .
-git commit -m "Initial commit - Management System v20"
+git commit -m "Initial commit - Library Management System v20"
 
 # GitHub se connect karo (apna repo URL paste karo)
 git remote add origin https://github.com/TUMHARA_USERNAME/management-system-v20.git
@@ -217,3 +217,7 @@ Normal self-registration now requires email verification before the account is c
 Set these Vercel Environment Variables: `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and optional `BREVO_SENDER_NAME`. The Brevo API key must stay server-side; never put it in HTML/JavaScript or Git. Brevo requires a registered/verified sender for transactional email. Gmail addresses can be recipients; for reliable sending, use a verified sender/domain in Brevo.
 
 Brevo's current Free plan provides 300 email sends per day and is free without a credit card.
+
+
+### Internship payment demo
+`DEMO_PAYMENT_WEBHOOK_SECRET` is optional. If omitted, the app uses `SECRET_KEY` to sign the internal simulated webhook. No real money is processed. Online payment success/failure is verified server-side, including webhook signature and exact order amount, and the transaction ID is stored.

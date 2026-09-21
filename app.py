@@ -1,9 +1,13 @@
 import os
 import csv
 import io
+import base64
 import secrets
 import re
 import json
+import hmac
+import hashlib
+
 import urllib.request
 import urllib.error
 from datetime import date, timedelta, datetime, timezone
@@ -86,6 +90,9 @@ VALID_DEPARTMENTS = [
     "Customer Support", "Research & Development",
 ]
 
+# Internship/demo payment gateway settings. No real money is processed.
+DEMO_PAYMENT_SECRET = os.environ.get("DEMO_PAYMENT_WEBHOOK_SECRET") or app.config["SECRET_KEY"]
+
 # ════════════════════════════ MODELS ════════════════════════════
 
 class User(db.Model):
@@ -156,6 +163,47 @@ class PasswordReset(db.Model):
     attempts     = db.Column(db.Integer, nullable=False, default=0)
     verified_at  = db.Column(db.DateTime, nullable=True)
     created_at   = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+
+
+class Book(db.Model):
+    id          = db.Column(db.Integer, primary_key=True)
+    title       = db.Column(db.String(200), nullable=False)
+    author      = db.Column(db.String(160), nullable=False)
+    price       = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    description = db.Column(db.Text, nullable=True)
+    image_data  = db.Column(db.Text, nullable=True)
+    stock       = db.Column(db.Integer, nullable=False, default=0)
+    is_active   = db.Column(db.Boolean, nullable=False, default=True)
+    created_at  = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+
+
+class BookOrder(db.Model):
+    id              = db.Column(db.Integer, primary_key=True)
+    user_id         = db.Column(db.Integer, nullable=False, index=True)
+    total_amount    = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    status          = db.Column(db.String(30), nullable=False, default="Pending")
+    payment_method  = db.Column(db.String(30), nullable=False, default="COD")
+    payment_status  = db.Column(db.String(30), nullable=False, default="Pending")
+    payment_transaction_id = db.Column(db.String(120), nullable=True, index=True)
+    payment_gateway_order_id = db.Column(db.String(120), nullable=True, index=True)
+    payment_amount = db.Column(db.Numeric(10, 2), nullable=True)
+    payment_verified_at = db.Column(db.DateTime, nullable=True)
+    full_name       = db.Column(db.String(120), nullable=False)
+    phone           = db.Column(db.String(30), nullable=False)
+    address_line    = db.Column(db.String(250), nullable=False)
+    city            = db.Column(db.String(100), nullable=False)
+    state           = db.Column(db.String(100), nullable=False)
+    pincode         = db.Column(db.String(20), nullable=False)
+    created_at      = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+
+
+class BookOrderItem(db.Model):
+    id          = db.Column(db.Integer, primary_key=True)
+    order_id    = db.Column(db.Integer, nullable=False, index=True)
+    book_id     = db.Column(db.Integer, nullable=False, index=True)
+    title       = db.Column(db.String(200), nullable=False)
+    price       = db.Column(db.Numeric(10, 2), nullable=False)
+    quantity    = db.Column(db.Integer, nullable=False, default=1)
 
 
 class AuditLog(db.Model):
@@ -286,22 +334,22 @@ def send_brevo_otp(email, otp, name, purpose="verification"):
     """Send a Brevo OTP email for registration verification or password reset."""
     api_key = os.environ.get("BREVO_API_KEY", "").strip()
     sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
-    sender_name = os.environ.get("BREVO_SENDER_NAME", "Management System").strip() or "Management System"
+    sender_name = os.environ.get("BREVO_SENDER_NAME", "Library Management System").strip() or "Library Management System"
     if not api_key or not sender_email:
         raise RuntimeError("Brevo email service is not configured.")
 
     safe_name = (name or "there").strip()[:120]
     is_reset = purpose == "password_reset"
     title = "🔐 Reset your password" if is_reset else "🔐 Verify your email"
-    intro = ("Use this one-time code to reset your Management System password:"
+    intro = ("Use this one-time code to reset your Library Management System password:"
              if is_reset else
-             "Use this one-time verification code to finish creating your Management System account:")
-    subject = ("Your Management System password reset code"
+             "Use this one-time verification code to finish creating your Library Management System account:")
+    subject = ("Your Library Management System password reset code"
                if is_reset else
-               "Your Management System verification code")
-    plain = (f"Your Management System password reset code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
+               "Your Library Management System verification code")
+    plain = (f"Your Library Management System password reset code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
              if is_reset else
-             f"Your Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes.")
+             f"Your Library Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes.")
     html = f"""<!doctype html><html><body style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\">
       <div style=\"max-width:520px;margin:auto;background:white;border-radius:18px;padding:30px;box-shadow:0 8px 30px rgba(0,0,0,.08)\">
       <h2 style=\"margin-top:0\">{title}</h2>
@@ -452,6 +500,10 @@ def _csrf_token():
 def before_request():
     if session.get("user_id"):
         session.modified = True
+    # The signed payment webhook is authenticated with its own HMAC signature
+    # rather than a browser CSRF token. All browser POSTs still require CSRF.
+    if request.method == "POST" and request.path == "/payments/demo/webhook":
+        return None
     # CSRF on POST (skip landing / static)
     if request.method == "POST":
         sent     = request.form.get("_csrf_token", "")
@@ -850,6 +902,8 @@ def dashboard():
     users      = pagination.items
 
     recent_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(12).all()
+    library_books = Book.query.filter_by(is_active=True).order_by(Book.created_at.desc()).limit(12).all()
+    book_orders = BookOrder.query.order_by(BookOrder.created_at.desc()).limit(12).all()
     all_departments = VALID_DEPARTMENTS
 
     return render_template("dashboard.html",
@@ -867,11 +921,355 @@ def dashboard():
                            weekly_registrations=weekly_registrations,
                            weekly_max=weekly_max,
                            recent_logs=recent_logs,
+                           library_books=library_books,
+                           book_orders=book_orders,
                            search=search,
                            dept_filter=dept_filter,
                            status_filter=status_filter,
                            all_departments=all_departments,
                            admin_pending_email=session.get("admin_pending_email", ""))
+
+
+# ═════════════════════════ BOOKS & ORDERS ═════════════════════
+
+def _book_cart():
+    cart = session.get("book_cart", {})
+    return {str(k): int(v) for k, v in cart.items() if int(v) > 0}
+
+
+@app.route("/books")
+@login_required
+def books():
+    books = Book.query.filter_by(is_active=True).order_by(Book.created_at.desc()).all()
+    cart = _book_cart()
+    cart_count = sum(cart.values())
+    return render_template("books.html", books=books, cart_count=cart_count, role=session["role"], current_name=session["name"])
+
+
+@app.route("/admin/books/create", methods=["POST"])
+@admin_required
+def create_book():
+    title = request.form.get("title", "").strip()
+    author = request.form.get("author", "").strip()
+    description = request.form.get("description", "").strip()
+    stock = request.form.get("stock", "0", type=int)
+    try:
+        price = float(request.form.get("price", "0"))
+    except (TypeError, ValueError):
+        price = -1
+    if not title or not author or price < 0 or stock < 0:
+        flash("Title, author, valid price and stock are required.", "error")
+        return redirect(url_for("dashboard"))
+    image_data = None
+    image = request.files.get("image")
+    if image and image.filename:
+        allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+        if image.mimetype not in allowed:
+            flash("Book photo must be JPG, PNG, WEBP or GIF.", "error")
+            return redirect(url_for("dashboard"))
+        raw = image.read()
+        if len(raw) > 1500 * 1024:
+            flash("Book photo must be 1.5 MB or smaller.", "error")
+            return redirect(url_for("dashboard"))
+        image_data = "data:%s;base64,%s" % (image.mimetype, base64.b64encode(raw).decode("ascii"))
+    book = Book(title=title, author=author, price=price, description=description, image_data=image_data, stock=stock)
+    db.session.add(book)
+    db.session.commit()
+    log_action(session.get("username"), "ADMIN_BOOK_CREATE", f"Added book: {title}")
+    flash("Book added successfully.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/admin/books/<int:book_id>/delete", methods=["POST"])
+@admin_required
+def delete_book(book_id):
+    book = db.get_or_404(Book, book_id)
+    book.is_active = False
+    db.session.commit()
+    log_action(session.get("username"), "ADMIN_BOOK_DELETE", f"Removed book: {book.title}")
+    flash("Book removed from the catalogue.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/cart/add/<int:book_id>", methods=["POST"])
+@login_required
+def add_to_cart(book_id):
+    book = db.get_or_404(Book, book_id)
+    if not book.is_active or book.stock < 1:
+        flash("This book is currently out of stock.", "error")
+        return redirect(url_for("books"))
+    cart = _book_cart()
+    current = cart.get(str(book_id), 0)
+    if current >= book.stock:
+        flash("You cannot add more than the available stock.", "error")
+    else:
+        cart[str(book_id)] = current + 1
+        session["book_cart"] = cart
+        session.modified = True
+        flash(f"{book.title} added to cart.", "success")
+    return redirect(url_for("books"))
+
+
+@app.route("/cart")
+@login_required
+def cart():
+    cart_data = []
+    total = 0.0
+    for bid, qty in _book_cart().items():
+        book = db.session.get(Book, int(bid))
+        if not book or not book.is_active:
+            continue
+        qty = min(qty, book.stock)
+        line = float(book.price) * qty
+        total += line
+        cart_data.append({"book": book, "quantity": qty, "line_total": line})
+    return render_template("cart.html", cart_data=cart_data, total=total, current_name=session["name"], role=session["role"])
+
+
+@app.route("/cart/update", methods=["POST"])
+@login_required
+def update_cart():
+    cart = _book_cart()
+    for key, value in request.form.items():
+        if not key.startswith("qty_"): continue
+        bid = key[4:]
+        try: qty = max(0, int(value))
+        except ValueError: qty = 0
+        book = db.session.get(Book, int(bid))
+        if not book or not book.is_active or qty == 0:
+            cart.pop(bid, None)
+        else:
+            cart[bid] = min(qty, book.stock)
+    session["book_cart"] = cart
+    session.modified = True
+    flash("Cart updated.", "success")
+    return redirect(url_for("cart"))
+
+
+@app.route("/checkout", methods=["POST"])
+@login_required
+def checkout():
+    cart = _book_cart()
+    if not cart:
+        flash("Your cart is empty.", "error")
+        return redirect(url_for("books"))
+    full_name = request.form.get("full_name", "").strip()
+    phone = request.form.get("phone", "").strip()
+    address_line = request.form.get("address_line", "").strip()
+    city = request.form.get("city", "").strip()
+    state = request.form.get("state", "").strip()
+    pincode = request.form.get("pincode", "").strip()
+    payment_method = request.form.get("payment_method", "COD").strip().upper()
+    if payment_method not in {"COD", "ONLINE"}:
+        payment_method = "COD"
+    if not all([full_name, phone, address_line, city, state, pincode]):
+        flash("Please fill the complete delivery address.", "error")
+        return redirect(url_for("cart"))
+
+    order = BookOrder(
+        user_id=session["user_id"], full_name=full_name, phone=phone,
+        address_line=address_line, city=city, state=state, pincode=pincode,
+        total_amount=0, payment_method=payment_method, payment_status="Pending"
+    )
+    db.session.add(order)
+    db.session.flush()
+    total = 0.0
+    for bid, qty in cart.items():
+        book = db.session.get(Book, int(bid))
+        if not book or not book.is_active or qty > book.stock:
+            db.session.rollback()
+            flash("One of the selected books is no longer available in the requested quantity.", "error")
+            return redirect(url_for("cart"))
+        db.session.add(BookOrderItem(order_id=order.id, book_id=book.id,
+                                     title=book.title, price=book.price, quantity=qty))
+        total += float(book.price) * qty
+        book.stock -= qty
+
+    order.total_amount = total
+    if payment_method == "ONLINE":
+        order.payment_gateway_order_id = f"LMS-DEMO-{order.id}-{secrets.token_hex(4).upper()}"
+    db.session.commit()
+    session["book_cart"] = {}
+    log_action(session.get("username"), "BOOK_ORDER", f"Order #{order.id}, amount ₹{total:.2f}, method {payment_method}")
+
+    if payment_method == "ONLINE":
+        return redirect(url_for("demo_payment", order_id=order.id))
+
+    flash(f"Order #{order.id} placed successfully with Cash on Delivery.", "success")
+    return redirect(url_for("my_orders"))
+
+
+def _demo_signature(raw_body: bytes) -> str:
+    return hmac.new(DEMO_PAYMENT_SECRET.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+
+
+def _process_verified_payment(payload: dict):
+    """Server-side payment verification for the internship/demo gateway."""
+    try:
+        order_id = int(payload.get("order_id"))
+    except (TypeError, ValueError):
+        return False, "Invalid order ID."
+    order = db.session.get(BookOrder, order_id)
+    if not order:
+        return False, "Order not found."
+    if order.payment_method != "ONLINE":
+        return False, "This order is not an online-payment order."
+
+    try:
+        paid_amount = round(float(payload.get("amount")), 2)
+        expected_amount = round(float(order.total_amount), 2)
+    except (TypeError, ValueError):
+        return False, "Invalid payment amount."
+
+    # Critical server-side amount check: never trust the browser's amount.
+    if paid_amount != expected_amount:
+        order.payment_status = "Failed"
+        db.session.commit()
+        return False, "Payment amount does not match the order amount."
+
+    transaction_id = str(payload.get("transaction_id", "")).strip()
+    status = str(payload.get("status", "")).strip().upper()
+    if not transaction_id or len(transaction_id) > 120:
+        return False, "Missing or invalid transaction ID."
+
+    if status == "SUCCESS":
+        order.payment_status = "Paid"
+        order.payment_transaction_id = transaction_id
+        order.payment_amount = paid_amount
+        order.payment_verified_at = datetime.utcnow()
+        if order.status == "Pending":
+            order.status = "Confirmed"
+        db.session.commit()
+        log_action("PAYMENT_SYSTEM", "PAYMENT_VERIFIED", f"Order #{order.id}, txn {transaction_id}, amount ₹{paid_amount:.2f}")
+        return True, "Payment verified successfully."
+
+    if status == "FAILED":
+        order.payment_status = "Failed"
+        order.payment_transaction_id = transaction_id
+        order.payment_amount = paid_amount
+        db.session.commit()
+        log_action("PAYMENT_SYSTEM", "PAYMENT_FAILED", f"Order #{order.id}, txn {transaction_id}")
+        return True, "Payment marked as failed."
+
+    return False, "Unsupported payment status."
+
+
+@app.route("/payment/demo/<int:order_id>")
+@login_required
+def demo_payment(order_id):
+    order = db.get_or_404(BookOrder, order_id)
+    if order.user_id != session["user_id"] or order.payment_method != "ONLINE":
+        return render_template("error.html", code=403, message="You cannot access this payment page."), 403
+    if order.payment_status == "Paid":
+        return redirect(url_for("my_orders"))
+    return render_template("demo_payment.html", order=order, current_name=session["name"], role=session["role"])
+
+
+@app.route("/payment/demo/simulate", methods=["POST"])
+@login_required
+def simulate_demo_payment():
+    try:
+        order_id = int(request.form.get("order_id", "0"))
+    except ValueError:
+        order_id = 0
+    order = db.session.get(BookOrder, order_id)
+    if not order or order.user_id != session["user_id"] or order.payment_method != "ONLINE":
+        flash("Invalid payment order.", "error")
+        return redirect(url_for("my_orders"))
+
+    outcome = request.form.get("outcome", "FAILED").upper()
+    if outcome not in {"SUCCESS", "FAILED"}:
+        outcome = "FAILED"
+    payload = {
+        "order_id": order.id,
+        "gateway_order_id": order.payment_gateway_order_id,
+        "amount": f"{float(order.total_amount):.2f}",
+        "transaction_id": f"TXN-DEMO-{secrets.token_hex(6).upper()}",
+        "status": outcome,
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    # Simulated provider signs the webhook; the browser never supplies the signature.
+    with app.test_request_context("/payments/demo/webhook", method="POST", data=raw,
+                                  headers={"Content-Type": "application/json", "X-Demo-Signature": _demo_signature(raw)}):
+        result = payment_demo_webhook()
+    if isinstance(result, tuple):
+        body, status_code = result
+        if status_code >= 400:
+            flash("Payment verification failed.", "error")
+            return redirect(url_for("demo_payment", order_id=order.id))
+    order = db.session.get(BookOrder, order_id)
+    if outcome == "SUCCESS" and order.payment_status == "Paid":
+        flash("Payment successful and verified.", "success")
+    else:
+        flash("Payment failed. You can retry payment.", "error")
+    if outcome == "SUCCESS":
+        return redirect(url_for("my_orders"))
+    return redirect(url_for("demo_payment", order_id=order.id))
+
+
+@app.route("/payments/demo/webhook", methods=["POST"])
+def payment_demo_webhook():
+    raw = request.get_data(cache=True)
+    provided = request.headers.get("X-Demo-Signature", "")
+    expected = _demo_signature(raw)
+    if not provided or not secrets.compare_digest(provided, expected):
+        return jsonify({"ok": False, "error": "Invalid webhook signature"}), 401
+    try:
+        payload = request.get_json(force=True)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid JSON"}), 400
+    ok, message = _process_verified_payment(payload)
+    return jsonify({"ok": ok, "message": message}), (200 if ok else 400)
+
+
+@app.route("/my-orders")
+@login_required
+def my_orders():
+    orders = BookOrder.query.filter_by(user_id=session["user_id"]).order_by(BookOrder.created_at.desc()).all()
+    return render_template("my_orders.html", orders=orders, current_name=session["name"], role=session["role"])
+
+
+@app.route("/admin/orders/<int:order_id>/status", methods=["POST"])
+@admin_required
+def update_order_status(order_id):
+    order = db.get_or_404(BookOrder, order_id)
+    allowed = {"Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"}
+    new_status = request.form.get("status", "Pending").strip().title()
+    if new_status not in allowed:
+        flash("Invalid order status.", "error")
+        return redirect(url_for("dashboard"))
+    if new_status == "Cancelled" and order.status != "Cancelled":
+        # Restore stock only once when an order is cancelled.
+        items = BookOrderItem.query.filter_by(order_id=order.id).all()
+        for item in items:
+            book = db.session.get(Book, item.book_id)
+            if book:
+                book.stock += item.quantity
+    order.status = new_status
+    db.session.commit()
+    log_action(session.get("username"), "ADMIN_ORDER_STATUS", f"Order #{order.id}: {new_status}")
+    flash(f"Order #{order.id} status updated to {new_status}.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/admin/orders/<int:order_id>/payment-status", methods=["POST"])
+@admin_required
+def update_payment_status(order_id):
+    order = db.get_or_404(BookOrder, order_id)
+    allowed = {"Pending", "Paid", "Failed", "Refunded"}
+    new_status = request.form.get("payment_status", "Pending").strip().title()
+    if new_status not in allowed:
+        flash("Invalid payment status.", "error")
+        return redirect(url_for("dashboard"))
+    # Online orders can become Paid only through verified payment webhook.
+    if order.payment_method == "ONLINE" and new_status == "Paid":
+        flash("Online payment can only be marked Paid after server-side payment verification.", "error")
+        return redirect(url_for("dashboard"))
+    order.payment_status = new_status
+    db.session.commit()
+    log_action(session.get("username"), "ADMIN_PAYMENT_STATUS", f"Order #{order.id}: {new_status}")
+    flash(f"Payment status for order #{order.id} updated to {new_status}.", "success")
+    return redirect(url_for("dashboard"))
 
 
 # ═════════════════════════ PROFILE ═══════════════════════════
@@ -896,7 +1294,7 @@ def profile():
     if not user.email: missing_items.append("Email address")
     if not user.gender: missing_items.append("Gender")
     if not user.department: missing_items.append("Department")
-    if not user.employee_id: missing_items.append("Employee ID")
+    if not user.employee_id: missing_items.append("Member ID")
 
     security_score = 100 if user.is_active and not user.is_locked() else 60
     return render_template("profile.html",
@@ -1536,7 +1934,7 @@ def export_users():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        "Employee ID", "Name", "Gender", "Department",
+        "Member ID", "Name", "Gender", "Department",
         "Email", "Username", "Role", "Active", "Created At"
     ])
     for u in users:
@@ -1565,6 +1963,25 @@ def _init_db():
 
     inspector = inspect(db.engine)
     user_columns = {c["name"] for c in inspector.get_columns("user")}
+    order_columns = {c["name"] for c in inspector.get_columns("book_order")} if "book_order" in inspector.get_table_names() else set()
+    if "payment_method" not in order_columns:
+        db.session.execute(text("ALTER TABLE \"book_order\" ADD COLUMN payment_method VARCHAR(30) NOT NULL DEFAULT 'COD'"))
+        db.session.commit()
+        print("[MIGRATION] Added book_order.payment_method.", flush=True)
+    if "payment_status" not in order_columns:
+        db.session.execute(text("ALTER TABLE \"book_order\" ADD COLUMN payment_status VARCHAR(30) NOT NULL DEFAULT 'Pending'"))
+        db.session.commit()
+        print("[MIGRATION] Added book_order.payment_status.", flush=True)
+    for column_name, ddl in [
+        ("payment_transaction_id", 'ALTER TABLE "book_order" ADD COLUMN payment_transaction_id VARCHAR(120)'),
+        ("payment_gateway_order_id", 'ALTER TABLE "book_order" ADD COLUMN payment_gateway_order_id VARCHAR(120)'),
+        ("payment_amount", 'ALTER TABLE "book_order" ADD COLUMN payment_amount NUMERIC(10,2)'),
+        ("payment_verified_at", 'ALTER TABLE "book_order" ADD COLUMN payment_verified_at TIMESTAMP'),
+    ]:
+        if column_name not in order_columns:
+            db.session.execute(text(ddl))
+            db.session.commit()
+            print(f"[MIGRATION] Added book_order.{column_name}.", flush=True)
     if "role" not in user_columns:
         db.session.execute(text(
             "ALTER TABLE \"user\" ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"
