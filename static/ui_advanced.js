@@ -2,7 +2,7 @@
   'use strict';
   const overlay=document.createElement('div');
   overlay.className='global-loader';
-  overlay.innerHTML='<div class="loader-orb"><div class="loader-ring"></div><div class="loader-logo">MS</div></div><div class="loader-title">Management System</div><div class="loader-sub" id="globalLoaderText">Loading securely…</div><div class="loader-progress"><span></span></div>';
+  overlay.innerHTML='<div class="loader-orb"><div class="loader-ring"></div><div class="loader-logo">LMS</div></div><div class="loader-title">Library Management System</div><div class="loader-sub" id="globalLoaderText">Loading securely…</div><div class="loader-progress"><span></span></div>';
   document.body.appendChild(overlay);
   window.showPageLoader=function(text){
     const t=document.getElementById('globalLoaderText'); if(t&&text)t.textContent=text;
