@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>My Account — Management System</title>
+  <title>My Account — Library Management System</title>
   <meta name="theme-color" content="#6366f1"><meta name="robots" content="noindex,nofollow">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
 <body>
 <div class="app-shell">
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-top"><div class="sidebar-brand"><div class="sidebar-brand-logo">MS</div><div><div class="sidebar-brand-name">Mgmt System</div><div class="sidebar-brand-sub">v20 — Advanced</div></div></div></div>
+    <div class="sidebar-top"><div class="sidebar-brand"><div class="sidebar-brand-logo">LMS</div><div><div class="sidebar-brand-name">Library System</div><div class="sidebar-brand-sub">v20 — Advanced</div></div></div></div>
     <nav class="sidebar-nav">
       <div class="sidebar-section-title">Navigation</div>
       <a href="{{ url_for('dashboard') }}" class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
@@ -54,7 +54,7 @@
           <div class="eyebrow">PERSONAL WORKSPACE</div>
           <h1>{{ user.name }}</h1>
           <p>@{{ user.username }} <span>•</span> {{ user.department }} <span>•</span> {{ user.role|capitalize }}</p>
-          <div class="hero-pills"><span>● {{ 'Active' if user.is_active else 'Inactive' }}</span><span>EMP · {{ user.employee_id }}</span></div>
+          <div class="hero-pills"><span>● {{ 'Active' if user.is_active else 'Inactive' }}</span><span>MEMBER · {{ user.employee_id }}</span></div>
         </div>
         <div class="completion-card">
           <div class="completion-top"><span>Profile completion</span><strong>{{ profile_completion }}%</strong></div>
@@ -89,7 +89,7 @@
             <div class="panel-head account-panel-head"><div><h2>💼 Account Overview</h2><p>Official information linked to your account.</p></div></div>
             <div class="panel-body"><div class="overview-grid">
               <div class="overview-item"><span>Username</span><b>{{ user.username }}</b><small>Permanent account identifier</small></div>
-              <div class="overview-item"><span>Employee ID</span><b class="mono">{{ user.employee_id }}</b><small>Unique employee identifier</small></div>
+              <div class="overview-item"><span>Member ID</span><b class="mono">{{ user.employee_id }}</b><small>Unique member identifier</small></div>
               <div class="overview-item"><span>Department</span><b>{{ user.department }}</b><small>Current assigned department</small></div>
               <div class="overview-item"><span>Account status</span><b><span class="status-chip active">● {{ 'Active' if user.is_active else 'Inactive' }}</span></b><small>Current access status</small></div>
               <div class="overview-item"><span>Joined</span><b>{{ user.created_at.strftime('%d %B %Y') }}</b><small>Account creation date</small></div>
@@ -107,7 +107,7 @@
                 <div class="check-row done"><i>✓</i><span>Basic identity</span><b>Done</b></div>
                 <div class="check-row done"><i>✓</i><span>Email verified field</span><b>Done</b></div>
                 <div class="check-row done"><i>✓</i><span>Department assigned</span><b>Done</b></div>
-                <div class="check-row {% if user.employee_id %}done{% endif %}"><i>{% if user.employee_id %}✓{% else %}○{% endif %}</i><span>Employee ID</span><b>{% if user.employee_id %}Done{% else %}Pending{% endif %}</b></div>
+                <div class="check-row {% if user.employee_id %}done{% endif %}"><i>{% if user.employee_id %}✓{% else %}○{% endif %}</i><span>Member ID</span><b>{% if user.employee_id %}Done{% else %}Pending{% endif %}</b></div>
               </div>
             </div>
           </section>
@@ -144,7 +144,7 @@
         <div class="timeline-row">
           <div class="timeline-node done">✓</div><div><b>Account created</b><span>{{ user.created_at.strftime('%d %B %Y') }} · Your account was registered.</span></div>
           <div class="timeline-line"></div>
-          <div class="timeline-node done">✓</div><div><b>Profile initialized</b><span>{{ user.department }} · Employee ID {{ user.employee_id }}</span></div>
+          <div class="timeline-node done">✓</div><div><b>Profile initialized</b><span>{{ user.department }} · Member ID {{ user.employee_id }}</span></div>
           <div class="timeline-line"></div>
           <div class="timeline-node live">●</div><div><b>Account active</b><span>Current access status · {{ user.role|capitalize }}</span></div>
         </div>

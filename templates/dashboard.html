@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Dashboard — Management System</title>
+  <title>Dashboard — Library Management System</title>
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#6366f1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,9 +32,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-top">
       <div class="sidebar-brand">
-        <div class="sidebar-brand-logo">MS</div>
+        <div class="sidebar-brand-logo">LMS</div>
         <div>
-          <div class="sidebar-brand-name">Mgmt System</div>
+          <div class="sidebar-brand-name">Library System</div>
           <div class="sidebar-brand-sub">v20 &mdash; Advanced</div>
         </div>
       </div>
@@ -48,6 +48,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       <a href="{{ url_for('profile') }}" class="nav-item">
         <span class="nav-icon">👤</span> My Profile
       </a>
+      <a href="{{ url_for('books') }}" class="nav-item">
+        <span class="nav-icon">📚</span> Books &amp; Orders
+      </a>
       {% if role != 'admin' %}
       <a href="/change-password" class="nav-item">
         <span class="nav-icon">🔒</span> Change Password
@@ -57,6 +60,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
       <button class="nav-item" type="button" onclick="openModal('createModal')">
         <span class="nav-icon">➕</span> New User
+      </button>
+      <button class="nav-item" type="button" onclick="openModal('bookModal')">
+        <span class="nav-icon">📚</span> Add Book
       </button>
       <a href="{{ url_for('analytics') }}" class="nav-item">
         <span class="nav-icon">📈</span> Analytics
@@ -107,6 +113,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         {% if role == 'admin' %}
         <a href="{{ url_for('settings') }}" class="btn btn-ghost topbar-action">⚙️ Settings</a>
         <button class="btn btn-primary" type="button" onclick="openModal('createModal')">+ New User</button>
+        <button class="btn btn-primary" type="button" onclick="openModal('bookModal')">📚 Add Book</button>
         {% endif %}
         <a href="/logout" class="btn btn-logout">↪ Logout</a>
         <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
@@ -380,6 +387,28 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 
     </div>{# /panel users #}
 
+    <!-- ==================== LIBRARY CATALOGUE ==================== -->
+    <div class="panel" style="margin-top:22px">
+      <div class="panel-head">
+        <div><h2>📚 Library Books</h2><p>Members can view these books and place orders.</p></div>
+        <button class="btn btn-primary" type="button" onclick="openModal('bookModal')">+ Add Book</button>
+      </div>
+      <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Book</th><th>Author</th><th>Price</th><th>Stock</th><th>Action</th></tr></thead><tbody>
+      {% for b in library_books %}<tr><td><strong>{{ b.title }}</strong></td><td>{{ b.author }}</td><td>₹{{ '%.2f'|format(b.price|float) }}</td><td>{{ b.stock }}</td><td><form method="post" action="{{ url_for('delete_book', book_id=b.id) }}" onsubmit="return confirm('Remove this book?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="btn btn-danger btn-sm">Remove</button></form></td></tr>{% else %}<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--gray-400)">No books added yet.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+    <div class="panel" style="margin-top:22px">
+      <div class="panel-head"><div><h2>🛒 Recent Book Orders</h2><p>Latest member orders.</p></div></div>
+      <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Order Status</th><th>Payment</th><th>Address</th><th>Update</th></tr></thead><tbody>
+      {% for o in book_orders %}<tr>
+      <td>#{{ o.id }}</td><td><strong>{{ o.full_name }}</strong><br><small>{{ o.phone }}</small></td><td>₹{{ '%.2f'|format(o.total_amount|float) }}</td>
+      <td><form method="post" action="{{ url_for('update_order_status', order_id=o.id) }}" style="display:flex;gap:5px"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><select name="status" onchange="this.form.submit()" style="padding:7px;border:1px solid #d1d5db;border-radius:8px"><option {% if o.status=='Pending' %}selected{% endif %}>Pending</option><option {% if o.status=='Confirmed' %}selected{% endif %}>Confirmed</option><option {% if o.status=='Shipped' %}selected{% endif %}>Shipped</option><option {% if o.status=='Delivered' %}selected{% endif %}>Delivered</option><option {% if o.status=='Cancelled' %}selected{% endif %}>Cancelled</option></select></form></td>
+      <td><strong>{{ o.payment_method }}</strong><br><form method="post" action="{{ url_for('update_payment_status', order_id=o.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><select name="payment_status" onchange="this.form.submit()" style="padding:7px;border:1px solid #d1d5db;border-radius:8px"><option {% if o.payment_status=='Pending' %}selected{% endif %}>Pending</option><option {% if o.payment_status=='Paid' %}selected{% endif %}>Paid</option><option {% if o.payment_status=='Failed' %}selected{% endif %}>Failed</option><option {% if o.payment_status=='Refunded' %}selected{% endif %}>Refunded</option></select></form></td>
+      <td>{{ o.address_line }}, {{ o.city }}, {{ o.state }} - {{ o.pincode }}</td><td><a class="btn btn-ghost btn-sm" href="{{ url_for('my_orders') }}">View</a></td>
+      </tr>{% else %}<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--gray-400)">No orders yet.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+
     <!-- ==================== USER (non-admin) VIEW ==================== -->
     {% else %}
 
@@ -436,6 +465,25 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 
 <!-- ==================== MODALS (Admin) ==================== -->
 {% if role == 'admin' %}
+
+<!-- Add Book -->
+<div id="bookModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header"><div><h2>📚 Add Book</h2><p>Add a book that members can view and order.</p></div><button class="modal-close" type="button" onclick="closeModal('bookModal')">&#215;</button></div>
+    <form method="post" action="{{ url_for('create_book') }}" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="modal-grid">
+        <div class="field"><label>Book Name / Title</label><input name="title" maxlength="200" required placeholder="e.g. Python Programming"></div>
+        <div class="field"><label>Author</label><input name="author" maxlength="160" required placeholder="Author name"></div>
+        <div class="field"><label>Price (₹)</label><input name="price" type="number" min="0" step="0.01" required placeholder="499"></div>
+        <div class="field"><label>Stock</label><input name="stock" type="number" min="0" step="1" required value="1"></div>
+        <div class="field full"><label>Book Photo</label><input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></div>
+        <div class="field full"><label>Description</label><textarea name="description" maxlength="3000" rows="5" placeholder="Book description, edition, subject, etc."></textarea></div>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" onclick="closeModal('bookModal')">Cancel</button><button type="submit" class="btn btn-primary">📚 Add Book</button></div>
+    </form>
+  </div>
+</div>
 
 <!-- Create User -->
 <div id="createModal" class="modal-overlay">
