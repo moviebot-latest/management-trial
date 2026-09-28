@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Confirm Issue | Library</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.confirm-wrap{min-height:100vh;padding:24px 16px 60px;display:grid;place-items:center}
+.confirm-card{width:min(720px,100%);background:rgba(255,255,255,.9);border:1px solid rgba(255,255,255,.95);border-radius:30px;padding:26px;box-shadow:0 25px 70px rgba(55,40,130,.18)}
+.back{display:inline-flex;padding:10px 14px;border-radius:12px;background:#eeeaff;color:#5541c8;font-weight:800;margin-bottom:20px}
+.confirm-hero{padding:26px;border-radius:24px;color:#fff;background:linear-gradient(120deg,#4235c1,#9842f1);margin-bottom:20px}
+.confirm-hero small{letter-spacing:2px;font-weight:800;opacity:.82}.confirm-hero h1{font-size:34px;margin:8px 0}.confirm-hero p{margin:0;opacity:.9}
+.confirm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.confirm-grid>div{padding:15px;border-radius:16px;background:#f7f8ff;border:1px solid #e6e8f1}.confirm-grid .full{grid-column:1/-1}.confirm-grid small{display:block;color:#7c8497;margin-bottom:5px}.confirm-grid b{display:block;color:#17233f;word-break:break-word}.notice{margin:18px 0;padding:15px;border-radius:16px;background:#f0edff;color:#5143a7;line-height:1.5}.confirm-actions{display:flex;gap:10px}.confirm-actions>*{flex:1;text-align:center}.cancel{display:block;padding:15px;border-radius:16px;background:#eceef4;color:#3d465b;font-weight:800;text-decoration:none}
+@media(max-width:600px){.confirm-card{padding:20px;border-radius:24px}.confirm-grid{grid-template-columns:1fr}.confirm-grid .full{grid-column:auto}.confirm-actions{flex-direction:column}.confirm-hero h1{font-size:30px}}
+</style>
+</head>
+<body>
+<main class="confirm-wrap">
+<section class="confirm-card">
+<a class="back" href="{{ url_for('dashboard') }}">← Back to Book List</a>
+<div class="confirm-hero"><small>LIBRARY MANAGEMENT SYSTEM</small><h1>Confirm Issue</h1><p>Check the details before issuing this book to your account.</p></div>
+<div class="confirm-grid">
+<div><small>User ID</small><b>#{{ user.id }}</b></div>
+<div><small>Name</small><b>{{ user.name }}</b></div>
+<div><small>Gmail</small><b>{{ user.email }}</b></div>
+<div><small>Username</small><b>@{{ user.username }}</b></div>
+<div><small>Book ID</small><b>{{ book.book_id }}</b></div>
+<div><small>Book Name</small><b>{{ book.title }}</b></div>
+<div><small>Author</small><b>{{ book.author }}</b></div>
+<div><small>Available Copies</small><b>{{ book.available_copies }} / {{ book.total_copies }}</b></div>
+<div><small>Issue Date</small><b>{{ to_ist(issue_at).strftime('%d %b %Y') }}</b></div>
+<div><small>Issue Time</small><b>{{ to_ist(issue_at).strftime('%I:%M:%S %p') }}</b></div>
+<div><small>Free Period</small><b>14 days</b></div>
+<div><small>Due / Return Date</small><b>{{ to_ist(due_at).strftime('%d %b %Y') }}</b></div>
+</div>
+<div class="notice">📚 <b>14-day free period:</b> Return the book on or before the due date. After that, the configured late fee will be calculated when you return it.</div>
+<form method="post" action="{{ url_for('issue_book', book_id=book.id) }}">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+<div class="confirm-actions"><button class="gradient-btn save-btn" type="submit">✓ Confirm Issue</button><a class="cancel" href="{{ url_for('dashboard') }}">Cancel</a></div>
+</form>
+</section>
+</main>
+</body></html>

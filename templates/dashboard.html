@@ -1,717 +1,244 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Dashboard — Library Management System</title>
-  <meta name="robots" content="noindex,nofollow">
-  <meta name="theme-color" content="#6366f1">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Library Management | {{ current_name }}</title>
+<link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+<style>.payment-box{margin:12px 0;padding:14px 16px;border-radius:16px;background:#fff4e6;border:1px solid #ffd7a8;color:#8a4b08;display:flex;flex-direction:column;gap:4px}.payment-box span{font-size:20px;font-weight:900}.payment-box small{opacity:.8}
+.fine-inline{color:#7b2be2}.member-fine-summary{margin-top:13px;padding:15px;border-radius:17px;background:linear-gradient(135deg,#fff9ec,#fdfaff);border:1px solid #eadfbf}.member-fine-head{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#5e6475}.member-fine-head strong{font-size:19px;color:#7b2be2}.member-fine-summary>div:not(.member-fine-head){display:flex;justify-content:space-between;gap:10px;padding-top:9px;margin-top:8px;border-top:1px solid #eee6d4}.member-fine-summary small{display:block;color:#8a91a2}.member-fine-summary b{color:#27314a}.fine-reason{display:block!important}.fine-evidence{display:block!important}.fine-evidence>div{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.fine-evidence img{width:58px;height:58px;object-fit:cover;border-radius:10px;border:1px solid #ded7c4}
+</style></head>
+<body class="library-page modern-library">
+<header class="appbar">
+  <button class="menu-btn" onclick="toggleSide()" aria-label="Open menu">☰</button>
+  <div class="app-title"><small>LIBRARY ADMINISTRATION</small><h1 id="screenTitle">Dashboard</h1></div>
+  <div class="app-avatar">{{ current_name[:1]|upper }}</div>
+</header>
 
-<!-- BFCache / back-navigation guard -->
-<script>
-async function verifySession(){
-  try{
-    const r=await fetch('/auth-status?_='+Date.now(),{cache:'no-store',credentials:'same-origin'});
-    const d=await r.json();
-    if(!d.authenticated)window.location.replace('/');
-  }catch(e){}
-}
-window.addEventListener('pageshow',e=>{if(e.persisted)verifySession();});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')verifySession();});
-</script>
+<aside id="side" class="side modern-side">
+  <div class="side-brand"><div class="book-logo">📚</div><div><b>Library</b><strong>Management System</strong></div></div>
+  <div class="side-user"><span class="avatar">{{ current_name[:1]|upper }}</span><div><b>{{ current_name }}</b><small>{{ role|title }}</small></div></div>
+  <nav>
+    <button data-screen="dashboard" onclick="showScreen('dashboard')">🏠 <span>Dashboard</span></button>
+    {% if role in ['admin','librarian'] %}<button data-screen="addbook" onclick="showScreen('addbook')">＋ <span>Add Book</span></button>{% endif %}
+    <button data-screen="books" onclick="showScreen('books')">▤ <span>Book List</span></button>
+    {% if role=='admin' %}<button data-screen="members" onclick="showScreen('members')">♙ <span>Member List</span></button>{% endif %}
+    <button data-screen="issues" onclick="showScreen('issues')">↔ <span>Issue &amp; Return</span></button>
+    {% if role=='admin' %}<button data-screen="admin" onclick="showScreen('admin')">♙ <span>Admin Panel</span></button>{% endif %}
+    <a href="{{ url_for('profile') }}">👤 <span>My Profile</span></a><a href="{{ url_for('change_password') }}">⚙ <span>Settings</span></a>
+    <a class="logout" href="{{ url_for('logout') }}">↪ <span>Logout</span></a>
+  </nav>
+</aside>
+<div id="shade" class="shade" onclick="toggleSide()"></div>
 
-<div class="app-shell">
+<main class="content modern-content">
+  <!-- DASHBOARD -->
+  <section id="screen-dashboard" class="screen active">
+    <section class="hero modern-hero">
+      <div><small>LIBRARY MANAGEMENT SYSTEM</small><h2>Welcome back, {{ current_name }} 👋</h2><p>Manage books, members and library operations from one place.</p><div class="hero-actions">{% if role in ['admin','librarian'] %}<button class="hero-btn" onclick="showScreen('addbook')">＋ Add New Book</button>{% endif %}<button class="hero-btn ghost" onclick="showScreen('books')">View Book List</button></div></div>
+      <div class="hero-book">📚</div>
+    </section>
+    <section class="stats modern-stats">
+      <div><span>📚</span><small>Total Books</small><b>{{ total_books }}</b></div>
+      <div><span>👥</span><small>Members</small><b>{{ members|length if role in ['admin','librarian'] else '—' }}</b></div>
+      <div><span>↻</span><small>{% if role in ['admin','librarian'] %}Active Issues{% else %}My Active Books{% endif %}</small><b>{{ issued if role in ['admin','librarian'] else active_loans|length }}</b></div>
+      <div><span>⏰</span><small>Overdue</small><b>{{ overdue }}</b></div>
+    </section>
+    <section class="quick-card"><div class="section-heading"><div><small>QUICK ACTIONS</small><h2>What would you like to manage?</h2></div></div><div class="quick-grid">
+      {% if role in ['admin','librarian'] %}<button onclick="showScreen('addbook')"><strong>＋</strong><b>Add Book</b><small>Add a new book</small></button>{% endif %}
+      <button onclick="showScreen('books')"><strong>▤</strong><b>Book List</b><small>View &amp; edit books</small></button>
+      {% if role=='admin' %}<button onclick="showScreen('members')"><strong>♙</strong><b>Members</b><small>Manage members</small></button>{% endif %}
+      <button onclick="showScreen('issues')"><strong>↔</strong><b>Issue &amp; Return</b><small>Issue books and manage returns</small></button>
+    </div></section>
+    <section class="recent-card"><div class="section-heading"><div><small>COLLECTION</small><h2>Book List</h2><p>Search, edit, delete or issue books without changing the existing backend flow.</p></div><button class="outline-btn" onclick="showScreen('books')">View All</button></div></section>
+  </section>
 
-  <!-- ==================== SIDEBAR ==================== -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-top">
-      <div class="sidebar-brand">
-        <div class="sidebar-brand-logo">LMS</div>
-        <div>
-          <div class="sidebar-brand-name">Library System</div>
-          <div class="sidebar-brand-sub">v20 &mdash; Advanced</div>
+  <!-- BOOK LIST -->
+  <section id="screen-books" class="screen">
+    <div class="page-heading"><small>COLLECTION</small><h2>Book List</h2><p>Search, edit or delete books. Issue and return records are managed separately.</p>{% if role in ['admin','librarian'] %}<button class="gradient-btn" onclick="showScreen('addbook')">＋ Add Book</button>{% endif %}</div>
+    <div class="search modern-search"><span>⌕</span><input id="bookSearch" oninput="searchBooks()" placeholder="Search title, author, ISBN or category..."></div>
+    <div class="book-grid modern-books">
+      {% for b in books %}
+      <article class="book-card modern-book" data-search="{{ (b.title~' '~b.author~' '~(b.isbn or '')~' '~b.category)|lower }}">
+        <div class="cover" style="{% if b.cover_url %}background-image:url('{{ photo_url(b.cover_url) }}');{% endif %}"><span>{{ b.category }}</span>{% if not b.cover_url %}<strong>📚</strong>{% endif %}</div>
+        <div class="book-info"><span class="tag">{{ b.category }}</span><h3>{{ b.title }}</h3><p>by {{ b.author }}</p><div class="availability"><b>{{ b.available_copies }} / {{ b.total_copies }}</b> available{% if b.isbn %} · ISBN {{ b.isbn }}{% endif %}</div>
+        {% if b.pdf_path %}<a class="edit-action" href="{{ url_for('view_book_pdf',book_id=b.id) }}" target="_blank">📄 PDF</a>{% endif %}{% if role in ['admin','librarian'] %}<div class="actions"><a class="edit-action" href="{{ url_for('edit_book_page',book_id=b.id) }}">✎ Edit</a><form method="post" action="{{ url_for('delete_book',book_id=b.id) }}" onsubmit="return confirm('Delete this book? Books with issue history cannot be deleted.');"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button type="submit" class="danger">Delete</button></form></div>
+        {% elif b.available_copies>0 %}<a class="issue" href="{{ url_for('issue_confirm',book_id=b.id) }}">Issue to me</a>{% endif %}
         </div>
-      </div>
+      </article>
+      {% else %}<div class="empty">No books found.</div>{% endfor %}
     </div>
+  </section>
 
-    <nav class="sidebar-nav">
-      <div class="sidebar-section-title">Navigation</div>
-      <a href="{{ url_for('dashboard') }}" class="nav-item active">
-        <span class="nav-icon">📊</span> Dashboard
-      </a>
-      <a href="{{ url_for('profile') }}" class="nav-item">
-        <span class="nav-icon">👤</span> My Profile
-      </a>
-      <a href="{{ url_for('books') }}" class="nav-item">
-        <span class="nav-icon">📚</span> Books &amp; Orders
-      </a>
-      {% if role != 'admin' %}
-      <a href="/change-password" class="nav-item">
-        <span class="nav-icon">🔒</span> Change Password
-      </a>
-      {% endif %}
-      {% if role == 'admin' %}
-      <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
-      <button class="nav-item" type="button" onclick="openModal('createModal')">
-        <span class="nav-icon">➕</span> New User
-      </button>
-      <button class="nav-item" type="button" onclick="openModal('bookModal')">
-        <span class="nav-icon">📚</span> Add Book
-      </button>
-      <a href="{{ url_for('analytics') }}" class="nav-item">
-        <span class="nav-icon">📈</span> Analytics
-      </a>
-      <a href="{{ url_for('settings') }}" class="nav-item">
-        <span class="nav-icon">⚙️</span> Settings
-      </a>
-      <a href="{{ url_for('audit_logs') }}" class="nav-item">
-        <span class="nav-icon">📋</span> Audit Logs
-      </a>
-      <a href="{{ url_for('export_users') }}" class="nav-item">
-        <span class="nav-icon">📥</span> Export CSV
-      </a>
-      {% endif %}
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="sidebar-avatar">{{ current_name[:1]|upper }}</div>
-        <div>
-          <div class="sidebar-user-name">{{ current_name }}</div>
-          <div class="sidebar-user-role">{{ role|capitalize }}</div>
-        </div>
+  <!-- ADD BOOK: dedicated screen -->
+  {% if role in ['admin','librarian'] %}
+  <section id="screen-addbook" class="screen">
+    <div class="page-heading add-page-heading"><small>LIBRARY STAFF</small><h2>Add New Book</h2><p>Enter book details, upload a cover photo and attach the book PDF. PDF analysis can auto-fill available metadata.</p></div>
+    <div class="add-layout add-layout-pro">
+      <div class="add-intro add-intro-pro">
+        <div class="add-intro-icon">📖</div><small>LIBRARY COLLECTION</small><h3>Add New Book</h3>
+        <p>Build a complete digital record with a cover photo, PDF and searchable book information.</p>
+        <div class="add-benefits"><span>✓ Auto PDF metadata</span><span>✓ Gallery / Album cover</span><span>✓ Neon secure storage</span></div>
       </div>
-      <a href="/logout" class="sidebar-logout">
-        <span>→</span> Sign Out
-      </a>
-    </div>
-  </aside>
-  <!-- ==================== /SIDEBAR ==================== -->
-
-  <!-- ==================== MAIN ==================== -->
-  <div class="main-content">
-
-    <!-- Top bar -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <div class="topbar-title">
-          {% if role == 'admin' %}Admin Dashboard{% else %}My Account{% endif %}
-        </div>
-        <div class="topbar-sub">Welcome back, {{ current_name }} &mdash; {{ current_username }}</div>
-      </div>
-      <div class="topbar-right">
-        <span class="badge {% if role=='admin' %}badge-admin{% else %}badge-active{% endif %}">
-          {{ role|capitalize }}
-        </span>
-        {% if role != 'admin' %}<a href="/change-password" class="btn btn-ghost topbar-action">🔒 Password</a>{% endif %}
-        {% if role == 'admin' %}
-        <a href="{{ url_for('settings') }}" class="btn btn-ghost topbar-action">⚙️ Settings</a>
-        <button class="btn btn-primary" type="button" onclick="openModal('createModal')">+ New User</button>
-        <button class="btn btn-primary" type="button" onclick="openModal('bookModal')">📚 Add Book</button>
-        {% endif %}
-        <a href="/logout" class="btn btn-logout">↪ Logout</a>
-        <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
-      </div>
-    </header>
-
-    <!-- Flash messages -->
-    <div style="padding: 0 28px">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for cat, msg in messages %}
-          <div class="flash {{ cat }}" style="margin-top:14px">
-            <span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}
-          </div>
-        {% endfor %}
-      {% endwith %}
-    </div>
-
-    <div class="page-body">
-
-    <!-- ==================== ADMIN VIEW ==================== -->
-    {% if role == 'admin' %}
-
-    <!-- Stats row -->
-    <div class="stats-row">
-      <div class="stat-card blue">
-        <div class="stat-icon-wrap">👥</div>
-        <div class="stat-label">Total Users</div>
-        <div class="stat-value">{{ total_users }}</div>
-        <div class="stat-hint">All registered accounts</div>
-      </div>
-      <div class="stat-card green">
-        <div class="stat-icon-wrap">✅</div>
-        <div class="stat-label">Active</div>
-        <div class="stat-value">{{ active_users }}</div>
-        <div class="stat-hint">Currently active</div>
-      </div>
-      <div class="stat-card sky">
-        <div class="stat-icon-wrap">⏸️</div>
-        <div class="stat-label">Inactive</div>
-        <div class="stat-value">{{ inactive_users }}</div>
-        <div class="stat-hint">Deactivated accounts</div>
-      </div>
-      <div class="stat-card red">
-        <div class="stat-icon-wrap">🔒</div>
-        <div class="stat-label">Locked</div>
-        <div class="stat-value">{{ locked_users }}</div>
-        <div class="stat-hint">Too many failed attempts</div>
-      </div>
-      <div class="stat-card amber">
-        <div class="stat-icon-wrap">✨</div>
-        <div class="stat-label">Today</div>
-        <div class="stat-value">{{ today_registrations }}</div>
-        <div class="stat-hint">New registrations today</div>
-      </div>
-      <div class="stat-card purple">
-        <div class="stat-icon-wrap">🏢</div>
-        <div class="stat-label">Departments</div>
-        <div class="stat-value">{{ departments }}</div>
-        <div class="stat-hint">Active departments</div>
-      </div>
-    </div>
-
-    <!-- Chart + Audit log -->
-    <div class="row2">
-
-      <!-- Weekly chart -->
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <h2>Weekly Registrations</h2>
-            <p>New users in the last 7 days</p>
-          </div>
-          <span class="chart-total-badge">
-            {{ weekly_registrations|sum(attribute='count') }} this week
-          </span>
-        </div>
-        <div class="panel-body">
-          <div class="chart-bars">
-            {% for d in weekly_registrations %}
-            <div class="chart-col">
-              <div class="chart-val">{{ d.count }}</div>
-              <div class="chart-bar-track">
-                <div class="chart-bar-fill" style="height:{{ (d.count/weekly_max*100)|round(0)|int if weekly_max else 0 }}%"></div>
-              </div>
-              <div class="chart-day">{{ d.label }}</div>
-              <div class="chart-date">{{ d.date }}</div>
+      <div class="glass-form add-form add-form-pro">
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('create_book') }}" id="addBookForm">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <div class="upload-grid">
+            <div class="upload-card pdf-card">
+              <div class="upload-card-head"><div class="upload-icon pdf-icon">PDF</div><div><b>Book PDF</b><small>Upload PDF and auto-fill details</small></div><span class="upload-pill">Up to 50 MB</span></div>
+              <label class="file-drop" for="pdfFile"><span class="drop-icon">☁</span><strong>Choose PDF File</strong><small>Tap to select from your phone / laptop</small><span id="pdfName">No PDF selected</span></label>
+              <input class="visually-hidden-file" id="pdfFile" name="pdf_file" type="file" accept="application/pdf,.pdf">
+              <div class="pdf-actions"><button type="button" class="analyze-btn" id="analyzePdfBtn">✨ Analyze PDF &amp; Auto Fill</button><span id="pdfStatus" class="upload-status"></span></div>
+              <div id="bulkPreview" class="bulk-preview" hidden></div>
             </div>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-
-      <!-- Audit log -->
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <h2>📋 Activity Log</h2>
-            <p>Live system activity • registrations, logins, logout &amp; admin actions</p>
-          </div>
-          <div class="activity-tabs" role="tablist" aria-label="Activity filter">
-            <button type="button" class="activity-tab active" data-activity-filter="all" aria-selected="true">All</button>
-            <button type="button" class="activity-tab" data-activity-filter="REGISTER" aria-selected="false">Registration</button>
-            <button type="button" class="activity-tab" data-activity-filter="LOGIN" aria-selected="false">Login Activity</button>
-          </div>
-        </div>
-        <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
-          <div class="audit-list dashboard-activity-list">
-            {% for log in recent_logs %}
-            <div class="audit-row" data-audit-action="{{ log.action }}">
-              <div class="audit-dot
-                {% if 'LOGIN_SUCCESS' in log.action %}dot-success
-                {% elif 'LOGOUT' in log.action %}dot-neutral
-                {% elif 'FAILED' in log.action or 'BLOCKED' in log.action %}dot-danger
-                {% elif 'ADMIN' in log.action %}dot-info
-                {% else %}dot-warn{% endif %}
-              "></div>
-              <div>
-                <div class="audit-action">{{ log.username }} &mdash; {{ log.action|replace('_',' ')|title }}</div>
-                <div class="audit-who">
-                  {% if log.details %}{{ log.details[:55] }}{% endif %}
-                  &middot; {{ log.timestamp.strftime('%d %b, %H:%M') if log.timestamp else '' }}
-                </div>
-              </div>
-            </div>
-            {% else %}
-            <p style="color:var(--gray-300);font-size:13px;padding:8px 0">No activity yet.</p>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-
-    </div>{# /row2 #}
-
-    <!-- User table -->
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>👤 Users</h2>
-          <p>{{ total_users }} total &middot; manage accounts below</p>
-        </div>
-      </div>
-
-      <!-- Toolbar / filters -->
-      <form method="get" action="{{ url_for('dashboard') }}" class="toolbar">
-        <input type="search" name="q" placeholder="🔍 Search name, email, username…"
-               value="{{ search }}" maxlength="80">
-        <select name="dept">
-          <option value="">All Departments</option>
-          {% for d in all_departments %}
-            <option {% if d==dept_filter %}selected{% endif %}>{{ d }}</option>
-          {% endfor %}
-        </select>
-        <select name="status">
-          <option value="">All Statuses</option>
-          <option value="active"   {% if status_filter=='active'   %}selected{% endif %}>Active</option>
-          <option value="inactive" {% if status_filter=='inactive' %}selected{% endif %}>Inactive</option>
-          <option value="locked"   {% if status_filter=='locked'   %}selected{% endif %}>Locked</option>
-        </select>
-        <button type="submit" class="btn btn-primary">Filter</button>
-        {% if search or dept_filter or status_filter %}
-          <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">&#x2715; Clear</a>
-        {% endif %}
-        <div class="toolbar-spacer"></div>
-        <a href="{{ url_for('export_users') }}" class="btn btn-ghost">&#x2B73; CSV</a>
-      </form>
-
-      <!-- Table -->
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>EMP ID</th>
-              <th>Name</th>
-              <th>Department</th>
-              <th>Email</th>
-              <th>Username</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for u in users %}
-            <tr>
-              <td class="cell-id">{{ u.employee_id }}</td>
-              <td>
-                <div class="cell-name">{{ u.name }}</div>
-                <div style="font-size:11px;color:var(--gray-400)">{{ u.gender }}</div>
-              </td>
-              <td>
-                <span class="badge badge-admin" style="font-size:10px">{{ u.department }}</span>
-              </td>
-              <td class="cell-email">{{ u.email }}</td>
-              <td style="font-family:monospace;font-size:12px;color:var(--gray-500)">{{ u.username }}</td>
-              <td>
-                {% if not u.is_active %}
-                  <span class="badge badge-inactive">Inactive</span>
-                {% elif u.is_locked() %}
-                  <span class="badge badge-locked">Locked</span>
-                {% else %}
-                  <span class="badge badge-active">Active</span>
-                {% endif %}
-              </td>
-              <td>
-                <div class="cell-actions">
-                  <button class="btn btn-ghost btn-sm"
-                    data-id="{{ u.id }}"
-                    data-name="{{ u.name|e }}"
-                    data-gender="{{ u.gender|e }}"
-                    data-department="{{ u.department|e }}"
-                    data-email="{{ u.email|e }}"
-                    data-username="{{ u.username|e }}"
-                    onclick="openEdit(this)">Edit</button>
-
-                  {% if u.is_locked() %}
-                  <form class="inline-form" method="post" action="{{ url_for('unlock_user', user_id=u.id) }}">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-warning btn-sm">Unlock</button>
-                  </form>
-                  {% endif %}
-
-                  <form class="inline-form" method="post" action="{{ url_for('toggle_user_status', user_id=u.id) }}">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                    <button type="submit"
-                      class="btn btn-sm {% if u.is_active %}btn-warning{% else %}btn-success{% endif %}"
-                      onclick="return confirm('{{ ('Deactivate' if u.is_active else 'Activate') }} {{ u.username|e }}?')">
-                      {{ 'Deactivate' if u.is_active else 'Activate' }}
-                    </button>
-                  </form>
-
-                  <form class="inline-form" method="post" action="{{ url_for('delete_user', user_id=u.id) }}"
-                        onsubmit="return confirm('Delete {{ u.username|e }}? This cannot be undone.')">
-                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="7" style="text-align:center;padding:32px;color:var(--gray-300);font-style:italic">
-                No users found. {% if search or dept_filter or status_filter %}Try clearing the filters.{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination -->
-      {% if pagination and pagination.pages > 1 %}
-      <div class="pagination">
-        <span>Showing {{ (pagination.page-1)*15+1 }}&ndash;{{ [pagination.page*15, pagination.total]|min }} of {{ pagination.total }}</span>
-        <div class="pager">
-          <a class="{% if not pagination.has_prev %}disabled{% endif %}"
-             href="?page={{ pagination.prev_num }}&q={{ search }}&dept={{ dept_filter }}&status={{ status_filter }}">&laquo;</a>
-          {% for p in pagination.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
-            {% if p %}
-              <a class="{% if p==pagination.page %}current{% endif %}"
-                 href="?page={{ p }}&q={{ search }}&dept={{ dept_filter }}&status={{ status_filter }}">{{ p }}</a>
-            {% else %}
-              <span style="pointer-events:none;color:var(--gray-300)">&#8230;</span>
-            {% endif %}
-          {% endfor %}
-          <a class="{% if not pagination.has_next %}disabled{% endif %}"
-             href="?page={{ pagination.next_num }}&q={{ search }}&dept={{ dept_filter }}&status={{ status_filter }}">&raquo;</a>
-        </div>
-      </div>
-      {% elif pagination %}
-      <div class="pagination"><span>{{ pagination.total }} user(s)</span></div>
-      {% endif %}
-
-    </div>{# /panel users #}
-
-    <!-- ==================== LIBRARY CATALOGUE ==================== -->
-    <div class="panel" style="margin-top:22px">
-      <div class="panel-head">
-        <div><h2>📚 Library Books</h2><p>Members can view these books and place orders.</p></div>
-        <button class="btn btn-primary" type="button" onclick="openModal('bookModal')">+ Add Book</button>
-      </div>
-      <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Book</th><th>Author</th><th>Price</th><th>Stock</th><th>Action</th></tr></thead><tbody>
-      {% for b in library_books %}<tr><td><strong>{{ b.title }}</strong></td><td>{{ b.author }}</td><td>₹{{ '%.2f'|format(b.price|float) }}</td><td>{{ b.stock }}</td><td><form method="post" action="{{ url_for('delete_book', book_id=b.id) }}" onsubmit="return confirm('Remove this book?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="btn btn-danger btn-sm">Remove</button></form></td></tr>{% else %}<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--gray-400)">No books added yet.</td></tr>{% endfor %}
-      </tbody></table></div>
-    </div>
-    <div class="panel" style="margin-top:22px">
-      <div class="panel-head"><div><h2>🛒 Recent Book Orders</h2><p>Latest member orders.</p></div></div>
-      <div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Order Status</th><th>Payment</th><th>Address</th><th>Update</th></tr></thead><tbody>
-      {% for o in book_orders %}<tr>
-      <td>#{{ o.id }}</td><td><strong>{{ o.full_name }}</strong><br><small>{{ o.phone }}</small></td><td>₹{{ '%.2f'|format(o.total_amount|float) }}</td>
-      <td><form method="post" action="{{ url_for('update_order_status', order_id=o.id) }}" style="display:flex;gap:5px"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><select name="status" onchange="this.form.submit()" style="padding:7px;border:1px solid #d1d5db;border-radius:8px"><option {% if o.status=='Pending' %}selected{% endif %}>Pending</option><option {% if o.status=='Confirmed' %}selected{% endif %}>Confirmed</option><option {% if o.status=='Shipped' %}selected{% endif %}>Shipped</option><option {% if o.status=='Delivered' %}selected{% endif %}>Delivered</option><option {% if o.status=='Cancelled' %}selected{% endif %}>Cancelled</option></select></form></td>
-      <td><strong>{{ o.payment_method }}</strong><br><form method="post" action="{{ url_for('update_payment_status', order_id=o.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><select name="payment_status" onchange="this.form.submit()" style="padding:7px;border:1px solid #d1d5db;border-radius:8px"><option {% if o.payment_status=='Pending' %}selected{% endif %}>Pending</option><option {% if o.payment_status=='Paid' %}selected{% endif %}>Paid</option><option {% if o.payment_status=='Failed' %}selected{% endif %}>Failed</option><option {% if o.payment_status=='Refunded' %}selected{% endif %}>Refunded</option></select></form></td>
-      <td>{{ o.address_line }}, {{ o.city }}, {{ o.state }} - {{ o.pincode }}</td><td><a class="btn btn-ghost btn-sm" href="{{ url_for('my_orders') }}">View</a></td>
-      </tr>{% else %}<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--gray-400)">No orders yet.</td></tr>{% endfor %}
-      </tbody></table></div>
-    </div>
-
-    <!-- ==================== USER (non-admin) VIEW ==================== -->
-    {% else %}
-
-    <div class="profile-grid">
-
-      <div class="panel">
-        <div class="panel-body">
-          <div class="profile-header">
-            <div class="profile-big-avatar">{{ current_name[:1]|upper }}</div>
-            <div class="profile-info">
-              <h2>{{ current_name }}</h2>
-              <p>@{{ current_username }} &middot; <span class="badge badge-active">Active</span></p>
+            <div class="upload-card cover-card">
+              <div class="upload-card-head"><div class="upload-icon image-icon">IMG</div><div><b>Cover Photo</b><small>Choose a real book photo</small></div><span class="upload-pill green">Gallery / Album</span></div>
+              <label class="cover-drop" for="coverFile">
+                <div class="cover-preview-wrap"><img id="coverPreview" alt="Book cover preview" hidden><span id="coverPlaceholder">📚</span></div>
+                <div><strong id="coverLabel">Choose Cover Photo</strong><small>JPG, JPEG, PNG or WebP</small><small>If empty, PDF first page can be used.</small></div>
+              </label>
+              <input class="visually-hidden-file" id="coverFile" name="cover_file" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
             </div>
           </div>
-          <div class="info-grid">
-            <div class="info-cell">
-              <div class="lbl">Username</div>
-              <div class="val">{{ current_username }}</div>
-            </div>
-            <div class="info-cell">
-              <div class="lbl">Role</div>
-              <div class="val">{{ role|capitalize }}</div>
-            </div>
-            <div class="info-cell" style="grid-column:1/-1">
-              <div class="lbl">Account Status</div>
-              <div class="val"><span class="badge badge-active">Active &amp; Secure</span></div>
-            </div>
+
+          <div class="form-section-title"><span>▣</span><div><b>Book Information</b><small>Review the auto-filled values before saving.</small></div></div>
+          <div class="form-grid modern-form modern-form-pro">
+            <label>Book Title *<input id="bookTitle" name="title" placeholder="Enter book title"></label>
+            <label>Author *<input id="bookAuthor" name="author" placeholder="Enter author name"></label>
+            <label>ISBN<input id="bookIsbn" name="isbn" placeholder="Enter ISBN number"></label>
+            <label>Category<input id="bookCategory" name="category" placeholder="Select category" value="General"></label>
+            <label>Publication Year<input id="bookYear" name="publication_year" type="number" placeholder="Enter year"></label>
+            <label>Total Copies *<input name="copies" type="number" min="1" value="1" placeholder="Enter copies"></label>
+            <label class="full">Description (Optional)<textarea id="bookDescription" name="description" maxlength="1000" placeholder="Enter a short description about the book..."></textarea></label>
+            <label class="full url-field">Cover Image URL (Optional)<input name="cover_url" placeholder="Paste cover image URL if you have one"><small>Uploaded cover photo takes priority over this URL.</small></label>
           </div>
-        </div>
+          <div class="save-row"><button class="reset-btn reset-pro" type="reset">↻ Reset</button><button class="gradient-btn save-btn save-pro" type="submit">▣ Save Book</button></div>
+        </form>
       </div>
+    </div>
+    <script>
+    (()=>{
+      const pf=document.getElementById('pdfFile'), ab=document.getElementById('analyzePdfBtn'), ps=document.getElementById('pdfStatus'), pn=document.getElementById('pdfName');
+      const cf=document.getElementById('coverFile'), cp=document.getElementById('coverPreview'), cph=document.getElementById('coverPlaceholder'), cl=document.getElementById('coverLabel');
+      pf?.addEventListener('change',()=>{pn.textContent=pf.files.length?pf.files[0].name:'No PDF selected'; ps.textContent='';});
+      cf?.addEventListener('change',()=>{if(!cf.files.length){cp.hidden=true;cph.hidden=false;cl.textContent='Choose Cover Photo';return;} const f=cf.files[0];cl.textContent=f.name;const u=URL.createObjectURL(f);cp.src=u;cp.hidden=false;cph.hidden=true;});
+      ab?.addEventListener('click',async()=>{if(!pf.files.length){ps.textContent='Select a PDF first.';return;}const fd=new FormData();fd.append('pdf_file',pf.files[0]);fd.append('_csrf_token','{{ csrf_token }}');ab.disabled=true;ab.textContent='⏳ Analyzing PDF…';ps.textContent='Reading PDF metadata and text…';try{const r=await fetch('{{ url_for('analyze_pdf_route') }}',{method:'POST',body:fd,credentials:'same-origin'}),j=await r.json();if(!j.ok){ps.textContent=j.error||'PDF analysis failed.';return;}const d=j.data||{};const bp=document.getElementById('bulkPreview');if(d.bulk&&Array.isArray(d.books)&&d.books.length>1){bp.hidden=false;bp.innerHTML='<b>📚 '+d.books.length+' separate books detected</b><small>Each book will get its own unique Book ID, separate cropped PDF and cover image when you press Save.</small><div class="bulk-list">'+d.books.map((b,i)=>'<span>'+(i+1)+'. '+(b.title||'Untitled')+'</span>').join('')+'</div>';ps.textContent='✓ Bulk catalog detected. The Save button will create '+d.books.length+' separate books.';document.querySelector('.save-btn').textContent='▣ Save '+d.books.length+' Books';document.getElementById('bookTitle').value='';document.getElementById('bookAuthor').value='';return;}bp.hidden=true;if(d.title)document.getElementById('bookTitle').value=d.title;if(d.author)document.getElementById('bookAuthor').value=d.author;if(d.isbn)document.getElementById('bookIsbn').value=d.isbn;if(d.publication_year)document.getElementById('bookYear').value=d.publication_year;if(d.category)document.getElementById('bookCategory').value=d.category;if(d.description)document.getElementById('bookDescription').value=d.description;ps.textContent='✓ Details auto-filled. Review and Save.';}catch(e){ps.textContent='PDF analysis unavailable; enter details manually.';}finally{ab.disabled=false;ab.textContent='✨ Analyze PDF & Auto Fill';}});
+    })();
+    </script>
+  </section>
+  {% endif %}
 
-      <div class="panel">
-        <div class="panel-body" style="display:flex;flex-direction:column;height:100%">
-          <div style="width:46px;height:46px;border-radius:13px;background:var(--brand-light);display:grid;place-items:center;font-size:20px;margin-bottom:16px">🔒</div>
-          <h2 style="font-size:16px;font-weight:800;margin-bottom:8px">Account Security</h2>
-          <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px">Keep your account protected with a strong, unique password.</p>
-          <ul class="security-tips">
-            <li><span class="tip-icon">✔</span>Use 8+ characters</li>
-            <li><span class="tip-icon">✔</span>Mix uppercase, lowercase, numbers &amp; symbols</li>
-            <li><span class="tip-icon">✔</span>Never share your password</li>
-          </ul>
-          <a href="/change-password" class="btn btn-primary btn-full" style="margin-top:auto">
-            🔒 Change Password
-          </a>
-        </div>
+  <!-- MEMBER LIST -->
+  {% if role=='admin' %}
+  <section id="screen-members" class="screen"><div class="page-heading"><small>LIBRARY STAFF</small><h2>Member List</h2><p>View registered members and manage their library access.</p></div><div class="member-list modern-members">{% for u in members %}<div class="member-row"><span class="avatar">{{ u.name[:1]|upper }}</span><div><b>{{ u.name }}</b><small>@{{ u.username }} · {{ u.email }}</small></div><span class="role-pill">{{ u.role|title }}</span><form method="post" action="{{ url_for('change_role',user_id=u.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><select name="role" onchange="this.form.submit()"><option value="member" {% if u.role=='member' %}selected{% endif %}>Member</option><option value="librarian" {% if u.role=='librarian' %}selected{% endif %}>Librarian</option></select></form><form method="post" action="{{ url_for('delete_member',user_id=u.id) }}" onsubmit="return confirm('Remove this member?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="danger">Remove</button></form></div>{% else %}<div class="empty">No members found.</div>{% endfor %}</div></section>
+  {% endif %}
+
+  <!-- ISSUE & RETURN -->
+  <section id="screen-issues" class="screen">
+    <div class="page-heading"><small>LIBRARY OPERATIONS</small><h2>Issue &amp; Return</h2><p>Issue books to members, manage returns and handle additional fines.</p>
+      {% if role=='admin' %}<div class="issue-tools"><a class="fine-action" href="{{ url_for('additional_fine') }}"><span>＋</span><div><b>Add Additional Fine</b><small>Select user → select their issued book → add fine &amp; optional photos</small></div><strong>›</strong></a></div>{% endif %}</div>
+    {% if role in ['admin','librarian'] %}
+    <div class="issue-layout">
+      <div class="issue-card issue-form-card">
+        <div class="issue-card-head"><div><span class="issue-icon">↔</span><div><h3>Issue a Book</h3><p>Select the member and book.</p></div></div></div>
+        <form id="issuePanelForm" method="post" onsubmit="return prepareIssueForm()">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <label>Member <select id="issueMember" name="username" required><option value="">Select member</option>{% for u in members %}<option value="{{ u.username }}">ID {{ u.id }} · {{ u.name }} (@{{ u.username }})</option>{% endfor %}</select></label>
+          <label>Book <select id="issueBook" required><option value="">Select available book</option>{% for b in books if b.available_copies > 0 %}<option value="{{ b.id }}">{{ b.book_id }} · {{ b.title }} — {{ b.available_copies }} available</option>{% endfor %}</select></label>
+          <div class="issue-meta"><span>Issue period</span><b>14 days</b></div>
+          <button class="gradient-btn issue-submit" type="submit">↔ Issue Book</button>
+        </form>
       </div>
-
-    </div>{# /profile-grid #}
+      <div class="issue-card issue-info-card"><span class="issue-icon">ℹ</span><h3>Record details</h3><p>Every issue stores the member ID and name, book ID and title, issue date, due date and return date.</p><div class="detail-chips"><span>User ID</span><span>User Name</span><span>Book ID</span><span>Issue Date</span></div></div>
+    </div>
     {% endif %}
+    <div class="loan-card">
+      <div class="section-heading"><div><small>{% if role in ['admin','librarian'] %}ALL RECORDS{% else %}MY RECORDS{% endif %}</small><h2>Issue &amp; Return Details</h2></div></div>
+      <div class="loan-table-wrap"><table class="loan-table"><thead><tr><th>User ID</th><th>Member</th><th>Book ID</th><th>Book</th><th>Issued</th><th>Due</th><th>Returned</th><th>Fine</th><th>Status</th><th>Action</th></tr></thead><tbody>
+      {% for l in loans %}
+      <tr><td>#{{ l.user.id }}</td><td><b>{{ l.user.name }}</b><small>@{{ l.user.username }} · {{ l.user.email }}</small></td><td>{{ l.book.book_id }}</td><td>{{ l.book.title }}</td><td>{{ to_ist(l.issued_at).strftime('%d %b %Y, %I:%M %p') }}</td><td>{{ to_ist(l.due_at).strftime('%d %b %Y, %I:%M %p') }}</td><td>{% if l.returned_at %}{{ to_ist(l.returned_at).strftime('%d %b %Y, %I:%M %p') }}{% else %}—{% endif %}</td><td>{% if l.return_record and l.return_record.total_fine %}<b class="fine-inline">₹{{ '%.2f'|format(l.return_record.total_fine) }}</b>{% else %}₹0.00{% endif %}</td><td><span class="loan-status {% if l.returned_at %}returned{% elif l.due_at < now %}overdue{% else %}active{% endif %}">{% if l.returned_at %}Returned{% elif l.due_at < now %}Overdue{% else %}Issued{% endif %}</span></td><td>{% if not l.returned_at and (role in ['admin','librarian'] or l.user.id == session.get('user_id')) %}<a class="return-btn" href="{{ url_for('return_confirm', loan_id=l.id) }}">↩ Return</a>{% else %}—{% endif %}</td></tr>
+      {% else %}<tr><td colspan="10" class="empty">No issue or return records found.</td></tr>{% endfor %}
+      </tbody></table></div>
 
-    </div>{# /page-body #}
-  </div>{# /main-content #}
-</div>{# /app-shell #}
-
-<!-- ==================== MODALS (Admin) ==================== -->
-{% if role == 'admin' %}
-
-<!-- Add Book -->
-<div id="bookModal" class="modal-overlay">
-  <div class="modal-box">
-    <div class="modal-header"><div><h2>📚 Add Book</h2><p>Add a book that members can view and order.</p></div><button class="modal-close" type="button" onclick="closeModal('bookModal')">&#215;</button></div>
-    <form method="post" action="{{ url_for('create_book') }}" enctype="multipart/form-data">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-      <div class="modal-grid">
-        <div class="field"><label>Book Name / Title</label><input name="title" maxlength="200" required placeholder="e.g. Python Programming"></div>
-        <div class="field"><label>Author</label><input name="author" maxlength="160" required placeholder="Author name"></div>
-        <div class="field"><label>Price (₹)</label><input name="price" type="number" min="0" step="0.01" required placeholder="499"></div>
-        <div class="field"><label>Stock</label><input name="stock" type="number" min="0" step="1" required value="1"></div>
-        <div class="field full"><label>Book Photo</label><input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></div>
-        <div class="field full"><label>Description</label><textarea name="description" maxlength="3000" rows="5" placeholder="Book description, edition, subject, etc."></textarea></div>
+      <div class="loan-mobile-list">
+      {% for l in loans %}
+        <article class="loan-mobile-card">
+          <div class="loan-mobile-head">
+            <div><span class="loan-book-icon">📚</span><div><h3>{{ l.book.title }}</h3><p>{{ l.book.book_id }}</p></div></div>
+            <span class="loan-status {% if l.returned_at %}returned{% elif l.due_at < now %}overdue{% else %}active{% endif %}">{% if l.returned_at %}Returned{% elif l.due_at < now %}Overdue{% else %}Issued{% endif %}</span>
+          </div>
+          <div class="loan-mobile-grid">
+            <div><small>User ID</small><b>#{{ l.user.id }}</b></div>
+            <div><small>Member</small><b>{{ l.user.name }}</b></div>
+            <div><small>Book ID</small><b>{{ l.book.book_id }}</b></div>
+            <div><small>Issue Date</small><b>{{ to_ist(l.issued_at).strftime('%d %b %Y') }}</b></div>
+            <div><small>Issue Time</small><b>{{ to_ist(l.issued_at).strftime('%I:%M %p') }}</b></div>
+            <div><small>Due Date</small><b>{{ to_ist(l.due_at).strftime('%d %b %Y') }}</b></div>
+            <div><small>Due Time</small><b>{{ to_ist(l.due_at).strftime('%I:%M %p') }}</b></div>
+            <div><small>Returned</small><b>{% if l.returned_at %}{{ to_ist(l.returned_at).strftime('%d %b %Y, %I:%M %p') }}{% else %}Not returned{% endif %}</b></div>
+          </div>
+          {% if l.return_record and l.return_record.total_fine %}
+          <div class="member-fine-summary">
+            <div class="member-fine-head"><span>💰 Fine on this issue</span><strong>₹{{ '%.2f'|format(l.return_record.total_fine) }}</strong></div>
+            {% if l.return_record.admin_fine %}<div><small>Additional admin fine</small><b>₹{{ '%.2f'|format(l.return_record.admin_fine) }}</b></div>{% endif %}
+            {% if l.return_record.fine_reason %}<div class="fine-reason"><small>Reason</small><b>{{ l.return_record.fine_reason }}</b></div>{% endif %}
+            {% if l.return_record.photos %}<div class="fine-evidence"><small>Book evidence</small><div>{% for photo in l.return_record.photos %}<a href="{{ photo_url(photo) }}" target="_blank" rel="noopener"><img src="{{ photo_url(photo) }}" alt="Book evidence photo"></a>{% endfor %}</div></div>{% endif %}
+          </div>
+          {% endif %}
+          {% if not l.returned_at and (role in ['admin','librarian'] or l.user.id == session.get('user_id')) %}
+          <a class="mobile-return-btn" href="{{ url_for('return_confirm', loan_id=l.id) }}">↩ Return Book</a>
+          {% elif l.returned_at %}<div class="returned-note">✓ Book returned successfully{% if l.return_record and l.return_record.total_fine %} · Fine ₹{{ '%.2f'|format(l.return_record.total_fine) }}{% endif %}</div>{% endif %}
+        </article>
+      {% else %}<div class="empty">No issue or return records found.</div>{% endfor %}
       </div>
-      <div class="modal-foot"><button type="button" class="btn btn-ghost" onclick="closeModal('bookModal')">Cancel</button><button type="submit" class="btn btn-primary">📚 Add Book</button></div>
-    </form>
-  </div>
-</div>
-
-<!-- Create User -->
-<div id="createModal" class="modal-overlay">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div><h2>Create New User</h2><p>Fill in all details. The user email must be verified by OTP before the account is created.</p></div>
-      <button class="modal-close" type="button" onclick="closeModal('createModal')">&#215;</button>
     </div>
-    <form id="createForm" method="post" action="{{ url_for('create_user') }}" novalidate
-          onsubmit="return checkMod('cm-pw','cm-conf','cm-err')">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-      <div class="modal-grid">
-        <div class="field"><label>Full Name</label><input name="name" required maxlength="120" placeholder="Full name"></div>
-        <div class="field"><label>Gender</label>
-          <select name="gender" required>
-            <option value="">Select…</option>
-            <option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option>
-          </select>
-        </div>
-        <div class="field"><label>Department</label>
-          <select name="department" required>
-            <option value="">Select…</option>
-            <option>Administration</option><option>Human Resources</option><option>Finance</option>
-            <option>Sales</option><option>IT / Engineering</option><option>Operations</option>
-            <option>Marketing</option><option>Legal</option><option>Customer Support</option>
-            <option>Research &amp; Development</option>
-          </select>
-        </div>
-        <div class="field"><label>Email</label><input name="email" type="email" required maxlength="160" placeholder="user@example.com"></div>
-        <div class="field full"><label>Username</label><input name="username" required maxlength="80" placeholder="Unique username" pattern="[a-zA-Z0-9_.\-]+"></div>
-        <div class="field">
-          <label>Password</label>
-          <div class="password-wrap">
-            <input id="cm-pw" name="password" type="password" required minlength="8"
-                   placeholder="Strong password" oninput="pwStr(this.value,'cm-str')">
-            <button class="eye-btn" type="button" onclick="togglePw('cm-pw',this)">👁️</button>
-          </div>
-          <div id="cm-str" class="strength">
-            <div class="strength-bars"><span></span><span></span><span></span><span></span></div>
-            <div class="strength-label"></div>
-          </div>
-        </div>
-        <div class="field">
-          <label>Confirm Password</label>
-          <div class="password-wrap">
-            <input id="cm-conf" name="confirm" type="password" required minlength="8"
-                   placeholder="Repeat password" oninput="liveMatch('cm-pw','cm-conf','cm-err')">
-            <button class="eye-btn" type="button" onclick="togglePw('cm-conf',this)">👁️</button>
-          </div>
-          <span class="field-err" id="cm-err"></span>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="btn btn-ghost" onclick="closeModal('createModal')">Cancel</button>
-        <button type="submit" class="btn btn-primary">Create User</button>
-      </div>
-    </form>
-  </div>
-</div>
+  </section>
 
-<!-- Admin-created user email verification -->
-{% if role == 'admin' and admin_pending_email %}
-<div id="adminOtpModal" class="modal-overlay open">
-  <div class="modal-box" style="max-width:520px">
-    <div class="modal-header">
-      <div><h2>Verify New User Email</h2><p>Enter the 6-digit OTP sent to <strong>{{ admin_pending_email }}</strong>.</p></div>
-      <button class="modal-close" type="button" onclick="closeModal('adminOtpModal')">&#215;</button>
+  <!-- ADMIN PANEL: UI-only redesign; existing backend actions retained -->
+  {% if role=='admin' %}
+  <section id="screen-admin" class="screen"><div class="page-heading"><small>ADMINISTRATION</small><h2>Admin Panel</h2><p>Manage users and library administration from one secure place.</p></div>
+    <div class="admin-banner"><div><span>🛡️</span><div><h3>Admin Panel</h3><p>Manage users, member roles and library access securely.</p></div></div><span class="admin-gear">⚙️</span></div>
+    <div class="admin-stats"><div><span>👥</span><small>Total Members</small><b>{{ members|length }}</b></div><div><span>📚</span><small>Total Books</small><b>{{ total_books }}</b></div><div><span>↻</span><small>Active Issues</small><b>{{ issued }}</b></div><div><span>⏰</span><small>Overdue</small><b>{{ overdue }}</b></div></div>
+    <div class="admin-actions"><button onclick="showScreen('members')"><span>♙</span><b>Member Management</b><small>View and manage registered users</small>›</button><button onclick="showScreen('books')"><span>📚</span><b>Book Management</b><small>View and manage library books</small>›</button><a href="{{ url_for('change_password') }}"><span>⚙</span><b>Security Settings</b><small>Change administrator password</small>›</a><a href="{{ url_for('admin_analytics') }}"><span>📊</span><b>Analytics</b><small>Library and payment insights</small>›</a><a href="{{ url_for('admin_audit_logs') }}"><span>🛡️</span><b>Audit Logs</b><small>Security and activity history</small>›</a><button onclick="showScreen('dashboard')"><span>⌂</span><b>Dashboard Overview</b><small>Return to the main dashboard</small>›</button></div>
+  </section>
+  {% endif %}
+</main>
+
+<!-- RETURN CALCULATOR MODAL -->
+<div id="returnModal" class="modal"><div class="modal-card detail-modal">
+  <button class="close" type="button" onclick="closeReturn()">×</button><small class="modal-kicker">RETURN CALCULATOR</small><h2>Return Book</h2><p class="modal-muted">Late time and the applicable fee are calculated automatically.</p>
+  <form id="returnConfirmForm" method="post"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+    <div class="detail-grid">
+      <div><small>User ID</small><b id="returnUserId">—</b></div><div><small>Name</small><b id="returnUserName">—</b></div>
+      <div><small>Book ID</small><b id="returnBookId">—</b></div><div><small>Book</small><b id="returnBookTitle">—</b></div>
+      <div><small>Due Date</small><b id="returnDue">—</b></div><div><small>Return Date</small><b id="returnNowDate">—</b></div>
+      <div><small>Return Time</small><b id="returnNowTime">—</b></div><div><small>Late Days</small><b id="returnLateDays">0</b></div>
     </div>
-    <div class="flash success" style="margin-bottom:16px">📧 The new account will be created only after this email is verified.</div>
-    <form method="post" action="{{ url_for('verify_admin_user_otp') }}">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="email" value="{{ admin_pending_email }}">
-      <div class="field">
-        <label for="admin-user-otp">Verification code</label>
-        <input id="admin-user-otp" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="Enter 6-digit OTP" required autofocus style="letter-spacing:8px;text-align:center;font-size:24px;font-weight:800">
-      </div>
-      <div class="modal-foot" style="padding-bottom:0">
-        <button type="button" class="btn btn-ghost" onclick="closeModal('adminOtpModal')">Close</button>
-        <button type="submit" class="btn btn-primary">🔐 Verify &amp; Create</button>
-      </div>
-    </form>
-    <form method="post" action="{{ url_for('resend_admin_user_otp') }}" style="text-align:center;margin-top:10px">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="email" value="{{ admin_pending_email }}">
-      <button type="submit" style="border:0;background:none;color:#6366f1;font-weight:800;cursor:pointer">↻ Resend verification code</button>
-    </form>
-  </div>
-</div>
-{% endif %}
-
-<!-- Edit User -->
-<div id="editModal" class="modal-overlay">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div><h2>Edit User</h2><p>Update account details</p></div>
-      <button class="modal-close" type="button" onclick="closeModal('editModal')">&#215;</button>
+    <div class="fine-box"><span>Calculated late fee</span><strong id="returnFine">₹0.00</strong><small>Rate: ₹{{ '%.2f'|format(late_fee_per_day) }} per late day</small></div>
+    <div class="issue-note" id="returnPaymentNote">Return is within the 14-day free period. No payment is required.</div>
+    <div id="returnFreeActions"><button class="gradient-btn save-btn" type="submit">↩ Return Book — ₹0</button></div>
+    <div id="returnLateActions" style="display:none">
+      <div class="payment-box"><b>💳 PAYMENT REQUIRED</b><span id="returnPaymentAmount">Total Fine: ₹0.00</span><small>Open the payment page to choose UPI, Card or Cash.</small></div>
+      <button class="gradient-btn save-btn" type="button" id="payFineBtn" onclick="openPayment()">💳 Pay Fine &amp; Return</button>
     </div>
-    <form id="editForm" method="post" action="#" novalidate
-          onsubmit="return checkMod('em-pw','em-conf','em-err')">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-      <div class="modal-grid">
-        <div class="field"><label>Full Name</label><input id="em-name" name="name" required maxlength="120"></div>
-        <div class="field"><label>Gender</label>
-          <select id="em-gender" name="gender" required>
-            <option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option>
-          </select>
-        </div>
-        <div class="field"><label>Department</label>
-          <select id="em-dept" name="department" required>
-            <option>Administration</option><option>Human Resources</option><option>Finance</option>
-            <option>Sales</option><option>IT / Engineering</option><option>Operations</option>
-            <option>Marketing</option><option>Legal</option><option>Customer Support</option>
-            <option>Research &amp; Development</option>
-          </select>
-        </div>
-        <div class="field"><label>Email</label><input id="em-email" name="email" type="email" required maxlength="160"></div>
-        <div class="field full"><label>Username</label><input id="em-user" name="username" required maxlength="80" pattern="[a-zA-Z0-9_.\-]+"></div>
-        <div class="field">
-          <label>New Password <small style="font-weight:400;color:var(--gray-400)">(optional)</small></label>
-          <div class="password-wrap">
-            <input id="em-pw" name="password" type="password" minlength="8"
-                   placeholder="Leave blank to keep current" oninput="pwStr(this.value,'em-str')">
-            <button class="eye-btn" type="button" onclick="togglePw('em-pw',this)">👁️</button>
-          </div>
-          <div id="em-str" class="strength">
-            <div class="strength-bars"><span></span><span></span><span></span><span></span></div>
-            <div class="strength-label" style="color:var(--gray-300)">Leave blank to keep current password</div>
-          </div>
-        </div>
-        <div class="field">
-          <label>Confirm New Password</label>
-          <div class="password-wrap">
-            <input id="em-conf" name="confirm" type="password" minlength="8"
-                   oninput="liveMatch('em-pw','em-conf','em-err')">
-            <button class="eye-btn" type="button" onclick="togglePw('em-conf',this)">👁️</button>
-          </div>
-          <span class="field-err" id="em-err"></span>
-        </div>
-      </div>
-      <div class="modal-foot" style="flex-wrap:wrap">
-        <button type="button" class="btn btn-ghost" onclick="closeModal('editModal')">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Changes</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-{% endif %}{# /admin #}
+    <button class="reset-btn" type="button" onclick="closeReturn()">Cancel</button>
+  </form>
+</div></div>
 
 <script>
-// Modal
-function openModal(id){document.getElementById(id).classList.add('open');}
-function closeModal(id){document.getElementById(id).classList.remove('open');}
-
-// Activity Log filters — works with touch/click on mobile and desktop.
-(function(){
-  function applyActivityFilter(filter){
-    const rows=document.querySelectorAll('.dashboard-activity-list .audit-row');
-    rows.forEach(function(row){
-      const action=(row.getAttribute('data-audit-action')||'').toUpperCase();
-      let show=true;
-      if(filter==='REGISTER') show=(action==='REGISTER');
-      else if(filter==='LOGIN') show=(action.indexOf('LOGIN_')===0);
-      row.hidden=!show;
-    });
-    document.querySelectorAll('.activity-tab').forEach(function(btn){
-      const active=(btn.getAttribute('data-activity-filter')===filter);
-      btn.classList.toggle('active',active);
-      btn.setAttribute('aria-selected',active?'true':'false');
-    });
-  }
-  document.addEventListener('click',function(e){
-    const btn=e.target.closest('.activity-tab');
-    if(!btn) return;
-    e.preventDefault();
-    applyActivityFilter((btn.getAttribute('data-activity-filter')||'all').toUpperCase());
-  });
-})();
-window.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));});
-
-// Toggle pw
-function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'\uD83D\uDE48':'\uD83D\uDC41\uFE0F';}
-
-// Strength
-function pwStr(pw,boxId){
-  const box=document.getElementById(boxId);
-  const bars=box.querySelectorAll('.strength-bars span'),lbl=box.querySelector('.strength-label');
-  bars.forEach(b=>b.className='');
-  if(!pw){lbl.textContent='Enter password';lbl.style.color='var(--gray-300)';return;}
-  let s=0;
-  if(pw.length>=8)s++;if(/[A-Z]/.test(pw))s++;if(/\d/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;
-  const cl=[null,'weak','medium','strong','vstrong'],nm=['','Weak','Medium','Strong','Very Strong'];
-  for(let i=0;i<s;i++)bars[i].className=cl[s];
-  lbl.textContent='Strength: '+nm[s];
-  lbl.style.color=s>=4?'#10b981':s>=3?'#6366f1':s>=2?'#f59e0b':'#f43f5e';
-}
-
-// Live match check
-function liveMatch(pwId,confId,errId){
-  const p=document.getElementById(pwId).value,c=document.getElementById(confId).value,e=document.getElementById(errId);
-  e.textContent=c&&p!==c?'Passwords do not match.':'';
-}
-
-// Modal form validation
-function checkMod(pwId,confId,errId){
-  const p=document.getElementById(pwId).value,c=document.getElementById(confId).value,e=document.getElementById(errId);
-  if(p&&p!==c){e.textContent='Passwords do not match.';document.getElementById(confId).focus();return false;}
-  e.textContent='';return true;
-}
-
-// Open edit modal
-function openEdit(btn){
-  document.getElementById('editForm').action='/admin/users/'+btn.dataset.id+'/edit';
-  document.getElementById('em-name').value=btn.dataset.name;
-  document.getElementById('em-gender').value=btn.dataset.gender;
-  document.getElementById('em-dept').value=btn.dataset.department;
-  document.getElementById('em-email').value=btn.dataset.email;
-  document.getElementById('em-user').value=btn.dataset.username;
-  document.getElementById('em-pw').value='';
-  document.getElementById('em-conf').value='';
-  document.getElementById('em-err').textContent='';
-  openModal('editModal');
-}
+const side=document.getElementById('side'),shade=document.getElementById('shade');
+const titles={dashboard:'Dashboard',books:'Book List',addbook:'Add New Book',members:'Member List',issues:'Issue & Return',admin:'Admin Panel'};
+function toggleSide(){side.classList.toggle('open');shade.classList.toggle('show')}
+function showScreen(name){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));const s=document.getElementById('screen-'+name);if(s)s.classList.add('active');document.getElementById('screenTitle').textContent=titles[name]||'Dashboard';document.querySelectorAll('.modern-side nav button[data-screen]').forEach(b=>b.classList.toggle('active',b.dataset.screen===name));if(side.classList.contains('open'))toggleSide();window.scrollTo({top:0,behavior:'smooth'})}
+function searchBooks(){const q=(document.getElementById('bookSearch')?.value||'').toLowerCase();document.querySelectorAll('.book-card').forEach(c=>c.style.display=c.dataset.search.includes(q)?'':'none')}
+function prepareIssueForm(){const book=document.getElementById('issueBook').value;if(!book){alert('Please select a book.');return false}document.getElementById('issuePanelForm').action='/books/'+book+'/issue';return true}
+function fmtDateTime(d){return new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}).format(d)}
+function fmtDate(d){return new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric'}).format(d)}
+function fmtTime(d){return new Intl.DateTimeFormat('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(d)}
+function closeIssue(){const m=document.getElementById('issueModal');if(m)m.classList.remove('show');document.body.style.overflow=''}
+function openReturn(){window.location.href='/dashboard#screen-issues'}
+function openPayment(){const id=window.currentReturnLoanId;if(!id)return;const btn=document.getElementById('payFineBtn');btn.disabled=true;btn.textContent='💳 Opening Payment...';window.location.href='/loans/'+id+'/payment'}
+function closeReturn(){document.getElementById('returnModal').classList.remove('show')}
+window.onclick=e=>{if(e.target.id==='issueModal')closeIssue();if(e.target.id==='returnModal')closeReturn()};
+showScreen('dashboard');
 </script>
-
-
-
-<script src="/static/ui_advanced.js?v=menu3"></script>
-</body>
-</html>
+</body></html>
