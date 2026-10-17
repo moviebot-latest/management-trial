@@ -15,7 +15,7 @@ body.auth{margin:0;min-height:100vh;font-family:var(--font-body);font-size:16px;
 a{color:inherit}
 :focus-visible{outline:3px solid var(--brass);outline-offset:2px}
 
-.auth-shell{min-height:100vh;display:grid;grid-template-columns:minmax(340px,5fr) minmax(0,6fr)}
+.auth-shell{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:minmax(340px,5fr) minmax(0,6fr)}
 
 /* ---------- left: the library card ---------- */
 .auth-aside{background:var(--ink);color:#E6EFE9;padding:clamp(28px,4.5vw,64px);display:flex;flex-direction:column;justify-content:space-between;gap:36px;overflow:hidden}
@@ -85,10 +85,14 @@ select.input{background-image:linear-gradient(45deg,transparent 50%,#4F5F58 50%)
 .error-id{display:inline-block;margin:0 0 6px;padding:4px 10px;border-radius:6px;background:#E3ECE6;font-family:var(--font-card);font-size:14px}
 
 @media (max-width:860px){
-  .auth-shell{grid-template-columns:1fr}
-  .auth-aside{padding:18px 20px;gap:0;flex-direction:row;align-items:center}
+  .auth-shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .auth-aside{padding:16px 20px;gap:0;flex-direction:row;align-items:center;align-self:start}
   .aside-copy,.checkout-card{display:none}
   .auth-main{align-items:start;padding:28px 20px 48px}
   .rules{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){.stamp{animation:none}*{scroll-behavior:auto!important;transition:none!important}}
+
+.error-stamp{display:inline-block;margin:4px 0 20px;padding:4px 22px;border:4px solid var(--stamp);border-radius:8px;color:var(--stamp);font-family:var(--font-card);font-weight:700;font-size:clamp(48px,11vw,80px);line-height:1.15;transform:rotate(-5deg);animation:thump .55s .15s cubic-bezier(.2,1.5,.4,1) both}
+.retry-note{margin:18px 0 0;color:var(--muted);font-size:15px}
+@media (prefers-reduced-motion:reduce){.error-stamp{animation:none}}
