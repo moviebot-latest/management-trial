@@ -1,6 +1,7 @@
-*.md
-__pycache__
-*.db
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
 .env
-Procfile
-render.yaml
+.git/

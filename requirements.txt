@@ -1,9 +1,5 @@
 Flask
 Flask-SQLAlchemy
-psycopg[binary]
+psycopg2-binary
 Werkzeug
 gunicorn
-boto3
-pypdf
-PyMuPDF
-tzdata
