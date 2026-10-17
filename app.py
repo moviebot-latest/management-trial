@@ -2017,9 +2017,9 @@ from werkzeug.exceptions import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 _recent_errors = deque(maxlen=15)
 
-def _error_response(code, title, message, error_id=None, auto_retry=False):
+def _error_response(code, title, message, error_id=None, auto_retry=False, detail=None, hint=None):
     try:
-        return make_response(render_template('error.html', code=code, title=title, message=message, error_id=error_id, auto_retry=auto_retry), code)
+        return make_response(render_template('error.html', code=code, title=title, message=message, error_id=error_id, auto_retry=auto_retry, detail=detail, hint=hint), code)
     except Exception:
         return (f'{code} {title}: {message}', code)
 
@@ -2050,8 +2050,16 @@ def _unhandled_error(e):
     else:
         msg = 'Something went wrong on our side. Please try again. If it keeps happening, share the Error ID with the administrator.'
     if request.path.startswith('/api/'): return jsonify(ok=False, error=msg, error_id=err_id), 500
+    detail = hint = None
+    if isinstance(e, SQLAlchemyError):
+        # Only the driver's first line (no SQL, no parameters). Set HIDE_ERROR_DETAILS=1 to hide it once everything works.
+        if os.environ.get('HIDE_ERROR_DETAILS') != '1':
+            first = str(getattr(e, 'orig', None) or e).split('\n')[0].strip()[:220]
+            detail = f'{type(e).__name__}: {first}'
+            if _init_state['error']: detail += '\nSetup: ' + _init_state['error'][:240]
+            hint = _classify_db_error(detail)
     return _error_response(500, 'Database is waking up' if isinstance(e, SQLAlchemyError) else 'Something went wrong', msg, err_id,
-                           auto_retry=isinstance(e, SQLAlchemyError) and request.method == 'GET')
+                           auto_retry=isinstance(e, SQLAlchemyError) and request.method == 'GET', detail=detail, hint=hint)
 
 # ---------------------------------------------------------------------------
 # Database initialisation (safe for Vercel serverless)
@@ -2174,6 +2182,8 @@ def init_status():
         info['details'] = 'Log in as admin (or add ?token=CRON_SECRET) to see error details.'
     return jsonify(info)
 
-initialize_database(force=True)
-
-if __name__=='__main__': app.run(debug=True)
+# Do not connect to Neon or run schema migrations during module import on Vercel.
+# The first non-static request initializes the database through _ensure_database_ready().
+if __name__=='__main__':
+    initialize_database(force=True)
+    app.run(debug=True)
