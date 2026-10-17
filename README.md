@@ -60,3 +60,14 @@ Payment in this internship project is a simulated internal payment record; it do
 ## Vercel 500 FUNCTION_INVOCATION_FAILED fix (V33)
 Database setup no longer runs as one all-or-nothing step at import time. Each migration step is isolated, errors are logged (not fatal), it is skipped after the first successful run, and it is retried on later requests.
 If the site still fails, open `/init-status` (add `?token=CRON_SECRET` if you set one) — it shows whether the DB is ready and the last error. Check that `DATABASE_URL` is set for the *Production* environment, then redeploy.
+
+## V34 fixes
+- Login: stable session key even if `SECRET_KEY` is missing (random per-instance keys broke login/CSRF on Vercel). **Still set `SECRET_KEY` in Vercel.**
+- Login with non-ASCII passwords no longer crashes (500); clear message if `ADMIN_PASSWORD` is not set.
+- Expired forms redirect with a message instead of a bare "Invalid CSRF token" page.
+- Forgot Password page redesigned to match the login page (it used CSS classes that did not exist); "Start over" now really restarts.
+- Friendly error pages with an Error ID; `/init-status` (admin or `?token=CRON_SECRET`) shows the real recent errors.
+- Member delete is FK-safe (payments/returns removed first) and cannot remove the admin.
+
+## V35 design refresh (sign-in pages)
+Login, register, forgot-password and error pages share `templates/auth_base.html` + `static/auth.css` (library-card design, keyboard focus rings, labelled fields, reduced-motion support, mobile-first). Google Fonts are allowed in the CSP. The dashboard/landing pages still use `style.css`.

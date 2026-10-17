@@ -7,7 +7,7 @@ import urllib.request
 import urllib.error
 from html import escape
 from uuid import uuid4
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
@@ -32,7 +32,18 @@ except ImportError:
     boto3 = None
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+def _stable_secret_key():
+    # On Vercel every cold start is a new process. A random per-process key makes sessions and CSRF
+    # tokens invalid on the next request ("Invalid or missing CSRF token", login that never sticks).
+    key = os.environ.get('SECRET_KEY', '').strip()
+    if key: return key
+    import hashlib
+    seed = '|'.join(os.environ.get(k, '') for k in ('DATABASE_URL', 'ADMIN_PASSWORD', 'ADMIN_USERNAME'))
+    if seed.strip('|'):
+        return hashlib.sha256(('lms-fallback-secret|' + seed).encode('utf-8')).hexdigest()
+    return secrets.token_hex(32)
+SECRET_KEY_FROM_ENV = bool(os.environ.get('SECRET_KEY', '').strip())
+app.config['SECRET_KEY'] = _stable_secret_key()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SECURE=os.environ.get('FLASK_DEBUG', '0') != '1',
@@ -57,7 +68,10 @@ if database_url.startswith(('postgresql://','postgresql+psycopg://')):
     }
 
 db=SQLAlchemy(app)
-IST = ZoneInfo('Asia/Kolkata')
+try:
+    IST = ZoneInfo('Asia/Kolkata')
+except Exception:  # serverless image without tz database: India has no DST, so a fixed offset is exact
+    IST = timezone(timedelta(hours=5, minutes=30))
 
 # Advanced authentication/security controls
 MAX_FAILED_ATTEMPTS = 5
@@ -321,7 +335,7 @@ def utcnow_naive():
 def to_ist(dt):
     if not dt:
         return None
-    return dt.replace(tzinfo=ZoneInfo('UTC')).astimezone(IST)
+    return dt.replace(tzinfo=timezone.utc).astimezone(IST)
 
 
 class User(db.Model):
@@ -695,6 +709,10 @@ def db_retry(fn):
         db.session.rollback(); db.engine.dispose(); return fn()
 
 
+def _safe_equals(a, b):
+    # secrets.compare_digest raises TypeError for non-ASCII str, which turned odd passwords into HTTP 500.
+    return secrets.compare_digest((a or '').encode('utf-8'), (b or '').encode('utf-8'))
+
 def csrf_token():
     token=session.get('_csrf_token')
     if not token:
@@ -708,7 +726,11 @@ def inject(): return {'csrf_token': csrf_token(), 'to_ist': to_ist, 'photo_url':
 def protect_post():
     if request.method=='POST':
         sent=request.form.get('_csrf_token',''); expected=session.get('_csrf_token','')
-        if not expected or not sent or not secrets.compare_digest(sent,expected): return 'Invalid or missing CSRF token.',400
+        if not expected or not sent or not _safe_equals(sent,expected):
+            # Expired/old form (or session cookie lost). Never show a bare 400 page.
+            if request.path.startswith('/api/'): return jsonify(ok=False,error='Session expired. Reload the page.'),400
+            flash('Your session expired. Please try again.','error')
+            return redirect(url_for('dashboard') if is_logged() else url_for('index'), 303)
 
 @app.after_request
 def security_headers(r):
@@ -717,7 +739,7 @@ def security_headers(r):
     r.headers['Referrer-Policy']='strict-origin-when-cross-origin'
     r.headers['Cache-Control']='no-store, no-cache, must-revalidate, max-age=0'; r.headers['Pragma']='no-cache'
     r.headers['Permissions-Policy']='camera=(), microphone=(), geolocation=()'
-    r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+    r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
     return r
 
 def is_reserved_username(username):
@@ -1284,7 +1306,9 @@ def resend_registration_otp():
 def login():
     username=request.form.get('username','').strip(); password=request.form.get('password','')
     au=os.environ.get('ADMIN_USERNAME','admin'); ap=os.environ.get('ADMIN_PASSWORD','')
-    if au and ap and username.casefold()==au.casefold() and secrets.compare_digest(password,ap):
+    if au and username.casefold()==au.casefold() and not ap:
+        flash('Admin login is not configured. Set ADMIN_PASSWORD in the Vercel environment variables and redeploy.','error'); return redirect(url_for('index'))
+    if au and ap and username.casefold()==au.casefold() and _safe_equals(password,ap):
         session.clear(); session.permanent=True; session.update(user_id='admin',role='admin',username=au,name=os.environ.get('ADMIN_NAME','Admin')); write_audit('login','admin',None,f'Admin login: {au}'); return redirect(url_for('dashboard'))
     try: u=db_retry(lambda: User.query.filter(db.func.lower(User.username)==username.casefold()).first())
     except OperationalError: flash('Database connection was temporarily unavailable.','error'); return redirect(url_for('index'))
@@ -1831,13 +1855,33 @@ def change_role(user_id):
 @admin_required
 def delete_member(user_id):
     u=User.query.get_or_404(user_id)
+    if u.role=='admin': flash('The admin account cannot be removed.','error'); return redirect(url_for('dashboard'))
     if Loan.query.filter_by(user_id=user_id,returned_at=None).first(): flash('Member has active issued books. Return them before deleting.','error'); return redirect(url_for('dashboard'))
-    removed_email,removed_name=u.email,u.name
-    Loan.query.filter_by(user_id=user_id).delete(synchronize_session=False); db.session.delete(u); db.session.commit(); email_member_removed(removed_email,removed_name); flash('Member removed.','success'); return redirect(url_for('dashboard'))
+    removed_email,removed_name,removed_username=u.email,u.name,u.username
+    try:
+        ids=[l.id for l in Loan.query.filter_by(user_id=user_id).all()]
+        if ids:
+            # FK-safe order: payment -> return_record -> loan
+            Payment.query.filter(Payment.loan_id.in_(ids)).delete(synchronize_session=False)
+            ReturnRecord.query.filter(ReturnRecord.loan_id.in_(ids)).delete(synchronize_session=False)
+            Loan.query.filter(Loan.id.in_(ids)).delete(synchronize_session=False)
+        Payment.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        PasswordReset.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        if _IS_PG:
+            try: db.session.execute(text('UPDATE audit_log SET actor_user_id = NULL WHERE actor_user_id = :uid'),{'uid':user_id})
+            except Exception: db.session.rollback(); raise
+        db.session.delete(u); db.session.commit()
+    except Exception:
+        db.session.rollback(); app.logger.exception('Member delete failed for user %s',user_id)
+        flash('Member could not be removed. Nothing was changed.','error'); return redirect(url_for('dashboard'))
+    write_audit('member_delete','user',user_id,f'Admin removed member: {removed_username}')
+    email_member_removed(removed_email,removed_name); flash('Member removed.','success'); return redirect(url_for('dashboard'))
 
 @app.route('/forgot-password',methods=['GET','POST'])
 def forgot_password():
     if request.method=='GET':
+        if request.args.get('restart'):
+            for k in ('password_reset_user_id','password_reset_username','password_reset_masked_email','password_reset_verified'): session.pop(k,None)
         return render_template('forgot_password.html',username=session.get('password_reset_username',''),reset_sent=bool(session.get('password_reset_user_id')),reset_verified=bool(session.get('password_reset_verified')),masked_email=session.get('password_reset_masked_email',''))
     username=request.form.get('username','').strip()
     user=User.query.filter(db.func.lower(User.username)==username.casefold()).first() if username else None
@@ -1956,11 +2000,54 @@ def cron_send_reminders():
     # External scheduler / Vercel Cron: /cron/send-reminders?token=CRON_SECRET (or Authorization: Bearer CRON_SECRET)
     secret=os.environ.get('CRON_SECRET','')
     sent=request.args.get('token','') or request.headers.get('Authorization','').removeprefix('Bearer ').strip()
-    if not secret or not secrets.compare_digest(sent,secret): return jsonify(error='not found'),404
+    if not secret or not _safe_equals(sent,secret): return jsonify(error='not found'),404
     return jsonify(send_due_reminders())
 
 @app.get('/auth-status')
 def auth_status(): return {'authenticated':is_logged()}
+
+# ---------------------------------------------------------------------------
+# Friendly error pages (no more bare "Internal Server Error")
+# ---------------------------------------------------------------------------
+from collections import deque
+from werkzeug.exceptions import HTTPException
+from sqlalchemy.exc import SQLAlchemyError
+_recent_errors = deque(maxlen=15)
+
+def _error_response(code, title, message, error_id=None):
+    try:
+        return make_response(render_template('error.html', code=code, title=title, message=message, error_id=error_id), code)
+    except Exception:
+        return (f'{code} {title}: {message}', code)
+
+@app.errorhandler(HTTPException)
+def _http_error(e):
+    code = e.code or 500
+    titles = {400:'Bad request',403:'Access denied',404:'Page not found',405:'Method not allowed',413:'File too large'}
+    msgs = {400:'The request could not be understood. Please go back and try again.',
+            403:'You do not have permission to open this page.',
+            404:'The page you are looking for does not exist.',
+            405:'This action is not allowed on this page.',
+            413:'The uploaded file is too large for this server.'}
+    if request.path.startswith('/api/'):
+        return jsonify(ok=False, error=msgs.get(code, e.description or 'Request failed')), code
+    return _error_response(code, titles.get(code, e.name or 'Error'), msgs.get(code, e.description or 'Something went wrong.'))
+
+@app.errorhandler(Exception)
+def _unhandled_error(e):
+    err_id = uuid4().hex[:8].upper()
+    app.logger.exception('Unhandled error %s on %s %s', err_id, request.method, request.path)
+    try: db.session.rollback()
+    except Exception: pass
+    _recent_errors.appendleft({'id': err_id, 'time': datetime.utcnow().isoformat(timespec='seconds') + 'Z',
+                               'path': request.path, 'type': type(e).__name__, 'message': str(e).strip()[:300]})
+    if isinstance(e, SQLAlchemyError):
+        _init_state['done'] = False; _init_state['last_try'] = 0.0   # re-check the schema on the next request
+        msg = 'The database is not ready yet. Please try again in a few seconds.'
+    else:
+        msg = 'Something went wrong on our side. Please try again. If it keeps happening, share the Error ID with the administrator.'
+    if request.path.startswith('/api/'): return jsonify(ok=False, error=msg, error_id=err_id), 500
+    return _error_response(500, 'Something went wrong', msg, err_id)
 
 # ---------------------------------------------------------------------------
 # Database initialisation (safe for Vercel serverless)
@@ -2046,11 +2133,16 @@ def _ensure_database_ready():
 def init_status():
     # Diagnostic: shows whether DB setup finished and the last error (token required if CRON_SECRET is set).
     secret = os.environ.get('CRON_SECRET', '')
-    if secret and not secrets.compare_digest(request.args.get('token', ''), secret):
-        return jsonify(error='not found'), 404
     if not _init_state['done']: initialize_database(force=True)
-    return jsonify(ready=_init_state['done'], error=_init_state['error'], schema_version=SCHEMA_VERSION,
-                   database='postgresql' if _IS_PG else 'sqlite', database_url_set=bool(os.environ.get('DATABASE_URL')))
+    allowed = is_admin() or bool(secret and _safe_equals(request.args.get('token', ''), secret))
+    info = dict(ready=_init_state['done'], schema_version=SCHEMA_VERSION, database='postgresql' if _IS_PG else 'sqlite',
+                database_url_set=bool(os.environ.get('DATABASE_URL')), secret_key_set=SECRET_KEY_FROM_ENV,
+                admin_login_configured=bool(os.environ.get('ADMIN_PASSWORD')), email_provider=_mail_provider())
+    if allowed:  # error text can contain SQL details, so only show it to the admin / token holder
+        info['init_error'] = _init_state['error']; info['recent_errors'] = list(_recent_errors)
+    else:
+        info['details'] = 'Log in as admin (or add ?token=CRON_SECRET) to see error details.'
+    return jsonify(info)
 
 initialize_database(force=True)
 

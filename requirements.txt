@@ -6,3 +6,4 @@ gunicorn
 boto3
 pypdf
 PyMuPDF
+tzdata
