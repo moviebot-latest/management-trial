@@ -1962,13 +1962,96 @@ def cron_send_reminders():
 @app.get('/auth-status')
 def auth_status(): return {'authenticated':is_logged()}
 
-with app.app_context():
-    migrate_existing_db(); migrate_book_schema(); migrate_user_schema(); migrate_auth_schema(); db.create_all(); migrate_return_schema(); migrate_payment_schema(); migrate_audit_log_schema()
-    # Seed a small demo collection only when there are no books at all.
-    if Book.query.count()==0:
+# ---------------------------------------------------------------------------
+# Database initialisation (safe for Vercel serverless)
+# Old behaviour: migrations ran at import time and ANY error (or several cold
+# starts migrating at once) crashed the whole function -> 500 FUNCTION_INVOCATION_FAILED
+# on every page. Now each step is isolated, failures are logged instead of fatal,
+# the work is skipped once a schema marker exists, and it is retried on later requests.
+# ---------------------------------------------------------------------------
+import time as _time
+SCHEMA_VERSION = 32
+_init_state = {'done': False, 'error': None, 'last_try': 0.0}
+_IS_PG = database_url.startswith(('postgresql://', 'postgresql+psycopg://'))
+
+def _run_init_step(name, fn):
+    try:
+        fn()
+        return True
+    except Exception as exc:
+        try: db.session.rollback()
+        except Exception: pass
+        _init_state['error'] = f'{name}: {type(exc).__name__}: {str(exc).strip()[:300]}'
+        app.logger.exception('DB init step failed: %s', name)
+        return False
+
+def _schema_marker_ok():
+    if not _IS_PG: return False
+    try:
+        with db.engine.connect() as c:
+            return c.execute(text('SELECT 1 FROM app_schema_version WHERE version=:v'), {'v': SCHEMA_VERSION}).first() is not None
+    except Exception:
+        return False
+
+def _set_schema_marker():
+    if not _IS_PG: return
+    try:
+        with db.engine.begin() as c:
+            c.execute(text('CREATE TABLE IF NOT EXISTS app_schema_version (version INTEGER PRIMARY KEY)'))
+            c.execute(text('INSERT INTO app_schema_version (version) VALUES (:v) ON CONFLICT DO NOTHING'), {'v': SCHEMA_VERSION})
+    except Exception:
+        app.logger.exception('Could not write schema marker')
+
+def _seed_demo_books():
+    if Book.query.count() == 0:
         db.session.add_all([
             Book(book_id='BK0001',title='Python Programming',author='Library Collection',isbn=None,category='Programming',description='A starter programming book.',cover_url=None,total_copies=5,available_copies=5),
             Book(book_id='BK0002',title='Database Systems',author='Library Collection',isbn=None,category='Database',description='Database concepts and SQL.',cover_url=None,total_copies=3,available_copies=3)
         ]); db.session.commit()
+
+def initialize_database(force=False):
+    if _init_state['done'] and not force: return True
+    if not force and _time.time() - _init_state['last_try'] < 20: return False
+    _init_state['last_try'] = _time.time(); _init_state['error'] = None
+    ok = True
+    try:
+        with app.app_context():
+            skip = _schema_marker_ok()
+            if skip:
+                steps = [('create_all', db.create_all)]
+            else:
+                steps = [('migrate_existing_db', migrate_existing_db), ('migrate_book_schema', migrate_book_schema),
+                         ('migrate_user_schema', migrate_user_schema), ('migrate_auth_schema', migrate_auth_schema),
+                         ('create_all', db.create_all), ('migrate_return_schema', migrate_return_schema),
+                         ('migrate_payment_schema', migrate_payment_schema), ('migrate_audit_log_schema', migrate_audit_log_schema)]
+            for name, fn in steps:
+                ok = _run_init_step(name, fn) and ok
+            if ok:
+                ok = _run_init_step('seed_demo_books', _seed_demo_books) and ok
+            if ok and not skip:
+                _set_schema_marker()
+    except Exception as exc:
+        ok = False
+        _init_state['error'] = f'init: {type(exc).__name__}: {str(exc).strip()[:300]}'
+        app.logger.exception('Database initialisation crashed')
+    _init_state['done'] = ok
+    return ok
+
+@app.before_request
+def _ensure_database_ready():
+    if not _init_state['done'] and request.endpoint not in ('static', 'init_status', 'healthz'):
+        initialize_database()
+
+@app.get('/init-status')
+def init_status():
+    # Diagnostic: shows whether DB setup finished and the last error (token required if CRON_SECRET is set).
+    secret = os.environ.get('CRON_SECRET', '')
+    if secret and not secrets.compare_digest(request.args.get('token', ''), secret):
+        return jsonify(error='not found'), 404
+    if not _init_state['done']: initialize_database(force=True)
+    return jsonify(ready=_init_state['done'], error=_init_state['error'], schema_version=SCHEMA_VERSION,
+                   database='postgresql' if _IS_PG else 'sqlite', database_url_set=bool(os.environ.get('DATABASE_URL')))
+
+initialize_database(force=True)
 
 if __name__=='__main__': app.run(debug=True)

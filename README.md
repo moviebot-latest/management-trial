@@ -56,3 +56,7 @@ The system sends separate emails for:
 - Password changed security alert
 
 Payment in this internship project is a simulated internal payment record; it does not charge real money.
+
+## Vercel 500 FUNCTION_INVOCATION_FAILED fix (V33)
+Database setup no longer runs as one all-or-nothing step at import time. Each migration step is isolated, errors are logged (not fatal), it is skipped after the first successful run, and it is retried on later requests.
+If the site still fails, open `/init-status` (add `?token=CRON_SECRET` if you set one) — it shows whether the DB is ready and the last error. Check that `DATABASE_URL` is set for the *Production* environment, then redeploy.
