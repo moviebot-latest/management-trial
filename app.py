@@ -13,7 +13,7 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, or_, inspect
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import synonym
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -65,8 +65,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 if database_url.startswith(('postgresql://','postgresql+psycopg://')):
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True, 'pool_recycle': 300, 'pool_timeout': 30,
-        'pool_size': 5, 'max_overflow': 5,
+        'pool_pre_ping': True, 'pool_recycle': 300, 'pool_timeout': 10,
+        # Serverless instances are ephemeral; keep each instance's pool small to avoid
+        # multiplying connections across concurrent Vercel invocations.
+        'pool_size': 1, 'max_overflow': 0,
         'connect_args': {'connect_timeout': 10, 'sslmode': os.environ.get('PGSSLMODE','require'), 'prepare_threshold': None}
     }
 
@@ -911,6 +913,10 @@ def migrate_auth_schema():
     if not database_url.startswith(('postgresql://','postgresql+psycopg://')): return
     try:
         cols={r[0] for r in db.session.execute(text('SELECT column_name FROM information_schema.columns WHERE table_schema=\'public\' AND table_name=\'user\'')).fetchall()}
+        # A completely new database has no user table yet. In that case create_all()
+        # will build it later in the same initialization pass; do not mark init failed.
+        if not cols:
+            return
         additions={'is_active':'BOOLEAN NOT NULL DEFAULT TRUE','failed_attempts':'INTEGER NOT NULL DEFAULT 0','locked_until':'TIMESTAMP NULL','last_login':'TIMESTAMP NULL'}
         for col,typ in additions.items():
             if col not in cols: db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {col} {typ}'))
@@ -919,18 +925,23 @@ def migrate_auth_schema():
         db.session.rollback(); raise
 
 def migrate_existing_db():
-    # Existing deployments may already have a user table. Add only the new role
-    # column if it is missing; no existing accounts are deleted.
+    # Add the role column only when a legacy user table exists. On a fresh database,
+    # create_all() creates the table later in the same initialization pass.
     try:
         if database_url.startswith(('postgresql://','postgresql+psycopg://')):
-            db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'member'"))
+            exists = db.session.execute(text("SELECT to_regclass('public.user')")).scalar()
+            if exists:
+                db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'member'"))
         else:
-            cols=[r[1] for r in db.session.execute(text('PRAGMA table_info(user)')).fetchall()]
-            if 'role' not in cols:
-                db.session.execute(text("ALTER TABLE user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'member'"))
+            tables = {r[0] for r in db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()}
+            if 'user' in tables:
+                cols=[r[1] for r in db.session.execute(text('PRAGMA table_info(user)')).fetchall()]
+                if 'role' not in cols:
+                    db.session.execute(text("ALTER TABLE user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'member'"))
         db.session.commit()
     except Exception:
         db.session.rollback()
+        raise
 
 
 def migrate_book_schema():
@@ -1266,7 +1277,9 @@ def register():
     except ValueError as exc:
         db.session.rollback(); flash(str(exc),'error')
     except Exception:
-        db.session.rollback(); flash('Verification email could not be sent. Please try again later.','error')
+        db.session.rollback()
+        app.logger.exception('Registration OTP request failed (database schema or email provider)')
+        flash('Could not start email verification. Please try again shortly; if it continues, contact the administrator.','error')
     return redirect(url_for('register'))
 
 @app.post('/register/verify-otp')
@@ -1302,19 +1315,30 @@ def resend_registration_otp():
         create_registration_otp(row.email,row.name,row.gender,row.username,row.password_hash)
         flash(f'📧 A new OTP was sent to {mask_email(row.email)}.','success')
     except ValueError as exc: db.session.rollback(); flash(str(exc),'error')
-    except Exception: db.session.rollback(); flash('Could not resend OTP right now.','error')
+    except Exception:
+        db.session.rollback(); app.logger.exception('Password reset OTP resend failed (database schema or email provider)')
+        flash('Could not resend OTP right now.','error')
     return redirect(url_for('register'))
+
+@app.get('/login')
+def login_page():
+    # Keep direct links/bookmarks to /login working; the actual login form lives at '/'.
+    return redirect(url_for('index'))
 
 @app.post('/login')
 def login():
     username=request.form.get('username','').strip(); password=request.form.get('password','')
-    au=os.environ.get('ADMIN_USERNAME','admin'); ap=os.environ.get('ADMIN_PASSWORD','')
+    au=os.environ.get('ADMIN_USERNAME','admin').strip(); ap=os.environ.get('ADMIN_PASSWORD','')
     if au and username.casefold()==au.casefold() and not ap:
         flash('Admin login is not configured. Set ADMIN_PASSWORD in the Vercel environment variables and redeploy.','error'); return redirect(url_for('index'))
     if au and ap and username.casefold()==au.casefold() and _safe_equals(password,ap):
         session.clear(); session.permanent=True; session.update(user_id='admin',role='admin',username=au,name=os.environ.get('ADMIN_NAME','Admin')); write_audit('login','admin',None,f'Admin login: {au}'); return redirect(url_for('dashboard'))
     try: u=db_retry(lambda: User.query.filter(db.func.lower(User.username)==username.casefold()).first())
-    except OperationalError: flash('Database connection was temporarily unavailable.','error'); return redirect(url_for('index'))
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception('Database error while looking up credentials during login')
+        flash('Database is temporarily unavailable. Please try again shortly.','error')
+        return redirect(url_for('index'))
     if not u or not u.is_active:
         flash('Invalid username or password.','error'); return redirect(url_for('index'))
     if u.is_locked():
@@ -1894,7 +1918,9 @@ def forgot_password():
     try:
         create_password_reset_otp(user); session['password_reset_user_id']=user.id; session['password_reset_username']=user.username; session['password_reset_masked_email']=mask_email(user.email); session['password_reset_verified']=False; flash(f'📧 OTP sent to {mask_email(user.email)}. It expires in {OTP_EXPIRY_MINUTES} minutes.','success'); write_audit('password_reset_request','user',user.id,'Password reset OTP requested')
     except ValueError as exc: db.session.rollback(); flash(str(exc),'error')
-    except Exception: db.session.rollback(); flash('We could not send the reset email right now.','error')
+    except Exception:
+        db.session.rollback(); app.logger.exception('Password reset OTP request failed (database schema or email provider)')
+        flash('We could not send the reset email right now.','error')
     return redirect(url_for('forgot_password'))
 
 @app.post('/forgot-password/resend')
@@ -2052,14 +2078,76 @@ def _unhandled_error(e):
     if request.path.startswith('/api/'): return jsonify(ok=False, error=msg, error_id=err_id), 500
     detail = hint = None
     if isinstance(e, SQLAlchemyError):
-        # Only the driver's first line (no SQL, no parameters). Set HIDE_ERROR_DETAILS=1 to hide it once everything works.
-        if os.environ.get('HIDE_ERROR_DETAILS') != '1':
+        # Detailed driver errors are hidden by default. Set HIDE_ERROR_DETAILS=0 temporarily only while debugging.
+        if os.environ.get('HIDE_ERROR_DETAILS', '1') == '0':
             first = str(getattr(e, 'orig', None) or e).split('\n')[0].strip()[:220]
             detail = f'{type(e).__name__}: {first}'
             if _init_state['error']: detail += '\nSetup: ' + _init_state['error'][:240]
             hint = _classify_db_error(detail)
     return _error_response(500, 'Database is waking up' if isinstance(e, SQLAlchemyError) else 'Something went wrong', msg, err_id,
                            auto_retry=isinstance(e, SQLAlchemyError) and request.method == 'GET', detail=detail, hint=hint)
+
+def migrate_otp_schema():
+    """Repair OTP tables in place on Neon without touching member/book/payment data.
+
+    These tables only hold short-lived verification records. If an older deployment
+    has a partial OTP table, its pending codes are discarded and can be requested again.
+    """
+    if not _IS_PG:
+        return
+    specs = {
+        'email_verification': {
+            'id': 'BIGSERIAL', 'email': 'VARCHAR(160)', 'username': 'VARCHAR(80)',
+            'name': 'VARCHAR(120)', 'gender': 'VARCHAR(30)', 'password_hash': 'VARCHAR(255)',
+            'otp_hash': 'VARCHAR(255)', 'expires_at': 'TIMESTAMP', 'last_sent_at': 'TIMESTAMP',
+            'attempts': 'INTEGER NOT NULL DEFAULT 0', 'created_at': 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        },
+        'password_reset': {
+            'id': 'BIGSERIAL', 'user_id': 'INTEGER', 'email': 'VARCHAR(160)',
+            'otp_hash': 'VARCHAR(255)', 'expires_at': 'TIMESTAMP', 'last_sent_at': 'TIMESTAMP',
+            'attempts': 'INTEGER NOT NULL DEFAULT 0', 'verified_at': 'TIMESTAMP NULL',
+            'created_at': 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        },
+    }
+    required_for_existing = {
+        'email_verification': {'email','username','name','gender','password_hash','otp_hash','expires_at','last_sent_at'},
+        'password_reset': {'user_id','email','otp_hash','expires_at','last_sent_at'},
+    }
+    with db.engine.begin() as conn:
+        for table, columns in specs.items():
+            exists = conn.execute(text("SELECT to_regclass(:t)"), {'t': 'public.' + table}).scalar()
+            if not exists:
+                continue  # db.create_all() has already created this model table.
+            actual = {row[0] for row in conn.execute(text(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=:t"
+            ), {'t': table}).fetchall()}
+            missing = set(columns) - actual
+            if not missing:
+                continue
+            if missing & required_for_existing[table]:
+                # Only pending OTP records, never user accounts or library transactions.
+                conn.execute(text(f'DELETE FROM "{table}"'))
+            for col in sorted(missing):
+                conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS "{col}" {columns[col]}'))
+            # A legacy table without an id can be repaired safely after any stale OTPs were cleared.
+            if 'id' in missing:
+                has_pk = conn.execute(text("""SELECT 1 FROM pg_constraint
+                    WHERE conrelid=to_regclass(:t) AND contype='p' LIMIT 1"""), {'t':'public.'+table}).first()
+                if not has_pk:
+                    conn.execute(text(f'ALTER TABLE "{table}" ADD PRIMARY KEY (id)'))
+            if table == 'email_verification' and 'email' in actual:
+                # Add a uniqueness guard only when no existing unique email index/constraint
+                # already covers this column. Avoid duplicating legacy indexes unnecessarily.
+                has_unique_email = conn.execute(text("""SELECT 1 FROM pg_index i
+                    JOIN pg_class t ON t.oid=i.indrelid
+                    JOIN pg_class x ON x.oid=i.indexrelid
+                    WHERE t.relname='email_verification' AND i.indisunique
+                      AND pg_get_indexdef(i.indexrelid) ILIKE '%(email)%' LIMIT 1""")).first()
+                if not has_unique_email:
+                    has_duplicates = conn.execute(text("SELECT 1 FROM email_verification GROUP BY email HAVING COUNT(*) > 1 LIMIT 1")).first()
+                    if not has_duplicates:
+                        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_email_verification_email ON email_verification(email)'))
+
 
 # ---------------------------------------------------------------------------
 # Database initialisation (safe for Vercel serverless)
@@ -2069,7 +2157,7 @@ def _unhandled_error(e):
 # the work is skipped once a schema marker exists, and it is retried on later requests.
 # ---------------------------------------------------------------------------
 import time as _time
-SCHEMA_VERSION = 32
+SCHEMA_VERSION = 34
 _init_state = {'done': False, 'error': None, 'last_try': 0.0}
 _IS_PG = database_url.startswith(('postgresql://', 'postgresql+psycopg://'))
 
@@ -2117,11 +2205,12 @@ def initialize_database(force=False):
         with app.app_context():
             skip = _schema_marker_ok()
             if skip:
-                steps = [('create_all', db.create_all)]
+                steps = [('create_all', db.create_all), ('migrate_otp_schema', migrate_otp_schema)]
             else:
                 steps = [('migrate_existing_db', migrate_existing_db), ('migrate_book_schema', migrate_book_schema),
                          ('migrate_user_schema', migrate_user_schema), ('migrate_auth_schema', migrate_auth_schema),
-                         ('create_all', db.create_all), ('migrate_return_schema', migrate_return_schema),
+                         ('create_all', db.create_all), ('migrate_otp_schema', migrate_otp_schema),
+                         ('migrate_return_schema', migrate_return_schema),
                          ('migrate_payment_schema', migrate_payment_schema), ('migrate_audit_log_schema', migrate_audit_log_schema)]
             for name, fn in steps:
                 ok = _run_init_step(name, fn) and ok
@@ -2138,8 +2227,28 @@ def initialize_database(force=False):
 
 @app.before_request
 def _ensure_database_ready():
-    if not _init_state['done'] and request.endpoint not in ('static', 'init_status', 'healthz'):
-        initialize_database()
+    if request.endpoint in ('static', 'init_status', 'healthz'):
+        return None
+    # Never silently fall back to ephemeral SQLite on Vercel. That makes signups and
+    # logins appear to work briefly while data disappears between serverless instances.
+    if os.environ.get('VERCEL') == '1':
+        raw_url = os.environ.get('DATABASE_URL', '').strip()
+        if not raw_url:
+            return _error_response(503, 'Database configuration missing',
+                'DATABASE_URL is not configured for this Vercel environment. Add the Neon PostgreSQL connection string and redeploy.',
+                hint='Vercel → Project Settings → Environment Variables → DATABASE_URL.')
+        if not raw_url.startswith(('postgres://', 'postgresql://', 'postgresql+psycopg://', 'postgresql+psycopg2://')):
+            return _error_response(503, 'Database configuration invalid',
+                'Vercel requires the Neon PostgreSQL DATABASE_URL for persistent application data.',
+                hint='Copy the connection string from the intended Neon project; keep sslmode=require.')
+    if not _init_state['done']:
+        ready = initialize_database()
+        if not ready and (request.method != 'GET' or request.path not in ('/', '/register', '/forgot-password', '/login')):
+            raw = _init_state.get('error') or ''
+            hint = _classify_db_error(raw)
+            return _error_response(503, 'Database not ready',
+                'The database schema could not be initialized. Login, OTP verification and library actions are paused to avoid partial writes.',
+                hint=hint or 'Open /healthz and Vercel Function Logs for the underlying error.')
 
 def _classify_db_error(raw):
     t = (raw or '').lower()
@@ -2163,27 +2272,78 @@ def _classify_db_error(raw):
         if needle in t: return hint
     return None
 
+@app.get('/healthz')
+def healthz():
+    """Safe live diagnostic: no credentials or full connection strings are returned."""
+    raw_url = os.environ.get('DATABASE_URL', '').strip()
+    result = {
+        'app': 'library-management-system',
+        'database_configured': bool(raw_url),
+        'secret_key_configured': SECRET_KEY_FROM_ENV,
+        'admin_username_configured': bool(os.environ.get('ADMIN_USERNAME', '').strip()),
+        'admin_password_configured': bool(os.environ.get('ADMIN_PASSWORD', '').strip()),
+        'email_provider_configured': bool(_mail_provider()),
+        'schema_version': SCHEMA_VERSION,
+    }
+    if os.environ.get('VERCEL') == '1' and not raw_url:
+        result.update(database_connection='not_configured', initialization_ready=False,
+                      hint='Set DATABASE_URL to the intended Neon PostgreSQL connection string in Vercel and redeploy.')
+        return jsonify(result), 503
+    if os.environ.get('VERCEL') == '1' and not raw_url.startswith(('postgres://','postgresql://','postgresql+psycopg://','postgresql+psycopg2://')):
+        result.update(database_connection='invalid_configuration', initialization_ready=False,
+                      hint='Vercel should use the Neon PostgreSQL DATABASE_URL, not SQLite.')
+        return jsonify(result), 503
+    initialized = _init_state['done'] or initialize_database()
+    result['initialization_ready'] = bool(initialized and _init_state['done'])
+    if not result['initialization_ready']:
+        raw_error = _init_state.get('error') or ''
+        result['database_connection'] = 'initialization_failed'
+        result['error_type'] = raw_error.split(': ', 2)[1] if raw_error.count(': ') >= 2 else None
+        result['hint'] = _classify_db_error(raw_error) or 'Inspect Vercel Function Logs for the DB init step that failed.'
+        return jsonify(result), 503
+    try:
+        db.session.execute(text('SELECT 1'))
+        result['database_connection'] = 'ok'
+        return jsonify(result), 200
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Health check database connection failed')
+        result['database_connection'] = 'failed'
+        result['error_type'] = type(exc).__name__
+        result['hint'] = _classify_db_error(str(exc)) or 'Inspect Vercel Function Logs; do not post your DATABASE_URL publicly.'
+        return jsonify(result), 503
+
+
 @app.get('/init-status')
 def init_status():
-    # Diagnostic: shows whether DB setup finished and the last error (token required if CRON_SECRET is set).
+    # Never return connection strings/passwords. A CRON_SECRET token (or active admin
+    # session) is required to see detailed migration errors or force a retry.
     secret = os.environ.get('CRON_SECRET', '')
-    if not _init_state['done']: initialize_database(force=True)
-    allowed = is_admin() or bool(secret and _safe_equals(request.args.get('token', ''), secret))
-    info = dict(ready=_init_state['done'], schema_version=SCHEMA_VERSION, database='postgresql' if _IS_PG else 'sqlite',
-                database_url_set=bool(os.environ.get('DATABASE_URL')), secret_key_set=SECRET_KEY_FROM_ENV,
-                admin_login_configured=bool(os.environ.get('ADMIN_PASSWORD')), email_provider=_mail_provider())
+    supplied = request.args.get('token', '')
+    allowed = is_admin() or bool(secret and _safe_equals(supplied, secret))
+    if not _init_state['done']:
+        initialize_database(force=allowed)
+    info = dict(ready=_init_state['done'], schema_version=SCHEMA_VERSION,
+                database='postgresql' if _IS_PG else 'sqlite',
+                database_url_set=bool(os.environ.get('DATABASE_URL')),
+                secret_key_set=SECRET_KEY_FROM_ENV,
+                admin_username_configured=bool(os.environ.get('ADMIN_USERNAME', '').strip()),
+                admin_login_configured=bool(os.environ.get('ADMIN_PASSWORD')),
+                email_provider=_mail_provider())
     raw = _init_state['error'] or (_recent_errors[0]['type'] + ': ' + _recent_errors[0]['message'] if _recent_errors else '')
     parts = (_init_state['error'] or '').split(': ', 2)
     info['error_type'] = (parts[1] if len(parts) == 3 else (_recent_errors[0]['type'] if _recent_errors else None))
     info['hint'] = _classify_db_error(raw)
-    if allowed:  # error text can contain SQL details, so only show it to the admin / token holder
-        info['init_error'] = _init_state['error']; info['recent_errors'] = list(_recent_errors)
+    if allowed:
+        info['init_error'] = _init_state['error']
+        info['recent_errors'] = list(_recent_errors)
     else:
-        info['details'] = 'Log in as admin (or add ?token=CRON_SECRET) to see error details.'
+        info['details'] = 'For detailed initialization errors, use an authenticated admin session or CRON_SECRET token. Do not share that token.'
     return jsonify(info)
 
-# Do not connect to Neon or run schema migrations during module import on Vercel.
-# The first non-static request initializes the database through _ensure_database_ready().
-if __name__=='__main__':
+
+# Vercel imports this module to create the serverless handler. Never connect to Neon
+# or run schema migrations during module import; the first request initializes safely.
+if __name__ == '__main__':
     initialize_database(force=True)
     app.run(debug=True)
