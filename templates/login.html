@@ -1,1 +1,24 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Login | Library Management System</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}"></head><body class="auth-page"><main class="auth-wrap"><section class="auth-card"><div class="brand-icon">📚</div><h1>Library<br><span>Management System</span></h1><p class="auth-sub">Welcome back! Please login to continue your library journey.</p>{% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="msg {{category}}">{{message}}</div>{% endfor %}{% endwith %}<form method="post" action="{{url_for('login')}}"><input type="hidden" name="_csrf_token" value="{{csrf_token}}"><label>Username</label><div class="field"><span>👤</span><input name="username" autocomplete="username" required></div><label>Password</label><div class="field"><span>🔒</span><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button type="button" onclick="togglePass('loginPassword',this)">👁️</button></div><button class="primary" type="submit">Login <b>→</b></button></form><a class="forgot" href="{{url_for('forgot_password')}}">🔐 Forgot Password / Email OTP</a><div class="auth-footer">Don't have an account? <a href="{{url_for('register')}}">Create Account</a></div></section></main><script>function togglePass(id,b){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁️':'🙈'}</script></body></html>
+{% extends 'auth_base.html' %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<h1>Sign in</h1>
+<p class="lead">Use the username you created when you joined the library.</p>
+<form method="post" action="{{ url_for('login') }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+  <label for="username">Username</label>
+  <input class="input" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+  <label for="loginPassword">Password</label>
+  <div class="input-wrap">
+    <input class="input" id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+    <button class="reveal" type="button" aria-controls="loginPassword" aria-pressed="false" onclick="togglePass('loginPassword',this)">Show</button>
+  </div>
+  <button class="btn" type="submit">Sign in</button>
+</form>
+<div class="links">
+  <a class="link" href="{{ url_for('forgot_password') }}">Forgot your password?</a>
+  <span>New here? <a class="link" href="{{ url_for('register') }}">Create a member account</a></span>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+function togglePass(id,b){var i=document.getElementById(id),show=i.type==='password';i.type=show?'text':'password';b.textContent=show?'Hide':'Show';b.setAttribute('aria-pressed',show?'true':'false');}
+</script>{% endblock %}

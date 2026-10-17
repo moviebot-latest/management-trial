@@ -1,6 +1,96 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create Account | Library Management System</title><link rel="stylesheet" href="{{url_for('static',filename='style.css')}}"><style>.otp-card{margin-top:18px;padding:20px;border:1px solid #e3defe;border-radius:20px;background:linear-gradient(135deg,#f8f6ff,#fff)}.otp-input{width:100%;padding:16px;border:1px solid #dcd8ee;border-radius:16px;text-align:center;letter-spacing:10px;font-size:27px;font-weight:900;outline:none}.otp-meta{text-align:center;color:#70788b;font-size:13px;margin:10px 0}.otp-actions{display:flex;gap:10px}.otp-actions>*{flex:1}.availability{font-size:13px;margin-top:6px;min-height:18px;font-weight:700}.availability.ok{color:#12834e}.availability.bad{color:#c32c49}.rules{font-size:13px;line-height:1.7;color:#727a8c}.match{font-size:13px;margin:7px 4px}.match.ok{color:#12834e}.match.bad{color:#c32c49}</style></head><body class="auth-page"><main class="auth-wrap"><section class="auth-card register-card"><div class="brand-icon">📚</div><h1>Create<br><span>Library Account</span></h1><p class="auth-sub">Secure member registration with email OTP verification.</p>{% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="msg {{category}}">{{message}}</div>{% endfor %}{% endwith %}
+{% extends 'auth_base.html' %}
+{% block title %}Create account{% endblock %}
+{% block content %}
 {% if otp_sent %}
-<div class="otp-card"><div style="font-size:38px;text-align:center">✉️</div><h2 style="text-align:center;margin:8px 0">Verify Your Email</h2><p class="otp-meta">6-digit OTP sent to <b>{{ pending_email }}</b><br>Code expires in 10 minutes.</p><form method="post" action="{{url_for('verify_registration_otp')}}"><input type="hidden" name="_csrf_token" value="{{csrf_token}}"><label for="otp">Verification Code</label><input id="otp" name="otp" class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="000000" required autofocus><button class="primary" type="submit">✓ Verify & Create Account</button></form><div class="otp-actions"><form method="post" action="{{url_for('resend_registration_otp')}}"><input type="hidden" name="_csrf_token" value="{{csrf_token}}"><button class="primary" type="submit" style="background:#eeeaff;color:#5b43ca;box-shadow:none">↻ Resend OTP</button></form><a class="primary" href="{{url_for('register')}}" style="text-align:center;background:#f2f3f7;color:#41485a;box-shadow:none">Start Over</a></div></div>
+<h1>Check your email</h1>
+<p class="lead">We sent a 6-digit code to the address below. It works for 10 minutes.</p>
+<p class="sent-to">{{ pending_email }}</p>
+<form method="post" action="{{ url_for('verify_registration_otp') }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+  <label for="otp">Verification code</label>
+  <input class="input otp" id="otp" name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="000000" required autofocus>
+  <button class="btn" type="submit">Verify and create account</button>
+</form>
+<div class="btn-row">
+  <form method="post" action="{{ url_for('resend_registration_otp') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="btn quiet" type="submit">Send a new code</button></form>
+  <a class="btn quiet" href="{{ url_for('register') }}">Start over</a>
+</div>
 {% else %}
-<form id="registerForm" method="post" action="{{url_for('register')}}" onsubmit="return validateReg(event)"><input type="hidden" name="_csrf_token" value="{{csrf_token}}"><label>Full Name</label><div class="field"><span>👤</span><input name="name" autocomplete="name" required></div><label>Gender</label><div class="field"><span>⚧️</span><select name="gender" required><option value="">Select gender</option><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option></select></div><label>Email / Gmail</label><div class="field"><span>✉️</span><input id="email" name="email" type="email" autocomplete="email" placeholder="name@gmail.com" required></div><div id="emailStatus" class="availability"></div><label>Username</label><div class="field"><span>@</span><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="80" required></div><div id="usernameStatus" class="availability"></div><label>Password</label><div class="field"><span>🔒</span><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required><button type="button" onclick="togglePass('password',this)">👁️</button></div><div id="rules" class="rules"><div id="rLen">○ At least 8 characters</div><div id="rUpper">○ 1 uppercase letter</div><div id="rLower">○ 1 lowercase letter</div><div id="rNum">○ 1 number</div><div id="rSpecial">○ 1 special character</div></div><label>Confirm Password</label><div class="field"><span>🔐</span><input id="confirmPassword" name="confirm" type="password" autocomplete="new-password" minlength="8" required><button type="button" onclick="togglePass('confirmPassword',this)">👁️</button></div><div id="match" class="match"></div><button class="primary" type="submit">📧 Send Verification OTP <b>→</b></button></form>
-{% endif %}<div class="auth-footer">Already have an account? <a href="{{url_for('index')}}">Login</a></div></section></main><script>function togglePass(id,b){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁️':'🙈'}const p=document.getElementById('password'),c=document.getElementById('confirmPassword');function check(){if(!p)return;const v=p.value;[['rLen',v.length>=8,'At least 8 characters'],['rUpper',/[A-Z]/.test(v),'1 uppercase letter'],['rLower',/[a-z]/.test(v),'1 lowercase letter'],['rNum',/[0-9]/.test(v),'1 number'],['rSpecial',/[^A-Za-z0-9]/.test(v),'1 special character']].forEach(([id,ok,t])=>document.getElementById(id).textContent=(ok?'✓':'○')+' '+t);const m=document.getElementById('match');m.textContent=!c.value?'':(p.value===c.value?'✓ Passwords match':'✕ Passwords do not match');m.className='match '+(p.value===c.value&&c.value?'ok':'bad')}p?.addEventListener('input',check);c?.addEventListener('input',check);async function availability(url,id){const el=document.getElementById(id);try{const r=await fetch(url,{headers:{Accept:'application/json'}});const d=await r.json();el.className='availability '+(d.available?'ok':'bad');el.textContent=(d.available?'✓ ':'✕ ')+d.message;return d.available}catch(e){el.className='availability bad';el.textContent='✕ Could not check right now';return false}}async function validateReg(e){e.preventDefault();check();const email=document.getElementById('email').value.trim();const username=document.getElementById('username').value.trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert('Enter a valid email.');return false}if(!/^[A-Za-z0-9._-]{3,80}$/.test(username)){alert('Enter a valid username.');return false}const checks=await Promise.all([availability('/api/check-email?email='+encodeURIComponent(email),'emailStatus'),availability('/api/check-username?username='+encodeURIComponent(username),'usernameStatus')]);return checks.every(Boolean)&&p.value===c.value&&p.value.length>=8&&/[A-Z]/.test(p.value)&&/[a-z]/.test(p.value)&&/[0-9]/.test(p.value)&&/[^A-Za-z0-9]/.test(p.value)&&HTMLFormElement.prototype.submit.call(document.getElementById('registerForm'))}</script></body></html>
+<h1>Create your member account</h1>
+<p class="lead">We verify your email with a one-time code before the account is created.</p>
+<form id="registerForm" method="post" action="{{ url_for('register') }}" onsubmit="return validateReg(event)" novalidate>
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+  <label for="name">Full name</label>
+  <input class="input" id="name" name="name" autocomplete="name" required>
+
+  <label for="gender">Gender</label>
+  <select class="input" id="gender" name="gender" required>
+    <option value="">Select one</option><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option>
+  </select>
+
+  <label for="email">Email address</label>
+  <input class="input" id="email" name="email" type="email" autocomplete="email" placeholder="name@gmail.com" aria-describedby="emailStatus" required>
+  <span id="emailStatus" class="availability" aria-live="polite"></span>
+
+  <label for="username">Username</label>
+  <input class="input" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="80" aria-describedby="usernameStatus" required>
+  <span id="usernameStatus" class="availability" aria-live="polite"></span>
+
+  <label for="password">Password</label>
+  <div class="input-wrap">
+    <input class="input" id="password" name="password" type="password" autocomplete="new-password" minlength="8" aria-describedby="rules" required>
+    <button class="reveal" type="button" aria-controls="password" aria-pressed="false" onclick="togglePass('password',this)">Show</button>
+  </div>
+  <ul id="rules" class="rules">
+    <li id="rLen">8 or more characters</li><li id="rUpper">One uppercase letter</li><li id="rLower">One lowercase letter</li><li id="rNum">One number</li><li id="rSpecial">One special character</li>
+  </ul>
+
+  <label for="confirmPassword">Confirm password</label>
+  <div class="input-wrap">
+    <input class="input" id="confirmPassword" name="confirm" type="password" autocomplete="new-password" minlength="8" aria-describedby="match" required>
+    <button class="reveal" type="button" aria-controls="confirmPassword" aria-pressed="false" onclick="togglePass('confirmPassword',this)">Show</button>
+  </div>
+  <span id="match" class="match" aria-live="polite"></span>
+
+  <span id="formError" class="field-err" role="alert"></span>
+  <button class="btn" id="submitBtn" type="submit">Email me a verification code</button>
+</form>
+{% endif %}
+<div class="links"><span>Already a member? <a class="link" href="{{ url_for('index') }}">Sign in</a></span></div>
+{% endblock %}
+{% block scripts %}<script>
+function togglePass(id,b){var i=document.getElementById(id),show=i.type==='password';i.type=show?'text':'password';b.textContent=show?'Hide':'Show';b.setAttribute('aria-pressed',show?'true':'false');}
+var p=document.getElementById('password'),c=document.getElementById('confirmPassword');
+function strong(v){return v.length>=8&&/[A-Z]/.test(v)&&/[a-z]/.test(v)&&/[0-9]/.test(v)&&/[^A-Za-z0-9]/.test(v);}
+function check(){
+  if(!p)return;var v=p.value;
+  [['rLen',v.length>=8],['rUpper',/[A-Z]/.test(v)],['rLower',/[a-z]/.test(v)],['rNum',/[0-9]/.test(v)],['rSpecial',/[^A-Za-z0-9]/.test(v)]]
+    .forEach(function(r){document.getElementById(r[0]).className=r[1]?'met':'';});
+  var m=document.getElementById('match');
+  if(!c.value){m.textContent='';m.className='match';}
+  else if(p.value===c.value){m.textContent='Passwords match';m.className='match ok';}
+  else{m.textContent='Passwords do not match';m.className='match bad';}
+}
+if(p){p.addEventListener('input',check);c.addEventListener('input',check);}
+async function availability(url,id){
+  var el=document.getElementById(id);
+  try{var r=await fetch(url,{headers:{Accept:'application/json'}});var d=await r.json();
+    el.className='availability '+(d.available?'ok':'bad');el.textContent=d.message;return !!d.available;}
+  catch(e){el.className='availability bad';el.textContent='Could not check right now. Try again.';return false;}
+}
+async function validateReg(e){
+  e.preventDefault();check();
+  var form=document.getElementById('registerForm'),err=document.getElementById('formError'),btn=document.getElementById('submitBtn');
+  var email=document.getElementById('email').value.trim(),username=document.getElementById('username').value.trim();
+  err.textContent='';
+  if(!document.getElementById('name').value.trim()||!document.getElementById('gender').value){err.textContent='Fill in your name and gender.';return false;}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){err.textContent='Enter a valid email address.';document.getElementById('email').focus();return false;}
+  if(!/^[A-Za-z0-9._-]{3,80}$/.test(username)){err.textContent='Username can use letters, numbers, dot, underscore and hyphen (3 to 80 characters).';document.getElementById('username').focus();return false;}
+  if(!strong(p.value)){err.textContent='Choose a password that meets every rule above.';p.focus();return false;}
+  if(p.value!==c.value){err.textContent='The two passwords do not match.';c.focus();return false;}
+  btn.disabled=true;btn.textContent='Checking…';
+  var ok=(await Promise.all([availability('/api/check-email?email='+encodeURIComponent(email),'emailStatus'),availability('/api/check-username?username='+encodeURIComponent(username),'usernameStatus')])).every(Boolean);
+  if(!ok){btn.disabled=false;btn.textContent='Email me a verification code';err.textContent='Fix the highlighted fields and try again.';return false;}
+  HTMLFormElement.prototype.submit.call(form);return false;
+}
+</script>{% endblock %}
