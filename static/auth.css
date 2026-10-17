@@ -96,3 +96,5 @@ select.input{background-image:linear-gradient(45deg,transparent 50%,#4F5F58 50%)
 .error-stamp{display:inline-block;margin:4px 0 20px;padding:4px 22px;border:4px solid var(--stamp);border-radius:8px;color:var(--stamp);font-family:var(--font-card);font-weight:700;font-size:clamp(48px,11vw,80px);line-height:1.15;transform:rotate(-5deg);animation:thump .55s .15s cubic-bezier(.2,1.5,.4,1) both}
 .retry-note{margin:18px 0 0;color:var(--muted);font-size:15px}
 @media (prefers-reduced-motion:reduce){.error-stamp{animation:none}}
+.tech{margin:0 0 18px;font-size:14px}.tech summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.tech pre{margin:8px 0 0;padding:12px;border-radius:8px;background:#fff;border:1px solid var(--line);white-space:pre-wrap;word-break:break-word;font-family:var(--font-card);font-size:13px;color:var(--text)}
