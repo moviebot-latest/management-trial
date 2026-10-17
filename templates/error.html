@@ -1,19 +1,30 @@
-{% extends 'auth_base.html' %}
-{% block title %}{{ title }}{% endblock %}
-{% block bodyattr %}data-error{% endblock %}
-{% block content %}
-<div class="error-stamp" aria-hidden="true">{{ code }}</div>
-<h1>{{ title }}</h1>
-<p class="lead">{{ message }}</p>
-{% if hint %}<div class="notice" role="note"><strong>Kya check karein:</strong> {{ hint }}</div>{% endif %}
-{% if error_id %}<p><span class="error-id">Error ID {{ error_id }}</span></p>{% endif %}
-{% if detail %}<details class="tech"><summary>Technical details</summary><pre>{{ detail }}</pre></details>{% endif %}
-<div class="btn-row"><a class="btn" style="margin-top:0" href="{{ url_for('index') }}">Go to home</a><a class="btn quiet" href="javascript:location.reload()">Try again</a></div>
-{% if auto_retry %}<p class="retry-note" id="retry" role="status">Retrying in <span id="sec">5</span> seconds…</p>{% endif %}
-{% endblock %}
-{% block scripts %}{% if auto_retry %}<script>
-(function(){var n=0;try{n=+sessionStorage.getItem('lmsRetry')||0}catch(e){}
-var box=document.getElementById('retry');if(n>=3){box.textContent='Still not ready. Please try again in a minute.';return;}
-var s=5,el=document.getElementById('sec');
-var t=setInterval(function(){s--;el.textContent=s;if(s<=0){clearInterval(t);try{sessionStorage.setItem('lmsRetry',n+1)}catch(e){}location.reload();}},1000);})();
-</script>{% endif %}{% endblock %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Error {{ code }} — Library Management System</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="error-shell">
+  <div class="error-box">
+    <div class="error-num">{{ code }}</div>
+    <h1 class="error-title">
+      {% if   code == 404 %}Page Not Found
+      {% elif code == 403 %}Access Denied
+      {% elif code == 400 %}Bad Request
+      {% elif code == 413 %}File Too Large
+      {% elif code == 500 %}Server Error
+      {% else %}Something Went Wrong{% endif %}
+    </h1>
+    <p class="error-msg">{{ message }}</p>
+    <a href="/" class="btn btn-primary btn-lg">&larr; Back to Home</a>
+  </div>
+</div>
+<script src="/static/ui_advanced.js"></script>
+</body>
+</html>
