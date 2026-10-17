@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Public+Sans:wght@400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
 </head>
-<body class="auth">
+<body class="auth" {% block bodyattr %}{% endblock %}>
 <div class="auth-shell">
   <aside class="auth-aside">
     <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark" aria-hidden="true">L</span>Library Management System</a>
@@ -35,6 +35,7 @@
     </div>
   </main>
 </div>
+<script>try{if(!document.body.hasAttribute('data-error'))sessionStorage.removeItem('lmsRetry')}catch(e){}</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

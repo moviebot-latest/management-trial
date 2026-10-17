@@ -1,9 +1,17 @@
 {% extends 'auth_base.html' %}
 {% block title %}{{ title }}{% endblock %}
+{% block bodyattr %}data-error{% endblock %}
 {% block content %}
-<p class="error-code" aria-hidden="true">{{ code }}</p>
+<div class="error-stamp" aria-hidden="true">{{ code }}</div>
 <h1>{{ title }}</h1>
 <p class="lead">{{ message }}</p>
 {% if error_id %}<p><span class="error-id">Error ID {{ error_id }}</span></p>{% endif %}
 <div class="btn-row"><a class="btn" style="margin-top:0" href="{{ url_for('index') }}">Go to home</a><a class="btn quiet" href="javascript:location.reload()">Try again</a></div>
+{% if auto_retry %}<p class="retry-note" id="retry" role="status">Retrying in <span id="sec">5</span> seconds…</p>{% endif %}
 {% endblock %}
+{% block scripts %}{% if auto_retry %}<script>
+(function(){var n=0;try{n=+sessionStorage.getItem('lmsRetry')||0}catch(e){}
+var box=document.getElementById('retry');if(n>=3){box.textContent='Still not ready. Please try again in a minute.';return;}
+var s=5,el=document.getElementById('sec');
+var t=setInterval(function(){s--;el.textContent=s;if(s<=0){clearInterval(t);try{sessionStorage.setItem('lmsRetry',n+1)}catch(e){}location.reload();}},1000);})();
+</script>{% endif %}{% endblock %}
