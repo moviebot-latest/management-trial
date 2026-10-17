@@ -1,219 +1,58 @@
-# 🚀 Management System v20 — Neon + Render Deployment Guide
-
-Is guide ko follow karo aur 15 minute mein website **live** ho jaayegi!
-
----
-
-## 📋 Kya Chahiye?
-
-- [x] GitHub account (free) → https://github.com
-- [x] Neon account (free) → https://neon.tech
-- [x] Render account (free) → https://render.com
-
----
-
-## STEP 1 — GitHub pe Code Upload Karo
-
-1. **GitHub.com pe jaao** → New Repository banao
-   - Name: `management-system-v20`
-   - Visibility: **Private** (recommended)
-   - Click **Create Repository**
-
-2. **Code upload karo** (apne computer pe terminal/CMD kholo):
-
-```bash
-# Is folder mein jaao
-cd management_system_v20
-
-# Git setup
-git init
-git add .
-git commit -m "Initial commit - Management System v20"
-
-# GitHub se connect karo (apna repo URL paste karo)
-git remote add origin https://github.com/TUMHARA_USERNAME/management-system-v20.git
-git branch -M main
-git push -u origin main
-```
-
-> ⚠️ `.env` file ko KABHI GitHub pe push mat karo! `.gitignore` already set hai.
-
----
-
-## STEP 2 — Neon Database Banao (Free PostgreSQL)
-
-1. **https://neon.tech** pe jaao → Sign up (GitHub se bhi ho sakta hai)
-
-2. **New Project** banao:
-   - Project Name: `management-system`
-   - Region: `AWS Singapore` (ya koi bhi)
-   - Click **Create Project**
-
-3. Dashboard pe **Connection Details** section mein jaao
-
-4. **Connection String** copy karo — kuch aisa dikhega:
-   ```
-   postgresql://neondb_owner:abcXYZ123@ep-cool-bird-123456.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-   ```
-
-5. Is string ko **safe jagah save karo** — abhi Render mein paste karenge.
-
-> ✅ Neon free tier mein 0.5 GB storage milta hai — kafi hai!
-
----
-
-## STEP 3 — Render pe Deploy Karo
-
-1. **https://render.com** pe jaao → Sign up (GitHub se)
-
-2. **New +** button → **Web Service** click karo
-
-3. **Connect GitHub** → Apna `management-system-v20` repo select karo
-
-4. Settings fill karo:
-   | Setting | Value |
-   |---------|-------|
-   | Name | `management-system-v20` |
-   | Region | Singapore |
-   | Branch | `main` |
-   | Runtime | **Python 3** |
-   | Build Command | `pip install -r requirements.txt` |
-   | Start Command | `gunicorn app:app --workers 2 --timeout 120 --bind 0.0.0.0:$PORT` |
-   | Instance Type | **Free** |
-
-5. **Environment Variables** section mein jaao — yeh sab add karo:
-
-   | Key | Value |
-   |-----|-------|
-   | `DATABASE_URL` | (Neon connection string jo Step 2 mein copy ki) |
-   | `SECRET_KEY` | (Koi bhi 32+ char random string — neeche generator hai) |
-   | `ADMIN_USERNAME` | `admin` (ya jo bhi rakhna ho) |
-   | `ADMIN_PASSWORD` | `Admin@1234!` (ZAROOR change karo!) |
-   | `ADMIN_EMAIL` | `admin@example.com` |
-   | `PGSSLMODE` | `require` |
-   | `FLASK_DEBUG` | `0` |
-
-   **SECRET_KEY generate karna hai?** Terminal mein run karo:
-   ```bash
-   python3 -c "import secrets; print(secrets.token_hex(32))"
-   ```
-
-6. **Create Web Service** click karo!
-
-7. Render automatically:
-   - GitHub se code pull karega
-   - `pip install` run karega
-   - Gunicorn start karega
-   - Neon DB mein tables create karega
-   - Admin user create karega
-
-8. Deploy hone mein **2-5 minute** lagte hain.
-
-9. URL milega: `https://management-system-v20-XXXX.onrender.com`
-
----
-
-## STEP 4 — Website Test Karo
-
-1. Render URL pe jaao → **Landing page** dikhega ✅
-2. `/login` pe jaao → `ADMIN_USERNAME` aur `ADMIN_PASSWORD` se login karo
-3. Admin dashboard dikhega — sab kaam kar raha hai! 🎉
-
----
-
-## 🔧 Local Development (Optional)
-
-```bash
-# 1. Virtual environment banao
-python3 -m venv venv
-source venv/bin/activate        # Mac/Linux
-venv\Scripts\activate           # Windows
-
-# 2. Packages install karo
-pip install -r requirements.txt
-
-# 3. .env file banao
-cp .env.example .env
-# .env file kholo aur apni values fill karo
-
-# 4. Run karo
-python app.py
-# Browser mein: http://localhost:5000
-```
-
----
-
-## 🗄️ Neon Database — Useful Info
-
-| Feature | Details |
-|---------|----------|
-| Database type | PostgreSQL 16 |
-| Free storage | 512 MB |
-| Free compute | 191.9 compute hours/month |
-| Auto-suspend | 5 min inactivity ke baad (free tier) |
-| Backup | Automatic |
-| SSL | Always required (sslmode=require) |
-| Dashboard | https://console.neon.tech |
-
-> ⚠️ **Auto-suspend**: Free tier mein Neon 5 min baad DB suspend kar deta hai.
-> Pehli request slow ho sakti hai (cold start ~1-2 sec). Production ke liye
-> Neon Pro le lo ya connection pooling enable karo.
-
----
-
-## 🚨 Troubleshooting
-
-### "could not connect to server"
-- Neon Dashboard pe check karo ki project active hai
-- DATABASE_URL sahi copy ki hai? Poori string chahiye
-- PGSSLMODE=require set hai?
-
-### "Application failed to respond"
-- Render logs check karo (Logs tab)
-- Start command sahi hai? `gunicorn app:app --workers 2 --timeout 120 --bind 0.0.0.0:$PORT`
-
-### Admin login nahi ho raha
-- ADMIN_PASSWORD mein uppercase, lowercase, number, special char sab hone chahiye
-- Example: `MyPass@2024!`
-
-### Website 30 sec baad slow / timeout
-- Render free tier mein service 15 min inactivity pe sleep karti hai
-- Pehli request slow hoti hai — normal hai
-- Fix: Render paid plan ya UptimeRobot se ping karte raho
-
----
-
-## 🔐 Production Security Checklist
-
-- [ ] SECRET_KEY — strong random 32+ char string
-- [ ] ADMIN_PASSWORD — strong password (uppercase + lowercase + number + special)
-- [ ] FLASK_DEBUG=0 (kabhi 1 mat karna production mein)
-- [ ] .env file GitHub pe push nahi hui
-- [ ] Neon SSL enabled (PGSSLMODE=require)
-- [ ] Render HTTPS automatic milta hai ✅
-
----
-
-## 📱 Website URLs (after deployment)
-
-| Page | URL |
-|------|-----|
-| 🌐 Landing | `https://your-app.onrender.com/` |
-| 🔑 Login | `https://your-app.onrender.com/login` |
-| 📊 Dashboard | `https://your-app.onrender.com/dashboard` |
-| 👤 Profile | `https://your-app.onrender.com/profile` |
-| 📈 Analytics | `https://your-app.onrender.com/admin/analytics` |
-| ⚙️ Settings | `https://your-app.onrender.com/admin/settings` |
-| 📋 Audit Logs | `https://your-app.onrender.com/admin/audit-logs` |
-
----
-
-**Built with ❤️ using Flask + Neon PostgreSQL + Render**
-
-## Brevo Email OTP
-
-Normal self-registration now requires email verification before the account is created. The app sends a 6-digit, 10-minute OTP through Brevo's transactional email API. OTPs are hashed, attempts are limited, resend is rate-limited, and no OTP is stored in plaintext.
-
-Set these Vercel Environment Variables: `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and optional `BREVO_SENDER_NAME`. The Brevo API key must stay server-side; never put it in HTML/JavaScript or Git. Brevo requires a registered/verified sender for transactional email. Gmail addresses can be recipients; for reliable sending, use a verified sender/domain in Brevo.
-
-Brevo's current Free plan provides 300 email sends per day and is free without a credit card.
+# Management System V21 — Vercel + Neon Deployment
+
+## Included stack
+- Python 3.12 + Flask
+- SQLAlchemy / Flask-SQLAlchemy
+- Neon PostgreSQL
+- HTML, CSS, JavaScript
+- Brevo transactional email for registration and password-reset OTP
+
+## 1. Push to GitHub
+Extract this ZIP and push its contents to the root of your repository. These paths must be at the root: `app.py`, `requirements.txt`, `vercel.json`, `templates/`, and `public/`.
+
+## 2. Import to Vercel
+Import the repository in Vercel. Use the repository root as the Root Directory. Flask is detected from the root-level `app.py`; the minimal `vercel.json` only configures function duration. Vercel serves `public/` assets from its static layer.
+
+## 3. Set Production Environment Variables
+Set these in Vercel → Project → Settings → Environment Variables. Apply to Production (and Preview if you test Preview deployments):
+
+- `SECRET_KEY`: a strong random secret; generate locally with `python -c "import secrets; print(secrets.token_hex(32))"`.
+- `DATABASE_URL`: the Neon PostgreSQL connection string for the **existing database containing your users**. Use Neon’s pooled connection string when available.
+- `ADMIN_USERNAME`: desired environment-managed admin username.
+- `ADMIN_PASSWORD`: strong password (8+ characters, uppercase, lowercase, number, special character).
+- `ADMIN_EMAIL`: admin email address.
+- `PGSSLMODE`: `require`.
+- `FLASK_DEBUG`: `0`.
+- `BREVO_API_KEY`: private Brevo API key.
+- `BREVO_SENDER_EMAIL`: sender verified in Brevo.
+- `BREVO_SENDER_NAME`: e.g. `Management System`.
+
+Do not paste secrets into chat, commit them, or show them in screenshots. `DATABASE_URL` must point to the correct Neon project. Do not create a new empty Neon project if you need to preserve existing user data.
+
+## 4. Redeploy and verify
+After setting environment variables, redeploy Production. Visit `/healthz`; success returns `{"status":"ok","database":"ok"}`. A 503 indicates a database/readiness failure; use Vercel Function Logs for the detailed server-side error. The endpoint intentionally does not expose credentials or raw database errors.
+
+## 5. Feature smoke-test checklist
+1. Landing page and static CSS/JS assets load.
+2. Admin login using the exact `ADMIN_USERNAME` / `ADMIN_PASSWORD` values.
+3. Registration → 6-digit OTP email → OTP verification → account creation.
+4. Forgot password → OTP email → verify → set new password → login.
+5. Profile view/edit, password change, and logout.
+6. Admin dashboard: create user with OTP, edit, activate/deactivate, unlock, delete non-admin user.
+7. Analytics, audit logs, clear logs, and CSV export.
+
+## Data safety and migration behavior
+- On Vercel, missing `DATABASE_URL` is treated as a configuration error rather than silently falling back to ephemeral SQLite.
+- Startup migration adds compatible missing columns without dropping existing user records. If essential identity columns are missing or unique data conflicts, startup fails with a clear log rather than fabricating credentials or deleting users.
+- Automatic migration never deletes pending OTP/reset rows or rewrites existing employee IDs. If an old OTP/reset table contains incomplete rows, startup stops safely and logs a reconciliation error instead of discarding data.
+- Admin credentials are synchronized from environment variables at database initialization. Changing `ADMIN_PASSWORD` requires a redeploy.
+
+## Local development
+1. `python -m venv .venv`
+2. Activate the environment.
+3. `pip install -r requirements.txt`
+4. Copy `.env.example` to `.env` and replace every placeholder.
+5. `python app.py` then open `http://127.0.0.1:5000`.
+
+## Validation limitation
+Static checks are included in `CODE_TEST_REPORT.md`. The project’s private Neon database, Brevo sender configuration, and Vercel production deployment cannot be live-tested from the build environment; run the smoke-test checklist after deployment.

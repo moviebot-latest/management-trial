@@ -4,25 +4,32 @@ import io
 import secrets
 import re
 import json
+import html
 import urllib.request
 import urllib.error
 from datetime import date, timedelta, datetime, timezone
 from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, make_response, Response, jsonify
+    session, flash, make_response, Response, jsonify, send_from_directory
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy import inspect, text
 from werkzeug.security import generate_password_hash, check_password_hash
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Local development only; Vercel uses dashboard environment variables.
+except ImportError:
+    pass
+
 app = Flask(__name__)
 
 # ── Secret Key ───────────────────────────────────────────────────────
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
 if not app.config["SECRET_KEY"]:
-    raise RuntimeError("SECRET_KEY environment variable is required.")
+    raise RuntimeError("SECRET_KEY is required. Add a strong SECRET_KEY in Vercel Environment Variables and redeploy.")
 
 # ── Session & Cookie Security ──────────────────────────────────────────
 is_production = os.environ.get("FLASK_DEBUG", "0") != "1"
@@ -36,20 +43,27 @@ app.config.update(
 )
 
 # ── Database ──────────────────────────────────────────────────────────────
-database_url = os.environ.get("DATABASE_URL", "sqlite:///management.db")
+database_url = os.environ.get("DATABASE_URL", "").strip()
+if not database_url:
+    if os.environ.get("VERCEL"):
+        raise RuntimeError("DATABASE_URL is required on Vercel. Configure the Neon PostgreSQL connection string in Project Settings → Environment Variables.")
+    database_url = "sqlite:///management.db"
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 if database_url.startswith(("postgresql://", "postgresql+psycopg2://")):
+    is_serverless = bool(os.environ.get("VERCEL"))
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_pre_ping": True, "pool_recycle": 300,
-        "pool_timeout": 30, "pool_size": 5, "max_overflow": 5,
+        "pool_pre_ping": True,
+        "pool_recycle": 240,
+        "pool_timeout": 10 if is_serverless else 30,
+        # Each Vercel instance should hold as few DB connections as possible.
+        "pool_size": 1 if is_serverless else 5,
+        "max_overflow": 0 if is_serverless else 5,
         "connect_args": {
-            "connect_timeout": 10, "keepalives": 1,
-            "keepalives_idle": 30, "keepalives_interval": 10,
-            "keepalives_count": 3,
+            "connect_timeout": 10,
             "sslmode": os.environ.get("PGSSLMODE", "require"),
         },
     }
@@ -290,7 +304,8 @@ def send_brevo_otp(email, otp, name, purpose="verification"):
     if not api_key or not sender_email:
         raise RuntimeError("Brevo email service is not configured.")
 
-    safe_name = (name or "there").strip()[:120]
+    raw_name = (name or "there").strip()[:120]
+    safe_name = html.escape(raw_name, quote=True)
     is_reset = purpose == "password_reset"
     title = "🔐 Reset your password" if is_reset else "🔐 Verify your email"
     intro = ("Use this one-time code to reset your Management System password:"
@@ -311,7 +326,7 @@ def send_brevo_otp(email, otp, name, purpose="verification"):
       </div></body></html>"""
     payload = json.dumps({
         "sender": {"name": sender_name, "email": sender_email},
-        "to": [{"email": email, "name": safe_name}],
+        "to": [{"email": email, "name": raw_name}],
         "subject": subject,
         "htmlContent": html,
         "textContent": plain
@@ -515,6 +530,16 @@ def server_error(e):
 
 # ══════════════════════════ PUBLIC ROUTES ══════════════════════════
 
+@app.route("/style.css")
+def public_stylesheet():
+    return send_from_directory(os.path.join(app.root_path, "public"), "style.css", mimetype="text/css")
+
+
+@app.route("/ui_advanced.js")
+def public_script():
+    return send_from_directory(os.path.join(app.root_path, "public"), "ui_advanced.js", mimetype="application/javascript")
+
+
 @app.route("/")
 def index():
     """Landing page — redirect to dashboard if already logged in."""
@@ -577,8 +602,9 @@ def login_page():
         log_action(user.username, "LOGIN_FAILED", f"Invalid password; {max(0, remaining)} attempt(s) remaining")
         return render_template("login.html"), 401
 
-    # ✔ Successful login
+    # Successful login: reset lockout and persist activity timestamp.
     user.unlock()
+    user.last_login = datetime.utcnow()
     db.session.commit()
 
     session.clear()
@@ -665,7 +691,8 @@ def register():
         return err(str(exc))
     except Exception:
         db.session.rollback()
-        return err("We could not send the verification email right now. Please try again later.")
+        app.logger.exception("Registration OTP request failed")
+        return err("We could not send the verification email right now. Please check the email service configuration or try again later.")
 
 
 @app.route("/register/verify-otp", methods=["POST"])
@@ -743,7 +770,8 @@ def resend_registration_otp():
         flash(str(exc), "error")
     except Exception:
         db.session.rollback()
-        flash("We could not resend the verification email. Please try again later.", "error")
+        app.logger.exception("Registration OTP resend failed")
+        flash("We could not resend the verification email. Please check the email service configuration or try again later.", "error")
     return redirect(url_for("register"))
 
 
@@ -793,14 +821,16 @@ def public_stats():
 
 
 @app.route("/health")
+@app.route("/healthz")
 def health():
-    """Render-friendly health check that verifies the database too."""
+    """Minimal readiness check; never expose database credentials/errors publicly."""
     try:
         db.session.execute(text("SELECT 1"))
         return jsonify({"status": "ok", "database": "ok"}), 200
-    except Exception as exc:
+    except Exception:
         db.session.rollback()
-        return jsonify({"status": "error", "database": "unavailable", "detail": str(exc)}), 503
+        app.logger.exception("Health check database query failed")
+        return jsonify({"status": "error", "database": "unavailable"}), 503
 
 
 # ═════════════════════════ DASHBOARD ══════════════════════════
@@ -994,6 +1024,10 @@ def forgot_password():
         flash("This account is inactive. Please contact an administrator.", "error")
         return render_template("forgot_password.html", username=username, reset_sent=False,
                                reset_verified=False, masked_email=""), 403
+    if user.role == "admin":
+        flash("The admin password is managed in Vercel Environment Variables. Update ADMIN_PASSWORD there and redeploy.", "error")
+        return render_template("forgot_password.html", username=username, reset_sent=False,
+                               reset_verified=False, masked_email=""), 403
     if not _brevo_configured():
         flash("Password reset email is not configured. Please contact the administrator.", "error")
         return render_template("forgot_password.html", username=username, reset_sent=False,
@@ -1011,7 +1045,8 @@ def forgot_password():
         flash(str(exc), "error")
     except Exception:
         db.session.rollback()
-        flash("We could not send the reset email right now. Please try again later.", "error")
+        app.logger.exception("Password reset OTP request failed")
+        flash("We could not send the reset email right now. Please check the email service configuration or try again later.", "error")
 
     return redirect(url_for("forgot_password"))
 
@@ -1026,6 +1061,12 @@ def resend_forgot_password_otp():
         session.pop("password_reset_verified", None)
         flash("Reset session expired. Please start again.", "error")
         return redirect(url_for("forgot_password"))
+    if user.role == "admin":
+        session.pop("password_reset_user_id", None)
+        session.pop("password_reset_masked_email", None)
+        session.pop("password_reset_verified", None)
+        flash("Admin password is managed in Vercel Environment Variables.", "error")
+        return redirect(url_for("forgot_password"))
     try:
         create_password_reset_otp(user)
         session["password_reset_verified"] = False
@@ -1035,7 +1076,8 @@ def resend_forgot_password_otp():
         flash(str(exc), "error")
     except Exception:
         db.session.rollback()
-        flash("We could not resend the reset email. Please try again later.", "error")
+        app.logger.exception("Password reset OTP resend failed")
+        flash("We could not resend the reset email. Please check the email service configuration or try again later.", "error")
     return redirect(url_for("forgot_password"))
 
 
@@ -1081,6 +1123,17 @@ def reset_password_after_otp():
     row = PasswordReset.query.filter_by(user_id=user_id).first() if user_id else None
     if not user or not row or not session.get("password_reset_verified") or not row.verified_at:
         flash("Please verify the OTP first.", "error")
+        return redirect(url_for("forgot_password"))
+    if user.role == "admin":
+        flash("Admin password is managed in Vercel Environment Variables.", "error")
+        return redirect(url_for("forgot_password"))
+    if row.expires_at < _utcnow_naive() or row.email.casefold() != user.email.casefold():
+        db.session.delete(row)
+        db.session.commit()
+        session.pop("password_reset_verified", None)
+        session.pop("password_reset_user_id", None)
+        session.pop("password_reset_masked_email", None)
+        flash("The verification code has expired. Please request a new OTP.", "error")
         return redirect(url_for("forgot_password"))
 
     new_pw = request.form.get("new_password", "")
@@ -1535,14 +1588,20 @@ def export_users():
     users = User.query.order_by(User.created_at.desc()).all()
     output = io.StringIO()
     writer = csv.writer(output)
+
+    def csv_safe(value):
+        value = "" if value is None else str(value)
+        if value.startswith(("=", "+", "-", "@", "\t", "\r")):
+            return "'" + value
+        return value
     writer.writerow([
         "Employee ID", "Name", "Gender", "Department",
         "Email", "Username", "Role", "Active", "Created At"
     ])
     for u in users:
         writer.writerow([
-            u.employee_id, u.name, u.gender, u.department,
-            u.email, u.username, u.role,
+            csv_safe(u.employee_id), csv_safe(u.name), csv_safe(u.gender), csv_safe(u.department),
+            csv_safe(u.email), csv_safe(u.username), csv_safe(u.role),
             "Yes" if u.is_active else "No",
             u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "",
         ])
@@ -1559,79 +1618,188 @@ def export_users():
 
 # ══════════════════════════ INIT & RUN ══════════════════════════
 
-def _init_db():
-    """Create/migrate tables and safely bootstrap the configured admin."""
-    db.create_all()
-
+def _columns_for(table_name):
     inspector = inspect(db.engine)
-    user_columns = {c["name"] for c in inspector.get_columns("user")}
-    if "role" not in user_columns:
-        db.session.execute(text(
-            "ALTER TABLE \"user\" ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"
-        ))
-        db.session.commit()
-        print("[MIGRATION] Added missing user.role column.", flush=True)
+    if not inspector.has_table(table_name):
+        return set()
+    return {column["name"] for column in inspector.get_columns(table_name)}
 
-    # Migrate legacy EMP### IDs once to the department/year format.
-    legacy_users = User.query.filter(User.employee_id.like("EMP%")).order_by(User.id.asc()).all()
-    if legacy_users:
-        # Temporarily move IDs so the UNIQUE constraint cannot collide during migration.
-        for u in legacy_users:
-            u.employee_id = f"MIG-{u.id}"
-        db.session.commit()
-        used = set()
-        for u in legacy_users:
-            join_year = u.created_at.year if u.created_at else datetime.now().year
-            code = DEPARTMENT_CODES.get(u.department, "EMP")
-            yy = join_year % 100
-            prefix = f"{code}-{yy:02d}-"
-            n = 1
-            while f"{prefix}{n:04d}" in used or User.query.filter_by(employee_id=f"{prefix}{n:04d}").first():
-                n += 1
-            u.employee_id = f"{prefix}{n:04d}"
-            used.add(u.employee_id)
-        db.session.commit()
-        print(f"[MIGRATION] Converted {len(legacy_users)} legacy employee IDs.", flush=True)
+
+def _add_missing_columns(table_name, definitions):
+    """Add only absent columns. Definitions are hard-coded internal SQL, never user input."""
+    columns = _columns_for(table_name)
+    for column_name, sql_definition in definitions.items():
+        if column_name not in columns:
+            effective_definition = sql_definition
+            sqlite_timestamp_default = (
+                db.engine.dialect.name == "sqlite" and "DEFAULT CURRENT_TIMESTAMP" in sql_definition.upper()
+            )
+            # SQLite disallows non-constant defaults on ALTER TABLE ADD COLUMN.
+            if sqlite_timestamp_default:
+                effective_definition = "TIMESTAMP NULL"
+            db.session.execute(text(
+                f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {effective_definition}'
+            ))
+            if sqlite_timestamp_default:
+                db.session.execute(text(
+                    f'UPDATE "{table_name}" SET "{column_name}" = CURRENT_TIMESTAMP WHERE "{column_name}" IS NULL'
+                ))
+            db.session.commit()
+            app.logger.warning("Schema migration added %s.%s", table_name, column_name)
+            columns.add(column_name)
+    return columns
+
+
+def _ensure_unique_index(table_name, column_name):
+    """Create a unique index only when existing data is already unique."""
+    index_name = f"uq_{table_name}_{column_name}_v20"
+    inspector = inspect(db.engine)
+    for idx in inspector.get_indexes(table_name):
+        if idx.get("unique") and idx.get("column_names") == [column_name]:
+            return
+    for constraint in inspector.get_unique_constraints(table_name):
+        if constraint.get("column_names") == [column_name]:
+            return
+    duplicates = db.session.execute(text(
+        f'SELECT "{column_name}", COUNT(*) FROM "{table_name}" '
+        f'WHERE "{column_name}" IS NOT NULL GROUP BY "{column_name}" HAVING COUNT(*) > 1 LIMIT 1'
+    )).first()
+    if duplicates:
+        raise RuntimeError(
+            f"Cannot safely migrate {table_name}.{column_name}: duplicate values exist. "
+            "Resolve duplicates before deployment; existing records were not deleted."
+        )
+    db.session.execute(text(
+        f'CREATE UNIQUE INDEX IF NOT EXISTS "{index_name}" ON "{table_name}" ("{column_name}")'
+    ))
+    db.session.commit()
+
+
+def _migrate_existing_schema():
+    """Repair additive schema drift without dropping/recreating existing user data."""
+    user_cols = _columns_for("user")
+    critical = {"id", "name", "gender", "department", "email", "username", "password_hash"}
+    missing_critical = sorted(critical - user_cols)
+    if missing_critical:
+        raise RuntimeError(
+            "Existing user table is missing essential columns: " + ", ".join(missing_critical) +
+            ". Automatic recovery is unsafe because it could make existing accounts inaccessible. "
+            "Back up the database and reconcile this legacy schema before retrying."
+        )
+
+    user_defs = {
+        "employee_id": "VARCHAR(20)",
+        "role": "VARCHAR(20) NOT NULL DEFAULT 'user'",
+        "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
+        "failed_attempts": "INTEGER NOT NULL DEFAULT 0",
+        "locked_until": "TIMESTAMP NULL",
+        "last_login": "TIMESTAMP NULL",
+        "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    }
+    user_cols = _add_missing_columns("user", user_defs)
+    # Existing rows get a deterministic, non-sensitive migration ID only when missing.
+    rows = db.session.execute(text(
+        'SELECT "id" FROM "user" WHERE "employee_id" IS NULL OR "employee_id" = \'\' ORDER BY "id"'
+    )).fetchall()
+    for (uid,) in rows:
+        db.session.execute(text('UPDATE "user" SET "employee_id" = :eid WHERE "id" = :uid'),
+                           {"eid": f"MIG-{uid}", "uid": uid})
+    # Normalize nullable fields from older schemas before the ORM uses them.
+    db.session.execute(text("UPDATE \"user\" SET \"role\" = 'user' WHERE \"role\" IS NULL OR \"role\" = ''"))
+    db.session.execute(text('UPDATE "user" SET "is_active" = TRUE WHERE "is_active" IS NULL'))
+    db.session.execute(text('UPDATE "user" SET "failed_attempts" = 0 WHERE "failed_attempts" IS NULL'))
+    db.session.execute(text('UPDATE "user" SET "created_at" = CURRENT_TIMESTAMP WHERE "created_at" IS NULL'))
+    db.session.commit()
+    for col in ("username", "email", "employee_id"):
+        _ensure_unique_index("user", col)
+
+    # OTP/reset tables can contain in-progress user workflows. Never delete rows during
+    # automatic schema repair: if a legacy partial table has malformed records, fail safely
+    # and ask for a backup/manual reconciliation instead of silently discarding data.
+    if inspect(db.engine).has_table("email_verification"):
+        ev_defs = {
+            "email": "VARCHAR(160)", "username": "VARCHAR(80)", "name": "VARCHAR(120)",
+            "gender": "VARCHAR(30)", "department": "VARCHAR(80)",
+            "password_hash": "VARCHAR(255)", "otp_hash": "VARCHAR(255)",
+            "expires_at": "TIMESTAMP NULL", "last_sent_at": "TIMESTAMP NULL",
+            "attempts": "INTEGER NOT NULL DEFAULT 0", "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        }
+        _add_missing_columns("email_verification", ev_defs)
+        malformed = db.session.execute(text(
+            'SELECT "id" FROM "email_verification" WHERE "email" IS NULL OR "username" IS NULL '
+            'OR "password_hash" IS NULL OR "otp_hash" IS NULL OR "expires_at" IS NULL '
+            'OR "last_sent_at" IS NULL LIMIT 1'
+        )).first()
+        if malformed:
+            raise RuntimeError(
+                "The email_verification table contains incomplete legacy rows. "
+                "No rows were deleted; back up the database and reconcile those pending OTP rows manually."
+            )
+        _ensure_unique_index("email_verification", "email")
+
+    if inspect(db.engine).has_table("password_reset"):
+        pr_defs = {
+            "user_id": "INTEGER", "email": "VARCHAR(160)", "otp_hash": "VARCHAR(255)",
+            "expires_at": "TIMESTAMP NULL", "last_sent_at": "TIMESTAMP NULL",
+            "attempts": "INTEGER NOT NULL DEFAULT 0", "verified_at": "TIMESTAMP NULL",
+            "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        }
+        _add_missing_columns("password_reset", pr_defs)
+        malformed = db.session.execute(text(
+            'SELECT "id" FROM "password_reset" WHERE "user_id" IS NULL OR "email" IS NULL '
+            'OR "otp_hash" IS NULL OR "expires_at" IS NULL OR "last_sent_at" IS NULL LIMIT 1'
+        )).first()
+        if malformed:
+            raise RuntimeError(
+                "The password_reset table contains incomplete legacy rows. "
+                "No rows were deleted; back up the database and reconcile those pending reset rows manually."
+            )
+
+    if inspect(db.engine).has_table("audit_log"):
+        audit_defs = {
+            "username": "VARCHAR(80) NOT NULL DEFAULT 'system'",
+            "action": "VARCHAR(80) NOT NULL DEFAULT 'LEGACY'",
+            "ip_address": "VARCHAR(45) NULL", "details": "VARCHAR(500) NULL",
+            "timestamp": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        }
+        _add_missing_columns("audit_log", audit_defs)
+
+
+def _init_db():
+    """Create missing tables, add compatible columns, and sync the environment admin."""
+    db.create_all()
+    _migrate_existing_schema()
+
+    # Do not rewrite existing employee IDs during startup. New IDs are generated by
+    # next_employee_id(); legacy IDs remain valid and untouched to preserve user data.
 
     admin_username = os.environ.get("ADMIN_USERNAME", "").strip()
     admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip() or (admin_username + "@system.local")
-
     if not admin_username or not admin_password:
-        print("[INIT] ADMIN_USERNAME / ADMIN_PASSWORD not configured; skipping admin bootstrap.", flush=True)
+        app.logger.warning("ADMIN_USERNAME / ADMIN_PASSWORD are not configured; admin bootstrap skipped")
         return
-
     ok, pw_err = validate_password(admin_password)
     if not ok:
         raise RuntimeError("ADMIN_PASSWORD is too weak: " + pw_err)
 
-    # Login is case-insensitive, so bootstrap lookup is case-insensitive too.
     admin = User.query.filter(db.func.lower(User.username) == admin_username.casefold()).first()
-
     if admin is None:
-        employee_id = next_employee_id("Administration")
         admin = User(
-            employee_id=employee_id,
-            name="System Administrator",
-            gender="Prefer not to say",
-            department="Administration",
-            email=admin_email,
-            username=admin_username,
-            password_hash=generate_password_hash(admin_password),
-            role="admin",
-            is_active=True,
+            employee_id=next_employee_id("Administration"), name="System Administrator",
+            gender="Prefer not to say", department="Administration", email=admin_email,
+            username=admin_username, password_hash=generate_password_hash(admin_password),
+            role="admin", is_active=True,
         )
         db.session.add(admin)
         try:
             db.session.commit()
-            print(f"[INIT] Admin created: {admin_username} ({employee_id})", flush=True)
+            app.logger.info("Environment-managed admin account created")
         except IntegrityError:
             db.session.rollback()
-            # Another worker may have created the admin concurrently.
             admin = User.query.filter(db.func.lower(User.username) == admin_username.casefold()).first()
             if admin is None:
                 raise
-            print(f"[INIT] Admin already created by another worker: {admin.username}", flush=True)
     else:
         changed = False
         if admin.role != "admin":
@@ -1640,20 +1808,15 @@ def _init_db():
         if not admin.is_active:
             admin.is_active = True
             changed = True
-        if admin.email != admin_email:
-            # Only update when an explicit ADMIN_EMAIL is provided.
-            if os.environ.get("ADMIN_EMAIL", "").strip():
-                admin.email = admin_email
-                changed = True
-        # ADMIN_PASSWORD is the source of truth for the admin account.
-        # Admin password cannot be changed from the website; changing this
-        # environment variable and redeploying updates the stored hash.
+        if os.environ.get("ADMIN_EMAIL", "").strip() and admin.email != admin_email:
+            admin.email = admin_email
+            changed = True
         if not check_password_hash(admin.password_hash, admin_password):
             admin.password_hash = generate_password_hash(admin_password)
             changed = True
         if changed:
             db.session.commit()
-            print(f"[INIT] Admin synchronized from environment: {admin.username}", flush=True)
+            app.logger.info("Environment-managed admin account synchronized")
 
 
 # Vercel imports the Flask app while creating the function.
@@ -1682,11 +1845,13 @@ def _ensure_db_ready():
 
 @app.before_request
 def _initialize_database_before_request():
+    # Keep the landing page and assets available even during a database outage.
+    if request.path in {"/", "/style.css", "/ui_advanced.js", "/favicon.ico"} or request.endpoint == "static":
+        return None
     if not _ensure_db_ready():
         return (jsonify({
             "status": "error",
-            "message": "Database is not available.",
-            "detail": _db_init_error,
+            "message": "Database is not ready. Check Vercel Function Logs and environment variables.",
         }), 503)
 
 
