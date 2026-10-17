@@ -5,7 +5,7 @@
   <title>Sign In — Management System</title><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#635bff">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div class="auth-page">
@@ -39,7 +39,7 @@
         <div class="field login-field"><label for="password">Password</label><div class="password-wrap input-shell"><span>🔐</span><input id="password" name="password" type="password" autocomplete="off" placeholder="Enter your password" required><button type="button" class="eye-btn" onclick="togglePw('password',this)" aria-label="Show password">👁️</button></div></div>
         <button id="loginBtn" class="submit-btn login-submit" type="submit"><span>Sign In Securely</span><strong>→</strong></button>
       </form>
-      <div class="auth-footer"><a href="/register">Create account</a><span>•</span><span>Protected by secure sessions</span></div>
+      <div class="auth-footer"><a href="/register">Create account</a><span>•</span><a href="/forgot-password">Forgot password?</a></div><div class="auth-footer" style="margin-top:8px"><span>Protected by secure sessions</span></div>
     </div>
   </div>
 </div>
@@ -88,7 +88,7 @@
     <div class="ai-footer"><span>● ZERO TRUST</span><span>● SESSION ENCRYPTED</span><span>● LIVE PROTECTION</span></div>
   </div>
 </div>
-<script src="/static/ui_advanced.js"></script>
+<script src="/ui_advanced.js"></script>
 <script>
 function togglePw(id,btn){
   const i=document.getElementById(id),show=i.type==='password';
