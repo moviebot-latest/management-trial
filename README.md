@@ -71,3 +71,8 @@ If the site still fails, open `/init-status` (add `?token=CRON_SECRET` if you se
 
 ## V35 design refresh (sign-in pages)
 Login, register, forgot-password and error pages share `templates/auth_base.html` + `static/auth.css` (library-card design, keyboard focus rings, labelled fields, reduced-motion support, mobile-first). Google Fonts are allowed in the CSP. The dashboard/landing pages still use `style.css`.
+
+## V37
+- `DATABASE_URL` of the form `postgresql://...` is now converted to the psycopg v3 driver automatically.
+- PgBouncer-safe connection settings; `/init-status` shows `error_type` and a plain-language `hint` for DB problems.
+- Error page: stamp design, mobile layout fixed, and it retries by itself when the database is waking up.

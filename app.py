@@ -55,16 +55,19 @@ app.config.update(
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///library.db')
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
-# Use psycopg (v3) for PostgreSQL on Vercel/Neon.
+# Use psycopg (v3) for PostgreSQL on Vercel/Neon. requirements.txt installs only psycopg v3, so a plain
+# postgresql:// URL (Neon's default) would make SQLAlchemy look for psycopg2 and fail.
 if database_url.startswith('postgresql+psycopg2://'):
     database_url = database_url.replace('postgresql+psycopg2://', 'postgresql+psycopg://', 1)
+elif database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 if database_url.startswith(('postgresql://','postgresql+psycopg://')):
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_pre_ping': True, 'pool_recycle': 300, 'pool_timeout': 30,
         'pool_size': 5, 'max_overflow': 5,
-        'connect_args': {'connect_timeout': 10, 'sslmode': os.environ.get('PGSSLMODE','require')}
+        'connect_args': {'connect_timeout': 10, 'sslmode': os.environ.get('PGSSLMODE','require'), 'prepare_threshold': None}
     }
 
 db=SQLAlchemy(app)
@@ -2014,9 +2017,9 @@ from werkzeug.exceptions import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 _recent_errors = deque(maxlen=15)
 
-def _error_response(code, title, message, error_id=None):
+def _error_response(code, title, message, error_id=None, auto_retry=False):
     try:
-        return make_response(render_template('error.html', code=code, title=title, message=message, error_id=error_id), code)
+        return make_response(render_template('error.html', code=code, title=title, message=message, error_id=error_id, auto_retry=auto_retry), code)
     except Exception:
         return (f'{code} {title}: {message}', code)
 
@@ -2043,11 +2046,12 @@ def _unhandled_error(e):
                                'path': request.path, 'type': type(e).__name__, 'message': str(e).strip()[:300]})
     if isinstance(e, SQLAlchemyError):
         _init_state['done'] = False; _init_state['last_try'] = 0.0   # re-check the schema on the next request
-        msg = 'The database is not ready yet. Please try again in a few seconds.'
+        msg = 'The database is not ready yet. This page will retry on its own.'
     else:
         msg = 'Something went wrong on our side. Please try again. If it keeps happening, share the Error ID with the administrator.'
     if request.path.startswith('/api/'): return jsonify(ok=False, error=msg, error_id=err_id), 500
-    return _error_response(500, 'Something went wrong', msg, err_id)
+    return _error_response(500, 'Database is waking up' if isinstance(e, SQLAlchemyError) else 'Something went wrong', msg, err_id,
+                           auto_retry=isinstance(e, SQLAlchemyError) and request.method == 'GET')
 
 # ---------------------------------------------------------------------------
 # Database initialisation (safe for Vercel serverless)
@@ -2129,6 +2133,28 @@ def _ensure_database_ready():
     if not _init_state['done'] and request.endpoint not in ('static', 'init_status', 'healthz'):
         initialize_database()
 
+def _classify_db_error(raw):
+    t = (raw or '').lower()
+    rules = [
+        ('no module named', 'Python driver missing. DATABASE_URL ko postgresql+psycopg://... format mein rakho ya requirements check karo.'),
+        ('password authentication failed', 'DATABASE_URL ka password galat ya purana hai. Neon se connection string dobara copy karke Vercel mein daalo.'),
+        ('could not translate host', 'DATABASE_URL ka host galat hai. Neon ka poora connection string dobara copy karo.'),
+        ('name or service not known', 'DATABASE_URL ka host galat hai. Neon ka poora connection string dobara copy karo.'),
+        ('too many connections', 'Connections khatam. Neon ka pooled URL (host mein -pooler) use karo.'),
+        ('remaining connection slots', 'Connections khatam. Neon ka pooled URL (host mein -pooler) use karo.'),
+        ('prepared statement', 'PgBouncer prepared-statement issue. Is version mein fix hai, naya zip deploy karo.'),
+        ('timeout', 'Database ne time pe jawab nahi diya (Neon compute so raha ho sakta hai). Thodi der baad dobara kholo.'),
+        ('timed out', 'Database ne time pe jawab nahi diya (Neon compute so raha ho sakta hai). Thodi der baad dobara kholo.'),
+        ('ssl', 'SSL connection issue. DATABASE_URL mein sslmode=require rakho.'),
+        ('permission denied', 'Database user ko table banane/badalne ki permission nahi hai.'),
+        ('column', 'Table mein koi column missing ya galat hai. Migration step fail hua, error ka naam bhejo.'),
+        ('relation', 'Koi table missing hai. Migration step fail hua, error ka naam bhejo.'),
+        ('does not exist', 'Koi table ya column missing hai. Migration step fail hua, error ka naam bhejo.'),
+    ]
+    for needle, hint in rules:
+        if needle in t: return hint
+    return None
+
 @app.get('/init-status')
 def init_status():
     # Diagnostic: shows whether DB setup finished and the last error (token required if CRON_SECRET is set).
@@ -2138,6 +2164,10 @@ def init_status():
     info = dict(ready=_init_state['done'], schema_version=SCHEMA_VERSION, database='postgresql' if _IS_PG else 'sqlite',
                 database_url_set=bool(os.environ.get('DATABASE_URL')), secret_key_set=SECRET_KEY_FROM_ENV,
                 admin_login_configured=bool(os.environ.get('ADMIN_PASSWORD')), email_provider=_mail_provider())
+    raw = _init_state['error'] or (_recent_errors[0]['type'] + ': ' + _recent_errors[0]['message'] if _recent_errors else '')
+    parts = (_init_state['error'] or '').split(': ', 2)
+    info['error_type'] = (parts[1] if len(parts) == 3 else (_recent_errors[0]['type'] if _recent_errors else None))
+    info['hint'] = _classify_db_error(raw)
     if allowed:  # error text can contain SQL details, so only show it to the admin / token holder
         info['init_error'] = _init_state['error']; info['recent_errors'] = list(_recent_errors)
     else:
