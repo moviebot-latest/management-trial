@@ -81,29 +81,125 @@ def _email_html(title, greeting, body_html, accent='#6d32d8'):
       </div>
     </div></body></html>'''
 
-def send_brevo_email(to_email, subject, title, greeting, body_html, accent='#6d32d8'):
-    """Send an email through Brevo. Email failures never break the library transaction."""
-    api_key=os.environ.get('BREVO_API_KEY','').strip()
-    sender=os.environ.get('BREVO_SENDER_EMAIL','').strip()
-    sender_name=os.environ.get('BREVO_SENDER_NAME','Library Management System').strip()
-    if not api_key or not sender or not to_email:
-        app.logger.info('Email skipped: Brevo environment variables are not configured.')
-        return False
-    payload={
-        'sender': {'name': sender_name, 'email': sender},
-        'to': [{'email': to_email}],
-        'subject': subject,
-        'htmlContent': _email_html(title,greeting,body_html,accent),
-        'textContent': re.sub(r'<[^>]+>',' ',body_html).replace('&nbsp;',' ').strip(),
-    }
-    req=urllib.request.Request(BREVO_API_URL, data=json.dumps(payload).encode('utf-8'),
-        headers={'accept':'application/json','api-key':api_key,'content-type':'application/json'}, method='POST')
+class EmailLog(db.Model):
+    __tablename__='email_log'
+    id=db.Column(db.Integer, primary_key=True)
+    recipient=db.Column(db.String(200), nullable=False)
+    subject=db.Column(db.String(255), nullable=False)
+    event=db.Column(db.String(80), nullable=False)
+    status=db.Column(db.String(20), nullable=False, default='sent')  # sent / failed / skipped
+    error=db.Column(db.Text, nullable=True)
+    dedupe_key=db.Column(db.String(120), nullable=True, index=True)
+    created_at=db.Column(db.DateTime, nullable=False, default=lambda: datetime.utcnow().replace(microsecond=0))
+
+# Events that are also copied to ADMIN_EMAIL (if set).
+ADMIN_COPY_EVENTS={'Book Issued','Book Returned','Payment Receipt','Refund Confirmation','Additional Fine Notice','Role Updated','Account Removed'}
+
+def _mail_provider():
+    if os.environ.get('BREVO_API_KEY','').strip() and os.environ.get('BREVO_SENDER_EMAIL','').strip(): return 'brevo'
+    if os.environ.get('SMTP_HOST') and os.environ.get('SMTP_USER') and os.environ.get('SMTP_PASSWORD'): return 'smtp'
+    return None
+
+def _log_email(to, subject, event, status, error=None, dedupe_key=None):
+    # Uses its own connection so it can never disturb the request's DB session.
     try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            return 200 <= resp.status < 300
+        with db.engine.begin() as conn:
+            conn.execute(EmailLog.__table__.insert().values(recipient=to[:200], subject=subject[:255], event=event[:80],
+                status=status, error=(error or None), dedupe_key=dedupe_key, created_at=datetime.utcnow().replace(microsecond=0)))
     except Exception:
-        app.logger.exception('Brevo email send failed for %s', to_email)
+        app.logger.exception('Could not write email_log row')
+
+def _already_sent(dedupe_key):
+    if not dedupe_key: return False
+    try:
+        with db.engine.connect() as conn:
+            return conn.execute(text("SELECT 1 FROM email_log WHERE dedupe_key=:k AND status='sent' LIMIT 1"),{'k':dedupe_key}).first() is not None
+    except Exception:
         return False
+
+def _smtp_send(to_email, subject, html_body, text_body):
+    import smtplib
+    from email.message import EmailMessage
+    host=os.environ['SMTP_HOST'].strip(); port=int(os.environ.get('SMTP_PORT','587')); user=os.environ['SMTP_USER'].strip()
+    msg=EmailMessage(); msg['Subject']=subject
+    msg['From']=f"{os.environ.get('BREVO_SENDER_NAME','Library Management System')} <{(os.environ.get('SMTP_FROM') or user).strip()}>"
+    msg['To']=to_email; msg.set_content(text_body); msg.add_alternative(html_body, subtype='html')
+    if port==465:
+        with smtplib.SMTP_SSL(host,port,timeout=20) as srv: srv.login(user,os.environ['SMTP_PASSWORD']); srv.send_message(msg)
+    else:
+        with smtplib.SMTP(host,port,timeout=20) as srv: srv.starttls(); srv.login(user,os.environ['SMTP_PASSWORD']); srv.send_message(msg)
+
+def send_brevo_email(to_email, subject, title, greeting, body_html, accent='#6d32d8', dedupe_key=None, admin_copy=None):
+    """Send a library email (Brevo API, or SMTP fallback). Sent synchronously so it also works on
+    Vercel serverless. Every attempt is stored in email_log. Failures never break the transaction."""
+    to_email=(to_email or '').strip()
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', to_email): return False
+    if _already_sent(dedupe_key): return False
+    provider=_mail_provider()
+    if not provider:
+        app.logger.info('Email skipped: no email provider configured.')
+        _log_email(to_email, subject, title, 'skipped', 'Email service is not configured.', dedupe_key)
+        return False
+    html_body=_email_html(title,greeting,body_html,accent)
+    text_body=re.sub(r'<[^>]+>',' ',body_html).replace('&nbsp;',' ').strip()
+    ok=False; err=None
+    try:
+        if provider=='brevo':
+            payload={'sender':{'name':os.environ.get('BREVO_SENDER_NAME','Library Management System').strip(),'email':os.environ['BREVO_SENDER_EMAIL'].strip()},
+                'to':[{'email':to_email}],'subject':subject,'htmlContent':html_body,'textContent':text_body}
+            req=urllib.request.Request(BREVO_API_URL, data=json.dumps(payload).encode('utf-8'),
+                headers={'accept':'application/json','api-key':os.environ['BREVO_API_KEY'].strip(),'content-type':'application/json'}, method='POST')
+            with urllib.request.urlopen(req, timeout=12) as resp: ok=200<=resp.status<300
+        else:
+            _smtp_send(to_email, subject, html_body, text_body); ok=True
+    except urllib.error.HTTPError as exc:
+        try: detail=exc.read().decode('utf-8','ignore')[:250]
+        except Exception: detail=''
+        err=f'Brevo rejected the email ({exc.code}): {detail}'
+    except Exception as exc:
+        err=str(exc)[:400]
+    if err: app.logger.error('Email to %s failed: %s', to_email, err)
+    _log_email(to_email, subject, title, 'sent' if ok else 'failed', err, dedupe_key)
+    admin=os.environ.get('ADMIN_EMAIL','').strip()
+    if admin_copy is None: admin_copy = title in ADMIN_COPY_EVENTS
+    if ok and admin_copy and admin and admin.casefold()!=to_email.casefold():
+        send_brevo_email(admin,'[Admin copy] '+subject,title,'Admin copy — sent to '+to_email,body_html,accent,
+                         dedupe_key=(dedupe_key+':admin') if dedupe_key else None, admin_copy=False)
+    return ok
+
+def email_role_changed(user, new_role):
+    body=f'<p>Your library account role has been updated.</p><div style="background:#f7f8ff;padding:16px;border-radius:16px"><b>Username:</b> {escape(user.username)}<br><b>New role:</b> {escape(new_role.title())}</div>'
+    return send_brevo_email(user.email,'Your library role was updated','Role Updated','Hello '+user.name+',',body,'#435df2')
+
+def email_member_removed(email, name):
+    body='<p>Your library member account has been removed by an administrator.</p><p>If you think this is a mistake, please contact the library.</p>'
+    return send_brevo_email(email,'Your library account was removed','Account Removed','Hello '+name+',',body,'#c23b5d')
+
+def email_due_soon(loan, days_left):
+    body=f'''<p>Your book is due soon.</p><div style="background:#fff8e9;border:1px solid #f1dfac;padding:16px;border-radius:16px;line-height:1.8">
+      <b>Book:</b> {escape(loan.book.title)}<br><b>Book ID:</b> {escape(loan.book.book_id)}<br><b>Due:</b> {to_ist(loan.due_at).strftime('%d %b %Y, %I:%M %p')}<br><b>Days left:</b> {days_left}</div>
+    <p>Please return it on time to avoid a late fine.</p>'''
+    return send_brevo_email(loan.user.email,'Reminder: book due soon','Book Due Soon','Hello '+loan.user.name+',',body,'#c47b00',dedupe_key=f'due-soon:{loan.id}',admin_copy=False)
+
+def email_overdue(loan, late_days, fine):
+    body=f'''<p>Your book is overdue.</p><div style="background:#fff0f1;border:1px solid #f3c9cf;padding:16px;border-radius:16px;line-height:1.8">
+      <b>Book:</b> {escape(loan.book.title)}<br><b>Book ID:</b> {escape(loan.book.book_id)}<br><b>Was due:</b> {to_ist(loan.due_at).strftime('%d %b %Y, %I:%M %p')}<br>
+      <b>Late days:</b> {late_days}<br><b>Fine so far:</b> ₹{fine:.2f}</div><p>Please return the book as soon as possible. The fine grows every day.</p>'''
+    return send_brevo_email(loan.user.email,'Overdue: please return your book','Book Overdue','Hello '+loan.user.name+',',body,'#c23b5d',
+                            dedupe_key=f'overdue:{loan.id}:{utcnow_naive().date().isoformat()}',admin_copy=False)
+
+def send_due_reminders():
+    """Due-soon (within DUE_SOON_DAYS) and overdue reminders for all active loans. Safe to run daily."""
+    now=utcnow_naive(); soon=timedelta(days=max(1,int(os.environ.get('DUE_SOON_DAYS','2')))); n_soon=n_over=0
+    for loan in Loan.query.filter(Loan.returned_at.is_(None)).all():
+        if not loan.user or not loan.book: continue
+        if loan.due_at<now:
+            late_days,_r,fine=_return_calculation(loan,now)
+            if email_overdue(loan,late_days,fine): n_over+=1
+        elif loan.due_at-now<=soon:
+            days_left=max(1,(loan.due_at-now).days+(1 if (loan.due_at-now).seconds else 0))
+            if email_due_soon(loan,days_left): n_soon+=1
+    return {'due_soon':n_soon,'overdue':n_over}
 
 def email_congratulations(user):
     body=f'''<p>Congratulations <b>{escape(user.name)}</b>! Your library account has been created successfully.</p>
@@ -1729,14 +1825,15 @@ def payment_receipt(payment_id):
 def change_role(user_id):
     u=User.query.get_or_404(user_id); new_role=request.form.get('role','member')
     if new_role not in {'member','librarian'}: new_role='member'
-    u.role=new_role; db.session.commit(); flash(f'{u.name} is now {new_role}.','success'); return redirect(url_for('dashboard'))
+    u.role=new_role; db.session.commit(); email_role_changed(u,new_role); flash(f'{u.name} is now {new_role}.','success'); return redirect(url_for('dashboard'))
 
 @app.post('/admin/members/<int:user_id>/delete')
 @admin_required
 def delete_member(user_id):
     u=User.query.get_or_404(user_id)
     if Loan.query.filter_by(user_id=user_id,returned_at=None).first(): flash('Member has active issued books. Return them before deleting.','error'); return redirect(url_for('dashboard'))
-    Loan.query.filter_by(user_id=user_id).delete(synchronize_session=False); db.session.delete(u); db.session.commit(); flash('Member removed.','success'); return redirect(url_for('dashboard'))
+    removed_email,removed_name=u.email,u.name
+    Loan.query.filter_by(user_id=user_id).delete(synchronize_session=False); db.session.delete(u); db.session.commit(); email_member_removed(removed_email,removed_name); flash('Member removed.','success'); return redirect(url_for('dashboard'))
 
 @app.route('/forgot-password',methods=['GET','POST'])
 def forgot_password():
@@ -1831,6 +1928,36 @@ def admin_analytics():
     except Exception:
         db.session.rollback(); total_members=total_books=active_loans=overdue=paid=refunded=0; revenue=0
     return render_template('analytics.html',total_members=total_members,total_books=total_books,active_loans=active_loans,overdue=overdue,paid=paid,refunded=refunded,revenue=revenue)
+
+@app.get('/admin/email-logs')
+@staff_required
+def email_logs():
+    logs=EmailLog.query.order_by(EmailLog.id.desc()).limit(200).all()
+    return render_template('email_logs.html',logs=logs,provider=_mail_provider(),admin_copy=os.environ.get('ADMIN_EMAIL','').strip())
+
+@app.post('/admin/email-logs/test')
+@staff_required
+def email_test():
+    to=request.form.get('to','').strip()
+    if not _mail_provider(): flash('Email is not configured. Set BREVO_API_KEY + BREVO_SENDER_EMAIL (or SMTP_* variables).','error')
+    elif not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', to): flash('Enter a valid email address.','error')
+    elif send_brevo_email(to,'Test email — Library Management System','Test Email','Hello,','<p>Email notifications are working correctly.</p>',admin_copy=False): flash(f'Test email sent to {to}.','success')
+    else: flash('Test email failed. See the status below for the reason.','error')
+    return redirect(url_for('email_logs'))
+
+@app.post('/admin/email-logs/send-reminders')
+@staff_required
+def email_send_reminders():
+    r=send_due_reminders(); flash(f"Reminders sent: {r['due_soon']} due-soon, {r['overdue']} overdue.",'success')
+    return redirect(url_for('email_logs'))
+
+@app.get('/cron/send-reminders')
+def cron_send_reminders():
+    # External scheduler / Vercel Cron: /cron/send-reminders?token=CRON_SECRET (or Authorization: Bearer CRON_SECRET)
+    secret=os.environ.get('CRON_SECRET','')
+    sent=request.args.get('token','') or request.headers.get('Authorization','').removeprefix('Bearer ').strip()
+    if not secret or not secrets.compare_digest(sent,secret): return jsonify(error='not found'),404
+    return jsonify(send_due_reminders())
 
 @app.get('/auth-status')
 def auth_status(): return {'authenticated':is_logged()}

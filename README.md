@@ -3,16 +3,18 @@
 Flask + SQLAlchemy + PostgreSQL/SQLite library project.
 
 ## Vercel
-Build command: `pip install -r requirements.txt`
-Start command: `gunicorn app:app`
+`vercel.json` is included (Python/Flask on Vercel + a daily reminder cron). Import the repo in Vercel and set the environment variables below.
 
-Required environment variables:
-- `DATABASE_URL` = PostgreSQL connection string
-- `SECRET_KEY` = long random secret
-- `ADMIN_USERNAME` = admin login username
-- `ADMIN_PASSWORD` = admin login password
-- `ADMIN_NAME` = optional admin display name
-- `PGSSLMODE` = optional, defaults to `require`
+Required: `DATABASE_URL` (Neon *pooled* URL), `SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`; optional `ADMIN_NAME`, `PGSSLMODE`. Plus your Neon object-storage variables for book PDFs/covers.
+
+## Email notifications
+Emails are sent for: registration OTP, welcome, book issue, return, additional fine, payment receipt, refund, password change, role change, member removal, due-soon and overdue reminders. `ADMIN_EMAIL` also receives a copy of issue/return/fine/payment/refund/role/removal emails.
+Every email is saved in `email_log`; staff can open **Email Notifications** on the dashboard (`/admin/email-logs`) to see status, send a test email or run reminders.
+Emails are sent before the response (required on Vercel serverless); a failed email never blocks the library action.
+
+Variables (one provider): Brevo `BREVO_API_KEY` + `BREVO_SENDER_EMAIL` (+ `BREVO_SENDER_NAME`), or SMTP `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (+ `SMTP_FROM`). Optional: `ADMIN_EMAIL`, `LATE_FEE_PER_DAY`, `DUE_SOON_DAYS` (default 2), `CRON_SECRET`.
+Reminders: `vercel.json` runs `/cron/send-reminders` daily (09:00 IST). Set `CRON_SECRET` in Vercel — Vercel sends it automatically as a Bearer token.
+Vercel limits: request bodies max ~4.5 MB (big book-PDF uploads fail), function timeout, large PyMuPDF bundle.
 
 ## Roles
 - Member: browse books, issue/return own books, change password. No community/member list.
