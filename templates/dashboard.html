@@ -135,7 +135,7 @@
   <!-- ISSUE & RETURN -->
   <section id="screen-issues" class="screen">
     <div class="page-heading"><small>LIBRARY OPERATIONS</small><h2>Issue &amp; Return</h2><p>Issue books to members, manage returns and handle additional fines.</p>
-      {% if role=='admin' %}<div class="issue-tools"><a class="fine-action" href="{{ url_for('additional_fine') }}"><span>＋</span><div><b>Add Additional Fine</b><small>Select user → select their issued book → add fine &amp; optional photos</small></div><strong>›</strong></a></div>{% endif %}</div>
+      {% if role=='admin' %}<div class="issue-tools"><a class="fine-action" href="{{ url_for('additional_fine') }}"><span>＋</span><div><b>Add Additional Fine</b><small>Select user → select their issued book → add fine &amp; optional photos</small></div><strong>›</strong></a><a class="fine-action" href="{{ url_for('email_logs') }}"><span>✉</span><div><b>Email Notifications</b><small>See all sent emails, send a test email &amp; reminders</small></div><strong>›</strong></a></div>{% endif %}</div>
     {% if role in ['admin','librarian'] %}
     <div class="issue-layout">
       <div class="issue-card issue-form-card">
