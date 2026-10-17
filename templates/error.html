@@ -5,7 +5,9 @@
 <div class="error-stamp" aria-hidden="true">{{ code }}</div>
 <h1>{{ title }}</h1>
 <p class="lead">{{ message }}</p>
+{% if hint %}<div class="notice" role="note"><strong>Kya check karein:</strong> {{ hint }}</div>{% endif %}
 {% if error_id %}<p><span class="error-id">Error ID {{ error_id }}</span></p>{% endif %}
+{% if detail %}<details class="tech"><summary>Technical details</summary><pre>{{ detail }}</pre></details>{% endif %}
 <div class="btn-row"><a class="btn" style="margin-top:0" href="{{ url_for('index') }}">Go to home</a><a class="btn quiet" href="javascript:location.reload()">Try again</a></div>
 {% if auto_retry %}<p class="retry-note" id="retry" role="status">Retrying in <span id="sec">5</span> seconds…</p>{% endif %}
 {% endblock %}
