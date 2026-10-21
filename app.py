@@ -4,7 +4,7 @@ import io
 import secrets
 import re
 import json
-import html
+import html as html_lib
 import urllib.request
 import urllib.error
 import smtplib
@@ -349,7 +349,7 @@ def send_otp_email(email, otp, name, purpose="verification"):
         sender_email = os.environ.get("SMTP_FROM", "").strip() or os.environ.get("SMTP_USER", "").strip()
 
     raw_name = (name or "there").strip()[:120]
-    safe_name = html.escape(raw_name, quote=True)
+    safe_name = html_lib.escape(raw_name, quote=True)
     is_reset = purpose == "password_reset"
     title = "🔐 Reset your password" if is_reset else "🔐 Verify your email"
     intro = ("Use this one-time code to reset your Management System password:"
