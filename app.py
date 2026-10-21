@@ -7,6 +7,8 @@ import json
 import html
 import urllib.request
 import urllib.error
+import threading
+import time
 from datetime import date, timedelta, datetime, timezone
 from functools import wraps
 from flask import (
@@ -74,10 +76,16 @@ if database_url.startswith(("postgresql://", "postgresql+psycopg2://")):
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_pre_ping": True,
         "pool_recycle": 240,
-        "pool_timeout": 10 if is_serverless else 30,
-        # Each Vercel instance should hold as few DB connections as possible.
-        "pool_size": 1 if is_serverless else 5,
-        "max_overflow": 0 if is_serverless else 5,
+        # A single connection was starving concurrent Vercel requests when the
+        # landing-page stats and auth pages initialized at the same time.
+        # Keep the pool modest, but allow a few concurrent DB operations.
+        # Keep per-instance connections small for Neon + Vercel serverless.
+        # Older deployments with pool_size=1/max_overflow=0 timed out when
+        # landing-page stats and auth requests arrived together.
+        "pool_timeout": 20 if is_serverless else 30,
+        "pool_size": 2 if is_serverless else 5,
+        "max_overflow": 1 if is_serverless else 5,
+        "pool_use_lifo": True,
         "connect_args": {
             "connect_timeout": 10,
             "sslmode": os.environ.get("PGSSLMODE", "require"),
@@ -1968,32 +1976,64 @@ def _init_db():
 # database/network problem must not prevent Vercel from importing the app.
 _db_ready = False
 _db_init_error = None
+_db_init_failed_at = 0.0
+_db_init_lock = threading.Lock()
+_DB_INIT_RETRY_DELAY_SECONDS = 5.0
 
 
 def _ensure_db_ready():
-    global _db_ready, _db_init_error
+    """Initialize once per warm worker, serializing concurrent first requests.
+
+    A short failure cooldown prevents a burst of requests from each retrying
+    create_all/schema migrations against an already-saturated Neon connection.
+    """
+    global _db_ready, _db_init_error, _db_init_failed_at
     if not _database_configured and os.environ.get("VERCEL"):
         _db_init_error = "DATABASE_URL is missing"
         return False
     if _db_ready:
         return True
-    try:
-        with app.app_context():
-            _init_db()
-        _db_ready = True
-        _db_init_error = None
-        return True
-    except Exception as exc:
-        db.session.rollback()
-        _db_init_error = str(exc)
-        app.logger.exception("Database initialization failed")
+    if _db_init_error and (time.monotonic() - _db_init_failed_at) < _DB_INIT_RETRY_DELAY_SECONDS:
         return False
+
+    with _db_init_lock:
+        # Another request may have finished initialization while we waited.
+        if _db_ready:
+            return True
+        if _db_init_error and (time.monotonic() - _db_init_failed_at) < _DB_INIT_RETRY_DELAY_SECONDS:
+            return False
+        try:
+            with app.app_context():
+                _init_db()
+            _db_ready = True
+            _db_init_error = None
+            _db_init_failed_at = 0.0
+            return True
+        except Exception as exc:
+            # Roll back while an application context is active so the cleanup
+            # cannot mask the original database error.
+            try:
+                with app.app_context():
+                    db.session.rollback()
+            except Exception:
+                app.logger.warning("Database session rollback also failed", exc_info=True)
+            _db_init_error = str(exc)
+            _db_init_failed_at = time.monotonic()
+            app.logger.exception("Database initialization failed")
+            return False
 
 
 @app.before_request
 def _initialize_database_before_request():
     # Keep the landing page and assets available even during a database outage.
-    if request.path in {"/", "/style.css", "/ui_advanced.js", "/favicon.ico"} or request.endpoint == "static":
+    # These routes must not run schema creation/migrations. The landing page
+    # calls /public-stats immediately, so initializing the whole DB from that
+    # endpoint caused concurrent cold starts to compete for Neon connections.
+    # /public-stats handles query errors itself and returns a safe 503 fallback.
+    if request.path in {
+        "/", "/style.css", "/ui_advanced.js", "/favicon.ico",
+        "/public-stats", "/auth-status",
+    } or request.endpoint == "static":
         return None
     if not _ensure_db_ready():
         # Keep API/health responses machine-readable, but show a useful branded

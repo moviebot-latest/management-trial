@@ -1,0 +1,2 @@
+Management System V46
+Neon/Vercel database pool timeout and homepage hero overlap patch.
