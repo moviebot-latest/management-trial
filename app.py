@@ -367,17 +367,25 @@ def mask_email(email):
 
 def create_password_reset_otp(user):
     now = _utcnow_naive()
-    row = PasswordReset.query.filter_by(user_id=user.id).first()
-    if row and (now - row.last_sent_at).total_seconds() < OTP_RESEND_SECONDS:
+    row = PasswordReset.query.filter_by(user_id=user.id).order_by(
+        PasswordReset.created_at.desc(), PasswordReset.id.desc()
+    ).first()
+    if row and row.last_sent_at and (now - row.last_sent_at).total_seconds() < OTP_RESEND_SECONDS:
         wait = OTP_RESEND_SECONDS - int((now - row.last_sent_at).total_seconds())
         raise ValueError(f"Please wait {max(1, wait)} seconds before requesting another code.")
 
     otp = f"{secrets.randbelow(1000000):06d}"
+    created_new = row is None
+    previous = None
     if row is None:
-        row = PasswordReset(user_id=user.id, email=user.email, otp_hash=generate_password_hash(otp),
-                            expires_at=now + timedelta(minutes=OTP_EXPIRY_MINUTES),
-                            last_sent_at=now, attempts=0, verified_at=None)
+        row = PasswordReset(
+            user_id=user.id, email=user.email, otp_hash=generate_password_hash(otp),
+            expires_at=now + timedelta(minutes=OTP_EXPIRY_MINUTES), last_sent_at=now,
+            attempts=0, verified_at=None
+        )
     else:
+        previous = {key: getattr(row, key) for key in
+                    ("email", "otp_hash", "expires_at", "last_sent_at", "attempts", "verified_at")}
         row.email = user.email
         row.otp_hash = generate_password_hash(otp)
         row.expires_at = now + timedelta(minutes=OTP_EXPIRY_MINUTES)
@@ -389,23 +397,40 @@ def create_password_reset_otp(user):
     try:
         send_brevo_otp(user.email, otp, user.name, purpose="password_reset")
     except Exception:
-        db.session.delete(row)
+        # Preserve a previously usable reset row if Brevo fails; only remove a new failed attempt.
+        db.session.rollback()
+        current = db.session.get(PasswordReset, row.id)
+        if created_new:
+            if current:
+                db.session.delete(current)
+        elif current and previous:
+            for key, value in previous.items():
+                setattr(current, key, value)
         db.session.commit()
         raise
 
 
 def create_email_otp(email, name, gender, department, username, password_hash):
     now = _utcnow_naive()
-    existing = EmailVerification.query.filter_by(email=email).first()
-    if existing and (now - existing.last_sent_at).total_seconds() < OTP_RESEND_SECONDS:
+    existing = EmailVerification.query.filter(
+        db.func.lower(EmailVerification.email) == email.casefold()
+    ).order_by(EmailVerification.created_at.desc(), EmailVerification.id.desc()).first()
+    if existing and existing.last_sent_at and (now - existing.last_sent_at).total_seconds() < OTP_RESEND_SECONDS:
         wait = OTP_RESEND_SECONDS - int((now - existing.last_sent_at).total_seconds())
         raise ValueError(f"Please wait {max(1, wait)} seconds before requesting another code.")
 
-    # Remove stale pending records for the same username without exposing details.
-    EmailVerification.query.filter(EmailVerification.username == username, EmailVerification.email != email).delete(synchronize_session=False)
-
     otp = f"{secrets.randbelow(1000000):06d}"
-    row = existing or EmailVerification(email=email, username=username, name=name, gender=gender, department=department, password_hash=password_hash, otp_hash=generate_password_hash(otp))
+    created_new = existing is None
+    previous = None
+    row = existing or EmailVerification(
+        email=email, username=username, name=name, gender=gender, department=department,
+        password_hash=password_hash, otp_hash=generate_password_hash(otp)
+    )
+    if existing:
+        previous = {key: getattr(row, key) for key in (
+            "email", "username", "name", "gender", "department", "password_hash",
+            "otp_hash", "expires_at", "last_sent_at", "attempts"
+        )}
     row.email = email
     row.username = username
     row.name = name
@@ -415,13 +440,24 @@ def create_email_otp(email, name, gender, department, username, password_hash):
     row.otp_hash = generate_password_hash(otp)
     row.expires_at = now + timedelta(minutes=OTP_EXPIRY_MINUTES)
     row.last_sent_at = now
+    row.created_at = now
     row.attempts = 0
     db.session.add(row)
     db.session.commit()
     try:
         send_brevo_otp(email, otp, name)
     except Exception:
-        db.session.delete(row)
+        # Do not erase an existing pending registration when the email provider fails.
+        db.session.rollback()
+        if created_new:
+            current = db.session.get(EmailVerification, row.id)
+            if current:
+                db.session.delete(current)
+        else:
+            current = db.session.get(EmailVerification, row.id)
+            if current and previous:
+                for key, value in previous.items():
+                    setattr(current, key, value)
         db.session.commit()
         raise
 
@@ -703,9 +739,16 @@ def verify_registration_otp():
         flash("Enter the 6-digit verification code.", "error")
         return redirect(url_for("register"))
 
-    row = EmailVerification.query.filter(db.func.lower(EmailVerification.email) == email.casefold()).first()
+    row = EmailVerification.query.filter(db.func.lower(EmailVerification.email) == email.casefold()).order_by(EmailVerification.created_at.desc(), EmailVerification.id.desc()).first()
     if not row:
         flash("Verification session expired. Please request a new code.", "error")
+        return redirect(url_for("register"))
+
+    latest_for_username = EmailVerification.query.filter(
+        db.func.lower(EmailVerification.username) == row.username.casefold()
+    ).order_by(EmailVerification.created_at.desc(), EmailVerification.id.desc()).first()
+    if latest_for_username and latest_for_username.id != row.id:
+        flash("A newer registration request exists for this username. Use the latest email code.", "error")
         return redirect(url_for("register"))
 
     now = _utcnow_naive()
@@ -757,7 +800,7 @@ def verify_registration_otp():
 @app.route("/register/resend-otp", methods=["POST"])
 def resend_registration_otp():
     email = request.form.get("email", "").strip().lower()
-    row = EmailVerification.query.filter(db.func.lower(EmailVerification.email) == email.casefold()).first() if email else None
+    row = EmailVerification.query.filter(db.func.lower(EmailVerification.email) == email.casefold()).order_by(EmailVerification.created_at.desc(), EmailVerification.id.desc()).first() if email else None
     if not row:
         flash("Verification session expired. Please start registration again.", "error")
         return redirect(url_for("register"))
@@ -775,16 +818,14 @@ def resend_registration_otp():
     return redirect(url_for("register"))
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     username = session.get("username", "unknown")
     log_action(username, "LOGOUT", "User logged out")
     session.clear()
-    resp = make_response(redirect(url_for("login_page")))
-    resp.set_cookie("session", "", expires=0)
     flash("✅ You have been securely logged out.", "success")
-    return resp
+    return redirect(url_for("login_page"))
 
 
 @app.route("/auth-status")
@@ -803,11 +844,21 @@ def public_stats():
         active = User.query.filter_by(is_active=True).count()
         departments = db.session.query(User.department).distinct().count()
         new_today = User.query.filter(db.func.date(User.created_at) == today).count()
+        registrations_7d = User.query.filter(db.func.date(User.created_at) >= today - timedelta(days=6)).count()
+        registrations_30d = User.query.filter(db.func.date(User.created_at) >= today - timedelta(days=29)).count()
+        last_7_days = []
+        for offset in range(6, -1, -1):
+            day = today - timedelta(days=offset)
+            count = User.query.filter(db.func.date(User.created_at) == day).count()
+            last_7_days.append({"label": day.strftime("%a"), "date": day.isoformat(), "count": count})
         return {
             "total_users": total,
             "active_users": active,
             "departments": departments,
             "new_today": new_today,
+            "registrations_7d": registrations_7d,
+            "registrations_30d": registrations_30d,
+            "last_7_days": last_7_days,
             "updated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
     try:
@@ -1086,7 +1137,7 @@ def verify_forgot_password_otp():
     user_id = session.get("password_reset_user_id")
     otp = request.form.get("otp", "").strip()
     user = User.query.get(user_id) if user_id else None
-    row = PasswordReset.query.filter_by(user_id=user_id).first() if user_id else None
+    row = PasswordReset.query.filter_by(user_id=user_id).order_by(PasswordReset.created_at.desc(), PasswordReset.id.desc()).first() if user_id else None
 
     if not user or not row or not re.fullmatch(r"\d{6}", otp):
         flash("Enter the 6-digit OTP sent to your registered email.", "error")
@@ -1120,7 +1171,7 @@ def verify_forgot_password_otp():
 def reset_password_after_otp():
     user_id = session.get("password_reset_user_id")
     user = User.query.get(user_id) if user_id else None
-    row = PasswordReset.query.filter_by(user_id=user_id).first() if user_id else None
+    row = PasswordReset.query.filter_by(user_id=user_id).order_by(PasswordReset.created_at.desc(), PasswordReset.id.desc()).first() if user_id else None
     if not user or not row or not session.get("password_reset_verified") or not row.verified_at:
         flash("Please verify the OTP first.", "error")
         return redirect(url_for("forgot_password"))
@@ -1637,8 +1688,9 @@ def _add_missing_columns(table_name, definitions):
             # SQLite disallows non-constant defaults on ALTER TABLE ADD COLUMN.
             if sqlite_timestamp_default:
                 effective_definition = "TIMESTAMP NULL"
+            add_if_missing = " IF NOT EXISTS" if db.engine.dialect.name == "postgresql" else ""
             db.session.execute(text(
-                f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {effective_definition}'
+                f'ALTER TABLE "{table_name}" ADD COLUMN{add_if_missing} "{column_name}" {effective_definition}'
             ))
             if sqlite_timestamp_default:
                 db.session.execute(text(
@@ -1675,6 +1727,26 @@ def _ensure_unique_index(table_name, column_name):
     db.session.commit()
 
 
+def _ensure_casefold_unique_index(table_name, column_name):
+    """Protect case-insensitive lookups from legacy duplicates without deleting records."""
+    index_name = f"uq_{table_name}_{column_name}_lower_v23"
+    duplicates = db.session.execute(text(
+        f'SELECT lower("{column_name}"), COUNT(*) FROM "{table_name}" '
+        f'WHERE "{column_name}" IS NOT NULL GROUP BY lower("{column_name}") '
+        'HAVING COUNT(*) > 1 LIMIT 1'
+    )).first()
+    if duplicates:
+        raise RuntimeError(
+            f"Cannot safely create case-insensitive uniqueness for {table_name}.{column_name}: "
+            "case variants of the same value already exist. No rows were deleted; back up the database "
+            "and reconcile the duplicate accounts before retrying."
+        )
+    db.session.execute(text(
+        f'CREATE UNIQUE INDEX IF NOT EXISTS "{index_name}" ON "{table_name}" (lower("{column_name}"))'
+    ))
+    db.session.commit()
+
+
 def _migrate_existing_schema():
     """Repair additive schema drift without dropping/recreating existing user data."""
     user_cols = _columns_for("user")
@@ -1699,11 +1771,22 @@ def _migrate_existing_schema():
     user_cols = _add_missing_columns("user", user_defs)
     # Existing rows get a deterministic, non-sensitive migration ID only when missing.
     rows = db.session.execute(text(
-        'SELECT "id" FROM "user" WHERE "employee_id" IS NULL OR "employee_id" = \'\' ORDER BY "id"'
+        "SELECT \"id\" FROM \"user\" WHERE \"employee_id\" IS NULL OR \"employee_id\" = '' ORDER BY \"id\""
     )).fetchall()
+    used_ids = {str(value) for (value,) in db.session.execute(
+        text("SELECT \"employee_id\" FROM \"user\" WHERE \"employee_id\" IS NOT NULL AND \"employee_id\" != ''")
+    ).fetchall()}
     for (uid,) in rows:
+        base = f"MIG-{uid}"
+        candidate = base[:20]
+        suffix = 1
+        while candidate in used_ids:
+            tail = f"-{suffix}"
+            candidate = base[:20-len(tail)] + tail
+            suffix += 1
         db.session.execute(text('UPDATE "user" SET "employee_id" = :eid WHERE "id" = :uid'),
-                           {"eid": f"MIG-{uid}", "uid": uid})
+                           {"eid": candidate, "uid": uid})
+        used_ids.add(candidate)
     # Normalize nullable fields from older schemas before the ORM uses them.
     db.session.execute(text("UPDATE \"user\" SET \"role\" = 'user' WHERE \"role\" IS NULL OR \"role\" = ''"))
     db.session.execute(text('UPDATE "user" SET "is_active" = TRUE WHERE "is_active" IS NULL'))
@@ -1712,6 +1795,8 @@ def _migrate_existing_schema():
     db.session.commit()
     for col in ("username", "email", "employee_id"):
         _ensure_unique_index("user", col)
+    _ensure_casefold_unique_index("user", "username")
+    _ensure_casefold_unique_index("user", "email")
 
     # OTP/reset tables can contain in-progress user workflows. Never delete rows during
     # automatic schema repair: if a legacy partial table has malformed records, fail safely
@@ -1727,6 +1812,7 @@ def _migrate_existing_schema():
         _add_missing_columns("email_verification", ev_defs)
         malformed = db.session.execute(text(
             'SELECT "id" FROM "email_verification" WHERE "email" IS NULL OR "username" IS NULL '
+            'OR "name" IS NULL OR "gender" IS NULL OR "department" IS NULL '
             'OR "password_hash" IS NULL OR "otp_hash" IS NULL OR "expires_at" IS NULL '
             'OR "last_sent_at" IS NULL LIMIT 1'
         )).first()
@@ -1736,6 +1822,7 @@ def _migrate_existing_schema():
                 "No rows were deleted; back up the database and reconcile those pending OTP rows manually."
             )
         _ensure_unique_index("email_verification", "email")
+        _ensure_casefold_unique_index("email_verification", "email")
 
     if inspect(db.engine).has_table("password_reset"):
         pr_defs = {
@@ -1775,8 +1862,14 @@ def _init_db():
 
     admin_username = os.environ.get("ADMIN_USERNAME", "").strip()
     admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
-    admin_email = os.environ.get("ADMIN_EMAIL", "").strip() or (admin_username + "@system.local")
+    configured_admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    admin_email = configured_admin_email or (admin_username + "@system.local")
     if not admin_username or not admin_password:
+        if os.environ.get("VERCEL"):
+            raise RuntimeError(
+                "ADMIN_USERNAME and ADMIN_PASSWORD are required on Vercel. "
+                "Set both in Project Settings → Environment Variables, then redeploy."
+            )
         app.logger.warning("ADMIN_USERNAME / ADMIN_PASSWORD are not configured; admin bootstrap skipped")
         return
     ok, pw_err = validate_password(admin_password)
@@ -1785,6 +1878,11 @@ def _init_db():
 
     admin = User.query.filter(db.func.lower(User.username) == admin_username.casefold()).first()
     if admin is None:
+        if os.environ.get("VERCEL") and not configured_admin_email:
+            raise RuntimeError("ADMIN_EMAIL is required on Vercel when creating the environment-managed admin. Set it to a real, verified mailbox.")
+        email_owner = User.query.filter(db.func.lower(User.email) == admin_email.casefold()).first()
+        if email_owner and email_owner.username.casefold() != admin_username.casefold():
+            raise RuntimeError("ADMIN_EMAIL is already assigned to another user. Set a unique admin email or reconcile the account without deleting records.")
         admin = User(
             employee_id=next_employee_id("Administration"), name="System Administrator",
             gender="Prefer not to say", department="Administration", email=admin_email,
@@ -1808,7 +1906,12 @@ def _init_db():
         if not admin.is_active:
             admin.is_active = True
             changed = True
-        if os.environ.get("ADMIN_EMAIL", "").strip() and admin.email != admin_email:
+        if configured_admin_email and admin.email.casefold() != admin_email.casefold():
+            email_owner = User.query.filter(
+                db.func.lower(User.email) == admin_email.casefold(), User.id != admin.id
+            ).first()
+            if email_owner:
+                raise RuntimeError("ADMIN_EMAIL is already assigned to another user. Set a unique admin email or reconcile the account without deleting records.")
             admin.email = admin_email
             changed = True
         if not check_password_hash(admin.password_hash, admin_password):
@@ -1849,10 +1952,21 @@ def _initialize_database_before_request():
     if request.path in {"/", "/style.css", "/ui_advanced.js", "/favicon.ico"} or request.endpoint == "static":
         return None
     if not _ensure_db_ready():
-        return (jsonify({
+        # Keep API/health responses machine-readable, but show a useful branded
+        # diagnostic page to people using the login/registration UI.
+        payload = {
             "status": "error",
-            "message": "Database is not ready. Check Vercel Function Logs and environment variables.",
-        }), 503)
+            "message": "Database is not ready. Check DATABASE_URL and Vercel Function Logs.",
+        }
+        if (request.path in {"/health", "/healthz", "/public-stats", "/auth-status"}
+                or request.accept_mimetypes.best == "application/json"):
+            return jsonify(payload), 503
+        return render_template(
+            "error.html", code=503,
+            message="The database is not ready, so sign-in and account actions are temporarily unavailable. "
+                    "In Vercel, verify DATABASE_URL points to your existing Neon database, then check Function Logs. "
+                    "No database records were intentionally deleted by this request."
+        ), 503
 
 
 if __name__ == '__main__':

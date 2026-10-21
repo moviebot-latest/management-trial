@@ -1,44 +1,77 @@
-# Management System V21 — Fix and Validation Report
+# Management System V23 — Complete code, database-safety and UI test report
 
-## Source and scope
-Based on the uploaded `Management_System_ADMIN_ENV_ONLY_FINAL_FIXED_V20.zip`. The project remains Python 3.12 + Flask + Flask-SQLAlchemy + PostgreSQL/Neon, with HTML/CSS/JavaScript and Brevo email OTP. The existing app structure and user-facing features are retained.
+## Summary
 
-## Fixes applied
-- Added Vercel-specific deployment configuration and deployment instructions; kept the root-level Flask entry point and the existing local `static/` assets.
-- Added Vercel `public/` copies of the CSS/JS used by Vercel static serving, while keeping local compatibility routes.
-- Required `DATABASE_URL` on Vercel rather than silently falling back to ephemeral SQLite.
-- Added additive schema repair for compatible missing columns and unique indexes. The migration does not drop/recreate user tables.
-- Changed unsafe legacy-schema handling: incomplete OTP/reset rows now cause a clear startup error instead of being deleted automatically.
-- Stopped startup from rewriting existing employee IDs; legacy IDs are retained. New IDs continue to be generated for new users.
-- Prevented OTP reset of the environment-managed admin account; admin recovery instructions now consistently point to `ADMIN_PASSWORD` in Vercel environment variables.
-- Rechecked OTP expiry at the final password-reset submission step.
-- Updated `last_login` on successful login.
-- Escaped user-supplied names in OTP HTML email and made CSV export safer against spreadsheet formula injection.
-- Kept public health diagnostics generic and added `/healthz`; detailed errors remain in Vercel Function Logs.
-- Added local `.env` loading with `python-dotenv`, pinned dependencies, and updated deployment/setup documentation.
+This is an updated continuation of the uploaded Management System V20 ZIP, with fixes layered into the current codebase. The Flask + SQLAlchemy architecture and existing app feature set are retained. This is not the separate Library Management System project.
 
-## Validation results
-- Python compile check: PASS (`python -m py_compile app.py`).
-- JavaScript syntax check: PASS for `static/ui_advanced.js` and `public/ui_advanced.js` when Node.js is available.
-- Jinja template compilation: PASS for all 11 HTML templates.
-- Template `url_for()` endpoint reference check: PASS; no missing endpoint references found.
-- POST form CSRF-token check: PASS for all parsed POST forms.
-- `vercel.json` JSON parsing: PASS.
-- ZIP integrity check: PASS after packaging.
-- Data-preservation source checks: PASS; automatic migration contains no `DELETE FROM` for OTP/reset tables and no startup employee-ID rewrite.
-- Full Flask runtime/integration tests: NOT RUN in this environment because Flask/Flask-SQLAlchemy/Werkzeug are absent and package installation failed due unavailable network/DNS.
-- Live Neon database migration/connection: NOT VERIFIED; production database credentials are private and unavailable here.
-- Brevo OTP delivery: NOT VERIFIED; the private API key and verified sender configuration are unavailable here.
-- Live Vercel production login and feature smoke test: NOT VERIFIED; deployment access is unavailable here.
+**Automated checks:** 9/9 passed in the available environment. **Live production test:** not run; no authorized Vercel/Neon/Brevo access was available and Flask dependencies could not be installed due to package-index DNS/network failure. Therefore this is not a claim of 100% live-server verification.
 
-## Required Vercel environment variables
-`SECRET_KEY`, `DATABASE_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `PGSSLMODE=require`, `FLASK_DEBUG=0`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`.
+## Root cause fixed
 
-## Deploy safely
-1. Back up the existing Neon database before deploying.
-2. Ensure `DATABASE_URL` points to the same Neon database that contains existing users. Do not reset or replace the database.
-3. Deploy the ZIP contents from the repository root in Vercel.
-4. Check `/healthz`; expect HTTP 200 and `{"status":"ok","database":"ok"}`.
-5. Test admin/member login, registration OTP, forgot-password OTP, profile/edit, change password, admin user CRUD/status/unlock, analytics, audit logs, and CSV export.
+The employee-ID schema backfill query had broken SQL quoting around the empty-string test. Python's adjacent-string parsing could remove the intended `''` SQL literal and cause the migration SQL to fail. It now explicitly passes a correctly quoted statement. Backfill avoids clashing with already existing employee IDs, and an isolated SQLite migration smoke test covers legacy rows plus ID collisions.
 
-The ZIP is statically validated, but it must not be described as fully live-tested until the Vercel/Neon/Brevo smoke tests above pass.
+## Other code and data-safety changes
+
+- PostgreSQL additive column migration uses `IF NOT EXISTS` to reduce cold-start race risk.
+- Case-insensitive identity uniqueness is checked/created for username and email fields. Existing records are not deleted or merged to make an index succeed; conflicting legacy data causes a clear migration error and requires backed-up manual reconciliation.
+- Missing/blank legacy employee IDs can be backfilled collision-safely; existing IDs are not rewritten.
+- OTP creation records are preserved/restored if Brevo fails to send; requesting another OTP no longer purges pending requests for the same username with another email.
+- Password-reset lookup consistently chooses the newest row; the email-send failure path restores an existing row instead of destructively replacing it.
+- Required legacy OTP schema columns are checked; incomplete legacy schema fails safely rather than silently discarding OTP/reset rows.
+- `ADMIN_EMAIL` is validated for environment-managed admin bootstrap. On Vercel, important missing environment configuration is a startup/readiness error, not a silent local SQLite fallback.
+- Logout is POST-only and rendered as a CSRF-protected form, and the flash session is no longer erased after logout.
+- Landing stats read aggregates from the `/public-stats` endpoint; no fake user totals, reviews, or sale events are fabricated.
+- The landing page has more comprehensive request-time/readiness errors; `/healthz` returns a minimal database readiness result without leaking credentials.
+
+## PDF guide — all 12 animation patterns accounted for in a management-system-appropriate way
+
+The uploaded *MadeToScale — 12 Landing Page Animations* PDF was reviewed (animation patterns on pages 4–15; pre-ship checklist on page 17). E-commerce patterns are adapted instead of presenting fake sales, fake customer reviews, made-up savings, or fabricated metrics:
+
+1. **Hero reveal** (PDF p.4): staggered word reveal using transform/opacity, with short intro timing.
+2. **Word rotator** (p.5): four short rotating hero claims; reduced-motion users see a stable heading.
+3. **Sale pings** (p.6): adapted as an aggregate activity ping fed by actual counts from the database, not fictitious orders or names.
+4. **Review shuffle** (p.7): adapted to a rotating stack of product capability cards, not fake testimonials or ratings.
+5. **Count-up stats** (p.8): public registration totals animate once using `/public-stats`, including a 7/30-day range toggle.
+6. **Bento build** (p.9): staggered feature tiles with responsive grid and mobile collapse.
+7. **Cursor tour** (p.10): guided illustrative dashboard navigation. It is labelled a preview and does not modify the DB or pretend to be a signed-in user.
+8. **Process draw** (p.11): SVG line draw connecting the real registration → OTP verification → next step flow.
+9. **Before/after** (p.12): interactive comparison slider using conceptual UI wireframes, clearly labelled as a concept rather than a claimed historical screenshot.
+10. **Price roll** (p.13): recontextualized as an animated 7-day/30-day reporting range/value transition; pricing/savings are not invented for a non-commerce employee portal.
+11. **Us vs. them** (p.14): workflow comparison of manual processes and actual system capabilities; no unsupported benchmark claims.
+12. **Click → success** (p.15): login, registration, and OTP form submit states are bound to real server requests. Loading does not assert success before a response.
+
+Page 17 checklist: reduced-motion preferences are respected; reveals primarily use transform/opacity; mobile layouts and touch targets are included; reveal plays are one-time where appropriate; animations avoid fake social proof. A real mid-range Android device still needs manual browser testing after deployment.
+
+## Automated checks run
+
+| Check | Result | Notes |
+|---|---|---|
+| Python source AST / syntax | PASS | `app.py` parsed |
+| Jinja templates | PASS | 11 templates parsed |
+| `url_for()` endpoint references | PASS | All referenced endpoints resolve to registered route candidates |
+| POST form CSRF tokens | PASS | 28 forms scanned |
+| JavaScript syntax | PASS | 8 inline scripts + shared JS checked with Node |
+| CSS parsing | PASS | Shared CSS and landing inline CSS parsed |
+| Assets and public/static mirrors | PASS | Referenced local assets exist; mirrored shared copies are byte-identical |
+| SQLite migration smoke test | PASS | Legacy records preserved and employee-ID collision avoided |
+| Authentication/OTP/logout route sanity | PASS | Route-level checks; not a real HTTP integration test |
+| ZIP archive integrity | PASS | Final archive tested with `unzip -t`; project files are at ZIP root |
+
+## Not tested live
+
+- Flask application client/HTTP integration; Flask dependency is absent from this environment and pip installation could not reach the index.
+- Live connection to the user's Neon database, query permissions, production schema state, or persistence after redeploy.
+- Brevo credentials/sender verification and actual registration/reset email arrival.
+- Vercel build/runtime, environment variables, real admin login, full OTP cycle, every admin/member action, and mid-range Android rendering/performance.
+
+## Required deployment variables
+
+`SECRET_KEY`, `DATABASE_URL` (the current Neon DB), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `PGSSLMODE=require`, `FLASK_DEBUG=0`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`.
+
+## Safe production verification
+
+1. Take a Neon backup/snapshot, and double-check that `DATABASE_URL` points to the **existing** database; do not reset/recreate it to clear a schema error.
+2. Set variables in Vercel, push the ZIP contents at repo root, and redeploy.
+3. Open `/healthz`. Expected response: `{"status":"ok","database":"ok"}`. If it fails, inspect Vercel Function/Runtime logs.
+4. Test admin sign-in, register/OTP, forgot-password/OTP, profile, password change, POST logout, member-management actions, analytics, audit logs, and CSV export.
+5. Confirm persistence in Neon after one safe test transaction. If legacy case-insensitive duplicates exist, reconcile them after backup before retrying startup.
