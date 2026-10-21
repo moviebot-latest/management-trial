@@ -119,7 +119,7 @@ VALID_DEPARTMENTS = [
 # ════════════════════════════ MODELS ════════════════════════════
 
 class User(db.Model):
-    id              = db.Column(db.Integer, primary_key=True)
+    id              = db.Column("user_id", db.Integer, primary_key=True)
     employee_id     = db.Column(db.String(20),  unique=True,  nullable=False)
     name            = db.Column(db.String(120),  nullable=False)
     gender          = db.Column(db.String(30),   nullable=False)
@@ -597,12 +597,12 @@ def server_error(e):
 
 @app.route("/style.css")
 def public_stylesheet():
-    return send_from_directory(os.path.join(app.root_path, "public"), "style.css", mimetype="text/css")
+    return send_from_directory(os.path.join(app.root_path, "static"), "style.css", mimetype="text/css")
 
 
 @app.route("/ui_advanced.js")
 def public_script():
-    return send_from_directory(os.path.join(app.root_path, "public"), "ui_advanced.js", mimetype="application/javascript")
+    return send_from_directory(os.path.join(app.root_path, "static"), "ui_advanced.js", mimetype="application/javascript")
 
 
 @app.route("/__version")
@@ -1783,19 +1783,23 @@ def _ensure_casefold_unique_index(table_name, column_name):
 
 
 def _migrate_existing_schema():
-    """Repair additive schema drift without dropping/recreating existing user data."""
+    """Additively reconcile the known legacy Neon user schema without dropping rows."""
     user_cols = _columns_for("user")
-    critical = {"id", "name", "gender", "department", "email", "username", "password_hash"}
+    # The current Neon table uses user_id as its primary key. Map that physical
+    # column to the ORM attribute User.id; keep compatibility with older `id` schemas.
+    user_pk_col = "user_id" if "user_id" in user_cols and "id" not in user_cols else "id"
+    critical = {user_pk_col, "name", "gender", "email", "username", "password_hash"}
     missing_critical = sorted(critical - user_cols)
     if missing_critical:
         raise RuntimeError(
-            "Existing user table is missing essential columns: " + ", ".join(missing_critical) +
-            ". Automatic recovery is unsafe because it could make existing accounts inaccessible. "
-            "Back up the database and reconcile this legacy schema before retrying."
+            "Existing user table is missing required columns: " + ", ".join(missing_critical) +
+            ". No records were deleted. Back up the database and verify the legacy schema before retrying."
         )
 
     user_defs = {
         "employee_id": "VARCHAR(20)",
+        # Older accounts did not have a department. A neutral value preserves access.
+        "department": "VARCHAR(80) NOT NULL DEFAULT 'Unassigned'",
         "role": "VARCHAR(20) NOT NULL DEFAULT 'user'",
         "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
         "failed_attempts": "INTEGER NOT NULL DEFAULT 0",
@@ -1804,12 +1808,14 @@ def _migrate_existing_schema():
         "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
     }
     user_cols = _add_missing_columns("user", user_defs)
-    # Existing rows get a deterministic, non-sensitive migration ID only when missing.
+    # Existing rows receive deterministic IDs only when employee_id is absent.
     rows = db.session.execute(text(
-        "SELECT \"id\" FROM \"user\" WHERE \"employee_id\" IS NULL OR \"employee_id\" = '' ORDER BY \"id\""
+        f'SELECT "{user_pk_col}" FROM "user" '
+        'WHERE "employee_id" IS NULL OR "employee_id" = \'\' '
+        f'ORDER BY "{user_pk_col}"'
     )).fetchall()
     used_ids = {str(value) for (value,) in db.session.execute(
-        text("SELECT \"employee_id\" FROM \"user\" WHERE \"employee_id\" IS NOT NULL AND \"employee_id\" != ''")
+        text('SELECT "employee_id" FROM "user" WHERE "employee_id" IS NOT NULL AND "employee_id" != \'\'')
     ).fetchall()}
     for (uid,) in rows:
         base = f"MIG-{uid}"
@@ -1819,10 +1825,10 @@ def _migrate_existing_schema():
             tail = f"-{suffix}"
             candidate = base[:20-len(tail)] + tail
             suffix += 1
-        db.session.execute(text('UPDATE "user" SET "employee_id" = :eid WHERE "id" = :uid'),
-                           {"eid": candidate, "uid": uid})
+        db.session.execute(text(
+            f'UPDATE "user" SET "employee_id" = :eid WHERE "{user_pk_col}" = :uid'
+        ), {"eid": candidate, "uid": uid})
         used_ids.add(candidate)
-    # Normalize nullable fields from older schemas before the ORM uses them.
     db.session.execute(text("UPDATE \"user\" SET \"role\" = 'user' WHERE \"role\" IS NULL OR \"role\" = ''"))
     db.session.execute(text('UPDATE "user" SET "is_active" = TRUE WHERE "is_active" IS NULL'))
     db.session.execute(text('UPDATE "user" SET "failed_attempts" = 0 WHERE "failed_attempts" IS NULL'))
