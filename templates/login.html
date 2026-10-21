@@ -5,7 +5,7 @@
   <title>Sign In — Management System</title><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#635bff">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <div class="auth-page">
@@ -88,7 +88,7 @@
     <div class="ai-footer"><span>● HTTPS TRANSPORT</span><span>● SERVER-VERIFIED LOGIN</span><span>● PROTECTED REQUEST</span></div>
   </div>
 </div>
-<script src="/ui_advanced.js"></script>
+<script src="{{ url_for('static', filename='ui_advanced.js') }}"></script>
 <script>
 function togglePw(id,btn){
   const i=document.getElementById(id),show=i.type==='password';
