@@ -1,78 +1,31 @@
-# Library Management System
+# Management System — V51
 
-Flask + SQLAlchemy + PostgreSQL/SQLite library project.
+Flask + SQLAlchemy application intended for Vercel with a PostgreSQL/Neon database. This release is based on the current V50 code and adds the admin Email Campaign Center while keeping existing account, registration OTP, password-reset OTP, analytics, audit-log and admin-user flows.
 
-## Vercel
-`vercel.json` is included (Python/Flask on Vercel + a daily reminder cron). Import the repo in Vercel and set the environment variables below.
+## Highlights in V51
 
-Required: `DATABASE_URL` (Neon *pooled* URL), `SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`; optional `ADMIN_NAME`, `PGSSLMODE`. Plus your Neon object-storage variables for book PDFs/covers.
+- Admin-only **Email Campaign Center** with all-users, active-users, selected-users, and single-user audience modes.
+- Searchable recipient picker, seven branded message templates, safe live email preview, CTA link to the real sign-in page, test email, and campaign-level recipient reports.
+- Sent/failed/pending tracking, failed-recipient retry, duplicate-submit guard, a configurable recipient cap and broadcast cooldown, future scheduling, edit/cancel for not-yet-sent scheduled campaigns, and protected cron endpoint.
+- Refined registration OTP / forgot-password OTP screens with expiry guidance, resend countdown and safer form states.
+- Additive campaign database tables; no `DROP TABLE` or intentional deletion of existing database rows.
 
-## Email notifications
-Emails are sent for: registration OTP, welcome, book issue, return, additional fine, payment receipt, refund, password change, role change, member removal, due-soon and overdue reminders. `ADMIN_EMAIL` also receives a copy of issue/return/fine/payment/refund/role/removal emails.
-Every email is saved in `email_log`; staff can open **Email Notifications** on the dashboard (`/admin/email-logs`) to see status, send a test email or run reminders.
-Emails are sent before the response (required on Vercel serverless); a failed email never blocks the library action.
+## Deploy
 
-Variables (one provider): Brevo `BREVO_API_KEY` + `BREVO_SENDER_EMAIL` (+ `BREVO_SENDER_NAME`), or SMTP `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (+ `SMTP_FROM`). Registration and password-reset OTP now use Brevo when configured, otherwise fall back to SMTP. For Gmail SMTP, use an App Password (not your normal Gmail password) with 2-Step Verification enabled. Optional: `ADMIN_EMAIL`, `LATE_FEE_PER_DAY`, `DUE_SOON_DAYS` (default 2), `CRON_SECRET`.
-Reminders: `vercel.json` runs `/cron/send-reminders` daily (09:00 IST). Set `CRON_SECRET` in Vercel — Vercel sends it automatically as a Bearer token.
-Vercel limits: request bodies max ~4.5 MB (big book-PDF uploads fail), function timeout, large PyMuPDF bundle.
+1. Extract the ZIP with `app.py`, `requirements.txt`, `vercel.json`, `templates/`, and `static/` at the repository root.
+2. Connect the repository to Vercel and retain the correct project root.
+3. Configure `SECRET_KEY`, `DATABASE_URL` for the existing Neon database, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `BREVO_API_KEY`, and `BREVO_SENDER_EMAIL`. Alternatively configure the documented SMTP settings.
+4. For campaign CTA URLs set `PUBLIC_APP_URL` to the actual production domain. Set a random `CRON_SECRET` for scheduled campaign processing.
+5. Redeploy, check `/healthz`, sign in as admin, then open **Dashboard → Email Campaigns**.
 
-## Roles
-- Member: browse books, issue/return own books, change password. No community/member list.
-- Librarian: manage books and issue/return for members.
-- Admin: all librarian functions + member management and promote/demote librarian.
+## Scheduled campaigns
 
-Registration intentionally has no Department field; new accounts are created as Library Members.
+The app stores future delivery times as UTC while the UI accepts IST. Automatic delivery needs a scheduler to call `GET /api/cron/email-campaigns` with `Authorization: Bearer <CRON_SECRET>`. See `README_DEPLOY.md` for details and the Vercel Hobby frequency limitation. Until the scheduler is configured, future campaigns stay safely saved with status `scheduled`.
 
+## Email configuration
 
-Database migration note: the app preserves existing PostgreSQL book data and adds missing ORM columns (including description and cover_url) when needed.
+Use either Brevo (`BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, optional `BREVO_SENDER_NAME`) or SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`). For Gmail SMTP, use an app password rather than the normal account password. Never commit real secrets to the repository or paste them into chat.
 
-## V12 database fixes
-- `user.id` is migrated to database column `user_id`; the legacy `employee_id` column is removed.
-- Payment/return schema is upgraded in-place and payment foreign keys are checked.
-- `audit_log` is created/upgraded and registration, login, issue, return/payment and additional-fine events are recorded.
-- Existing member numeric IDs are preserved during the `id` -> `user_id` rename.
+## Verification notes
 
-## Final Add Book UI
-- Premium responsive Add New Book screen.
-- PDF upload with Analyze PDF & Auto Fill.
-- Gallery/Album cover upload with live preview.
-- If no cover is supplied, the first PDF page is used as a cover when possible.
-- When both PDF and cover are supplied, the uploaded cover photo is stored and preferred.
-- Book PDF and cover are stored in Neon Object Storage; metadata and file paths are stored in PostgreSQL.
-
-## Email notifications (Brevo)
-Set these environment variables for automatic Gmail/email notifications:
-- `BREVO_API_KEY`
-- `BREVO_SENDER_EMAIL`
-- `BREVO_SENDER_NAME` (example: `Library Management System`)
-- `ADMIN_EMAIL` (optional: receives new-member notifications)
-
-The system sends separate emails for:
-- Congratulations / account created
-- New book issued (with due date)
-- Book returned / fine summary
-- Payment slip / receipt (Payment ID + Transaction ID + amount)
-- Refund processed (Refund ID + original transaction)
-- Password changed security alert
-
-Payment in this internship project is a simulated internal payment record; it does not charge real money.
-
-## Vercel 500 FUNCTION_INVOCATION_FAILED fix (V33)
-Database setup no longer runs as one all-or-nothing step at import time. Each migration step is isolated, errors are logged (not fatal), it is skipped after the first successful run, and it is retried on later requests.
-If the site still fails, open `/init-status` (add `?token=CRON_SECRET` if you set one) — it shows whether the DB is ready and the last error. Check that `DATABASE_URL` is set for the *Production* environment, then redeploy.
-
-## V34 fixes
-- Login: stable session key even if `SECRET_KEY` is missing (random per-instance keys broke login/CSRF on Vercel). **Still set `SECRET_KEY` in Vercel.**
-- Login with non-ASCII passwords no longer crashes (500); clear message if `ADMIN_PASSWORD` is not set.
-- Expired forms redirect with a message instead of a bare "Invalid CSRF token" page.
-- Forgot Password page redesigned to match the login page (it used CSS classes that did not exist); "Start over" now really restarts.
-- Friendly error pages with an Error ID; `/init-status` (admin or `?token=CRON_SECRET`) shows the real recent errors.
-- Member delete is FK-safe (payments/returns removed first) and cannot remove the admin.
-
-## V35 design refresh (sign-in pages)
-Login, register, forgot-password and error pages share `templates/auth_base.html` + `static/auth.css` (library-card design, keyboard focus rings, labelled fields, reduced-motion support, mobile-first). Google Fonts are allowed in the CSP. The dashboard/landing pages still use `style.css`.
-
-## V37
-- `DATABASE_URL` of the form `postgresql://...` is now converted to the psycopg v3 driver automatically.
-- PgBouncer-safe connection settings; `/init-status` shows `error_type` and a plain-language `hint` for DB problems.
-- Error page: stamp design, mobile layout fixed, and it retries by itself when the database is waking up.
+`CODE_TEST_REPORT_V51.md` records checks run on the source in this workspace. Syntax, template parsing, and JavaScript syntax checks do not prove real email delivery or a successful live Neon/Vercel deployment. Use a test campaign after you configure valid provider credentials.

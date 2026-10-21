@@ -12,6 +12,7 @@ from email.message import EmailMessage
 import threading
 import time
 from datetime import date, timedelta, datetime, timezone
+from zoneinfo import ZoneInfo
 from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for,
@@ -19,7 +20,7 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, update, Text, ForeignKey, UniqueConstraint
 from werkzeug.security import generate_password_hash, check_password_hash
 
 try:
@@ -207,6 +208,41 @@ class AuditLog(db.Model):
     timestamp  = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
 
 
+class EmailCampaign(db.Model):
+    """Admin announcements and scheduled email campaigns; additive to existing data."""
+    id = db.Column(db.Integer, primary_key=True)
+    submission_key = db.Column(db.String(80), unique=True, nullable=True, index=True)
+    subject = db.Column(db.String(200), nullable=False)
+    message = db.Column(Text, nullable=False)
+    template = db.Column(db.String(40), nullable=False, default="announcement")
+    cta_label = db.Column(db.String(80), nullable=True)
+    cta_url = db.Column(db.String(500), nullable=True)
+    recipient_mode = db.Column(db.String(20), nullable=False, default="all")
+    status = db.Column(db.String(24), nullable=False, default="queued", index=True)
+    created_by = db.Column(db.String(80), nullable=False)
+    scheduled_at = db.Column(db.DateTime, nullable=True, index=True)
+    claimed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    total_recipients = db.Column(db.Integer, nullable=False, default=0)
+    sent_count = db.Column(db.Integer, nullable=False, default=0)
+    failed_count = db.Column(db.Integer, nullable=False, default=0)
+    test_only = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class EmailCampaignRecipient(db.Model):
+    __table_args__ = (UniqueConstraint("campaign_id", "email", name="uq_campaign_recipient_email"),)
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, ForeignKey("email_campaign.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, nullable=True, index=True)
+    email = db.Column(db.String(160), nullable=False)
+    recipient_name = db.Column(db.String(120), nullable=False, default="there")
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    error = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    sent_at = db.Column(db.DateTime, nullable=True)
+
+
 # ════════════════════════════ HELPERS ════════════════════════════
 
 def db_retry(fn):
@@ -361,13 +397,23 @@ def send_otp_email(email, otp, name, purpose="verification"):
     plain = (f"Your Management System password reset code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
              if is_reset else
              f"Your Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes.")
-    html = f"""<!doctype html><html><body style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\">
-      <div style=\"max-width:520px;margin:auto;background:white;border-radius:18px;padding:30px;box-shadow:0 8px 30px rgba(0,0,0,.08)\">
-      <h2 style=\"margin-top:0\">{title}</h2>
-      <p>Hi {safe_name},</p><p>{intro}</p>
-      <div style=\"font-size:32px;font-weight:800;letter-spacing:10px;text-align:center;padding:18px;background:#f1efff;border-radius:14px\">{otp}</div>
-      <p style=\"color:#667085\">This code expires in {OTP_EXPIRY_MINUTES} minutes. If you did not request this, you can ignore this email.</p>
-      </div></body></html>"""
+    html = f"""<!doctype html>
+<html lang=\"en\"><body style=\"margin:0;padding:24px 12px;background:#f4f6ff;font-family:Arial,Helvetica,sans-serif;color:#172033\">
+  <div style=\"max-width:540px;margin:0 auto;background:#fff;border:1px solid #e8eaf5;border-radius:22px;overflow:hidden;box-shadow:0 16px 48px rgba(35,42,84,.12)\">
+    <div style=\"padding:28px 22px;background:linear-gradient(135deg,#101b4b,#4433a8);text-align:center;color:#fff\">
+      <div style=\"width:54px;height:54px;line-height:54px;margin:0 auto 12px;border-radius:17px;background:rgba(255,255,255,.15);font-size:26px\">🔐</div>
+      <div style=\"font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#c7d2fe;font-weight:bold\">Management System</div>
+      <h1 style=\"font-size:25px;line-height:1.25;margin:12px 0 0\">{title}</h1>
+    </div>
+    <div style=\"padding:28px 24px\">
+      <p style=\"font-size:16px;margin:0 0 14px\">Hi {safe_name},</p>
+      <p style=\"font-size:14px;line-height:1.75;color:#475467;margin:0 0 20px\">{intro}</p>
+      <div style=\"font-size:32px;font-weight:800;letter-spacing:9px;text-align:center;padding:19px 12px;background:#f1efff;border:1px solid #e0ddff;border-radius:15px;color:#29246f\">{otp}</div>
+      <p style=\"font-size:12px;line-height:1.7;color:#667085;margin:20px 0 0\">This code expires in <strong>{OTP_EXPIRY_MINUTES} minutes</strong>. Never share it with anyone. If you did not request this, you can safely ignore this email.</p>
+    </div>
+    <div style=\"padding:15px 20px;background:#fafbff;border-top:1px solid #eef0f7;text-align:center;color:#98a2b3;font-size:11px\">Management System · Secure verification</div>
+  </div>
+</body></html>"""
     brevo_error = None
     if use_brevo:
         payload = json.dumps({
@@ -437,6 +483,279 @@ def send_otp_email(email, otp, name, purpose="verification"):
             raise RuntimeError(f"Both email providers failed. {brevo_error}; {smtp_error}") from exc
         raise smtp_error from exc
 
+
+def send_account_created_email(email, name, username):
+    """Send a welcome/confirmation email after the account is already committed."""
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
+    sender_name = os.environ.get("BREVO_SENDER_NAME", "Management System").strip() or "Management System"
+    use_brevo = bool(api_key and sender_email)
+    if not use_brevo and not _smtp_configured():
+        raise RuntimeError("No transactional email provider is configured.")
+    if not sender_email:
+        sender_email = os.environ.get("SMTP_FROM", "").strip() or os.environ.get("SMTP_USER", "").strip()
+
+    safe_name = html_lib.escape((name or "there").strip()[:120], quote=True)
+    safe_username = html_lib.escape((username or "").strip()[:80], quote=True)
+    login_url = url_for("login_page", _external=True)
+    safe_login_url = html_lib.escape(login_url, quote=True)
+    subject = "Congratulations! Your Management System account is ready"
+    plain = (
+        f"Congratulations, {name or 'there'}! Your Management System account has been created successfully. "
+        f"Your username is {username}. Sign in here: {login_url}"
+    )
+    html_body = f'''<!doctype html>
+<html lang="en"><body style="margin:0;background:#f4f6ff;font-family:Arial,Helvetica,sans-serif;color:#172033;padding:24px 12px">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e8eaf5;border-radius:22px;overflow:hidden;box-shadow:0 16px 48px rgba(35,42,84,.12)">
+    <div style="background:linear-gradient(135deg,#101b4b,#4433a8);padding:30px 24px;text-align:center;color:#fff">
+      <div style="width:64px;height:64px;margin:0 auto 16px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:20px;line-height:64px;font-size:32px">✓</div>
+      <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c7d2fe;font-weight:bold">Account successfully created</div>
+      <h1 style="font-size:27px;line-height:1.2;margin:10px 0 0">Congratulations, {safe_name}!</h1>
+    </div>
+    <div style="padding:28px 26px;text-align:center">
+      <p style="font-size:16px;line-height:1.7;color:#475467;margin:0 0 20px">Welcome to the Management System. Your email has been verified and your account is ready to use.</p>
+      <div style="background:#f7f7ff;border:1px solid #e4e5ff;border-radius:14px;padding:16px;margin:0 0 24px;text-align:left">
+        <div style="font-size:11px;letter-spacing:1.4px;color:#72779a;font-weight:bold;text-transform:uppercase">Your username</div>
+        <div style="font-size:21px;font-weight:bold;color:#29246f;word-break:break-word;margin-top:7px">{safe_username}</div>
+      </div>
+      <a href="{safe_login_url}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#2563eb);color:#ffffff;text-decoration:none;font-weight:bold;padding:15px 24px;border-radius:12px;font-size:15px">Log In to Your Account &rarr;</a>
+      <p style="font-size:12px;color:#98a2b3;line-height:1.6;margin:24px 0 0">If you did not create this account, please contact your system administrator.</p>
+    </div>
+    <div style="background:#fafbff;border-top:1px solid #eef0f7;text-align:center;padding:16px;font-size:12px;color:#7c8499">Management System Team</div>
+  </div>
+</body></html>'''
+
+    brevo_error = None
+    if use_brevo:
+        payload = json.dumps({
+            "sender": {"name": sender_name, "email": sender_email},
+            "to": [{"email": email, "name": (name or "there")[:120]},],
+            "subject": subject,
+            "htmlContent": html_body,
+            "textContent": plain,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={"accept": "application/json", "api-key": api_key, "content-type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if 200 <= response.status < 300:
+                    return True
+                raise RuntimeError("Brevo rejected the welcome email.")
+        except Exception as exc:
+            brevo_error = exc
+            if not _smtp_configured():
+                raise RuntimeError(f"Brevo welcome email failed ({type(exc).__name__}).") from exc
+            app.logger.warning("Brevo welcome email failed; trying SMTP fallback (%s).", type(exc).__name__)
+
+    host = os.environ.get("SMTP_HOST", "").strip()
+    port = int(os.environ.get("SMTP_PORT", "587").strip() or "587")
+    smtp_user = os.environ.get("SMTP_USER", "").strip()
+    smtp_password = os.environ.get("SMTP_PASSWORD", "")
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = f"{sender_name} <{sender_email}>"
+    message["To"] = email
+    message.set_content(plain)
+    message.add_alternative(html_body, subtype="html")
+    try:
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=10) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(smtp_user, smtp_password)
+                server.send_message(message)
+        return True
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
+        if brevo_error is not None:
+            raise RuntimeError("Both email providers failed to send the welcome email.") from exc
+        raise RuntimeError(f"SMTP welcome email failed ({type(exc).__name__}).") from exc
+
+
+def _campaign_provider_name():
+    if _brevo_configured():
+        return "brevo"
+    if _smtp_configured():
+        return "smtp"
+    return ""
+
+
+def _campaign_email_html(subject, message_body, recipient_name, cta_label="", cta_url=""):
+    """Build safe, branded, mobile-friendly HTML from plain text."""
+    safe_subject = html_lib.escape((subject or "Management System update")[:200], quote=True)
+    safe_name = html_lib.escape((recipient_name or "there")[:120], quote=True)
+    safe_body = html_lib.escape(message_body or "", quote=True).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+    safe_cta_label = html_lib.escape((cta_label or "")[:80], quote=True)
+    safe_cta_url = html_lib.escape((cta_url or "")[:500], quote=True)
+    button = ""
+    if safe_cta_label and safe_cta_url and cta_url.startswith(("https://", "http://")):
+        button = f'<div style="text-align:center;margin:28px 0 8px"><a href="{safe_cta_url}" style="display:inline-block;padding:14px 22px;background:#5b4de2;color:#fff;text-decoration:none;border-radius:12px;font-weight:800">{safe_cta_label} &rarr;</a></div>'
+    return f'''<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#f3f5fc;padding:22px 10px;font-family:Inter,Arial,Helvetica,sans-serif;color:#17233f">
+<div style="max-width:620px;margin:0 auto;background:#fff;border:1px solid #e6e9f5;border-radius:22px;overflow:hidden;box-shadow:0 16px 44px rgba(36,46,96,.10)">
+<div style="padding:28px 24px;background:linear-gradient(130deg,#172554,#4f46e5 65%,#9333ea);color:#fff;text-align:center">
+<div style="margin:0 auto 12px;width:54px;height:54px;line-height:54px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);border-radius:17px;font-size:24px;font-weight:900">MS</div>
+<div style="font-size:11px;letter-spacing:2px;font-weight:800;text-transform:uppercase;color:#dbeafe">Management System</div>
+<h1 style="font-size:25px;line-height:1.28;margin:12px 0 0">{safe_subject}</h1></div>
+<div style="padding:26px 24px"><p style="margin:0 0 16px;font-size:16px;font-weight:700">Hello {safe_name},</p>
+<div style="font-size:15px;line-height:1.85;color:#475467;overflow-wrap:anywhere">{safe_body}</div>{button}
+<p style="font-size:12px;line-height:1.7;color:#98a2b3;margin:26px 0 0">You are receiving this message from your Management System administrator. If you think this email was sent in error, you may safely ignore it.</p></div>
+<div style="text-align:center;padding:15px 16px;background:#f8f9ff;border-top:1px solid #edf0f8;color:#8a94aa;font-size:11px">Management System · Official notification</div></div></body></html>'''
+
+
+def send_campaign_email(email, recipient_name, subject, message_body, cta_label="", cta_url=""):
+    """Send using the same Brevo-first / SMTP-fallback policy as OTP mail."""
+    subject = (subject or "").strip()
+    if not subject or len(subject) > 200 or "\r" in subject or "\n" in subject:
+        raise ValueError("Email subject is invalid.")
+    if not _email_configured():
+        raise RuntimeError("Email service is not configured. Set BREVO_API_KEY + BREVO_SENDER_EMAIL or SMTP environment variables.")
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip() or os.environ.get("SMTP_FROM", "").strip() or os.environ.get("SMTP_USER", "").strip()
+    sender_name = os.environ.get("BREVO_SENDER_NAME", "Management System").strip() or "Management System"
+    plain = f"Hello {recipient_name or 'there'},\n\n{message_body or ''}"
+    if cta_label and cta_url and cta_url.startswith(("https://", "http://")):
+        plain += f"\n\n{cta_label}: {cta_url}"
+    html = _campaign_email_html(subject, message_body, recipient_name, cta_label, cta_url)
+    brevo_error = None
+    if api_key and os.environ.get("BREVO_SENDER_EMAIL", "").strip():
+        payload = json.dumps({
+            "sender": {"name": sender_name, "email": sender_email},
+            "to": [{"email": email, "name": (recipient_name or "there")[:120]},],
+            "subject": subject, "htmlContent": html, "textContent": plain,
+        }).encode("utf-8")
+        req = urllib.request.Request("https://api.brevo.com/v3/smtp/email", data=payload,
+            headers={"accept":"application/json", "api-key":api_key, "content-type":"application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise RuntimeError("Brevo rejected the email request.")
+                return True
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")[:180]
+            brevo_error = RuntimeError(f"Brevo email send failed ({exc.code}). {detail}")
+        except urllib.error.URLError:
+            brevo_error = RuntimeError("Brevo email service is temporarily unavailable.")
+        except Exception as exc:
+            brevo_error = RuntimeError(f"Brevo email send failed: {type(exc).__name__}.")
+        if not _smtp_configured():
+            raise brevo_error
+        app.logger.warning("Brevo campaign delivery failed; attempting SMTP fallback (%s).", type(brevo_error).__name__)
+
+    host = os.environ.get("SMTP_HOST", "").strip()
+    port = int(os.environ.get("SMTP_PORT", "587").strip() or "587")
+    smtp_user = os.environ.get("SMTP_USER", "").strip()
+    smtp_password = os.environ.get("SMTP_PASSWORD", "")
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = f"{sender_name} <{sender_email}>"
+    msg["To"] = email
+    msg.set_content(plain)
+    msg.add_alternative(html, subtype="html")
+    try:
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=10) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.ehlo(); server.starttls(); server.ehlo()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        return True
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
+        smtp_error = RuntimeError(f"SMTP email send failed: {type(exc).__name__}.")
+        if brevo_error is not None:
+            raise RuntimeError(f"Both email providers failed. {brevo_error}; {smtp_error}") from exc
+        raise smtp_error from exc
+
+
+def _campaign_base_url():
+    configured = os.environ.get("PUBLIC_APP_URL", "").strip().rstrip("/")
+    if configured.startswith(("https://", "http://")):
+        return configured
+    return request.url_root.rstrip("/") if request else ""
+
+
+def _campaign_status_refresh(campaign):
+    rows = db.session.query(EmailCampaignRecipient.status, db.func.count(EmailCampaignRecipient.id)).filter_by(
+        campaign_id=campaign.id
+    ).group_by(EmailCampaignRecipient.status).all()
+    counts = {status: int(count) for status, count in rows}
+    campaign.sent_count = counts.get("sent", 0)
+    campaign.failed_count = counts.get("failed", 0)
+    pending = counts.get("pending", 0)
+    if pending:
+        campaign.status = "queued"
+        campaign.sent_at = None
+    else:
+        campaign.sent_at = datetime.utcnow()
+        if campaign.failed_count and campaign.sent_count:
+            campaign.status = "partial"
+        elif campaign.failed_count:
+            campaign.status = "failed"
+        else:
+            campaign.status = "sent"
+    db.session.commit()
+    return pending
+
+
+def _process_campaign_batch(campaign_id, batch_size=None):
+    """Claim one campaign atomically, send a bounded batch, and persist each outcome."""
+    batch_size = max(1, min(int(batch_size or os.environ.get("EMAIL_CAMPAIGN_BATCH_SIZE", "10")), 50))
+    now = datetime.utcnow()
+    campaign = EmailCampaign.query.get(campaign_id)
+    if not campaign or campaign.status in {"cancelled", "sent", "partial", "failed", "test_sent", "test_failed"}:
+        return {"processed": 0, "status": campaign.status if campaign else "missing"}
+    if campaign.status == "scheduled" and (not campaign.scheduled_at or campaign.scheduled_at > now):
+        return {"processed": 0, "status": "scheduled"}
+    # Recover a serverless worker that died after claiming the campaign.
+    if campaign.status == "sending" and campaign.claimed_at and campaign.claimed_at > now - timedelta(minutes=5):
+        return {"processed": 0, "status": "sending"}
+    if campaign.status == "sending":
+        campaign.status = "queued"
+        db.session.commit()
+    claimed = db.session.execute(update(EmailCampaign).where(
+        EmailCampaign.id == campaign_id,
+        EmailCampaign.status.in_(["queued", "scheduled"]),
+    ).values(status="sending", claimed_at=now))
+    db.session.commit()
+    if claimed.rowcount != 1:
+        return {"processed": 0, "status": "busy"}
+
+    campaign = EmailCampaign.query.get(campaign_id)
+    recipients = EmailCampaignRecipient.query.filter_by(campaign_id=campaign_id, status="pending").order_by(EmailCampaignRecipient.id.asc()).limit(batch_size).all()
+    processed = 0
+    cta_url = (campaign.cta_url or "").strip()
+    for recipient in recipients:
+        try:
+            send_campaign_email(recipient.email, recipient.recipient_name, campaign.subject,
+                                campaign.message, campaign.cta_label or "", cta_url)
+            recipient.status = "sent"
+            recipient.error = None
+            recipient.sent_at = datetime.utcnow()
+        except Exception as exc:
+            recipient.status = "failed"
+            recipient.error = str(exc)[:500]
+            app.logger.warning("Email campaign %s recipient delivery failed (%s)", campaign_id, type(exc).__name__)
+        processed += 1
+        db.session.commit()  # Persist each result if serverless runtime stops mid-batch.
+    campaign = EmailCampaign.query.get(campaign_id)
+    if campaign:
+        campaign.claimed_at = None
+        pending = _campaign_status_refresh(campaign)
+        if pending:
+            campaign.status = "queued"
+            db.session.commit()
+    return {"processed": processed, "status": campaign.status if campaign else "missing"}
 
 def mask_email(email):
     email = (email or '').strip()
@@ -677,7 +996,7 @@ def public_script():
 @app.route("/__version")
 def deployment_version():
     """Non-sensitive marker to verify which deployment is serving requests."""
-    return jsonify({"version": "V48", "application": "Management System"}), 200
+    return jsonify({"version": "V51", "application": "Management System", "email_campaign_center": True}), 200
 
 
 @app.route("/")
@@ -783,7 +1102,15 @@ def register():
     otp_sent = bool(pending_email)
 
     if request.method == "GET":
-        return render_template("register.html", otp_sent=otp_sent, pending_email=pending_email)
+        resend_wait = 0
+        if pending_email:
+            pending_row = EmailVerification.query.filter(
+                db.func.lower(EmailVerification.email) == pending_email.casefold()
+            ).order_by(EmailVerification.created_at.desc(), EmailVerification.id.desc()).first()
+            if pending_row and pending_row.last_sent_at:
+                elapsed = max(0, int((_utcnow_naive() - pending_row.last_sent_at).total_seconds()))
+                resend_wait = max(0, OTP_RESEND_SECONDS - elapsed)
+        return render_template("register.html", otp_sent=otp_sent, pending_email=pending_email, resend_wait=resend_wait)
 
     name       = request.form.get("name", "").strip()
     gender     = request.form.get("gender", "").strip()
@@ -795,7 +1122,7 @@ def register():
 
     def err(msg):
         flash(msg, "error")
-        return render_template("register.html", otp_sent=False, pending_email=""), 400
+        return render_template("register.html", otp_sent=False, pending_email="", resend_wait=0), 400
 
     if not all([name, gender, department, email, username, password, confirm]):
         return err("All fields are required.")
@@ -825,7 +1152,7 @@ def register():
         create_email_otp(email, name, gender, department, username, generate_password_hash(password))
         session["pending_registration_email"] = email
         flash("📧 Verification code sent to your email. Check your Gmail inbox.", "success")
-        return render_template("register.html", otp_sent=True, pending_email=email)
+        return render_template("register.html", otp_sent=True, pending_email=email, resend_wait=OTP_RESEND_SECONDS)
     except ValueError as exc:
         db.session.rollback()
         return err(str(exc))
@@ -893,12 +1220,37 @@ def verify_registration_otp():
         db.session.commit()
         log_action(user.username, "REGISTER", f"Verified email and registered: {user.name} | {user.department} | EMP#{emp_id}")
         session.pop("pending_registration_email", None)
-        flash("✅ Email verified! Account created successfully. You can now sign in.", "success")
-        return redirect(url_for("login_page"))
+        welcome_email_sent = False
+        try:
+            send_account_created_email(user.email, user.name, user.username)
+            welcome_email_sent = True
+        except Exception as email_exc:
+            # The account is already committed. An email delivery failure must not undo registration.
+            app.logger.warning("Account created, but welcome email delivery failed (%s).", type(email_exc).__name__)
+        session["registration_success"] = {
+            "username": user.username,
+            "employee_id": user.employee_id,
+            "welcome_email_sent": welcome_email_sent,
+        }
+        return redirect(url_for("registration_success"))
     except IntegrityError:
         db.session.rollback()
         flash("Account could not be created. Please try again.", "error")
         return redirect(url_for("register"))
+
+
+@app.route("/register/success", methods=["GET"])
+def registration_success():
+    """One-time post-registration success screen, shown only after a committed account creation."""
+    result = session.pop("registration_success", None)
+    if not result or not result.get("username"):
+        return redirect(url_for("register"))
+    return render_template(
+        "account_success.html",
+        username=result["username"],
+        employee_id=result.get("employee_id"),
+        welcome_email_sent=bool(result.get("welcome_email_sent")),
+    )
 
 
 @app.route("/register/resend-otp", methods=["POST"])
@@ -1156,12 +1508,23 @@ def forgot_password():
         default_username = request.args.get("username", "").strip()
 
     if request.method == "GET":
+        if request.args.get("start_over") == "1":
+            session.pop("password_reset_user_id", None)
+            session.pop("password_reset_verified", None)
+            session.pop("password_reset_masked_email", None)
         username = default_username
         reset_sent = bool(session.get("password_reset_user_id"))
         reset_verified = bool(session.get("password_reset_verified"))
         masked = session.get("password_reset_masked_email", "")
+        resend_wait = 0
+        reset_uid = session.get("password_reset_user_id")
+        if reset_uid:
+            latest_reset = PasswordReset.query.filter_by(user_id=reset_uid).order_by(PasswordReset.created_at.desc(), PasswordReset.id.desc()).first()
+            if latest_reset and latest_reset.last_sent_at:
+                elapsed = (datetime.utcnow() - latest_reset.last_sent_at).total_seconds()
+                resend_wait = max(0, OTP_RESEND_SECONDS - int(elapsed))
         return render_template("forgot_password.html", username=username, reset_sent=reset_sent,
-                               reset_verified=reset_verified, masked_email=masked)
+                               reset_verified=reset_verified, masked_email=masked, resend_wait=resend_wait)
 
     username = request.form.get("username", "").strip()
     if not username:
@@ -1352,6 +1715,358 @@ def change_password():
     session.clear()
     flash("✅ Password changed successfully. Please log in again.", "success")
     return redirect(url_for("login_page"))
+
+
+# ═════════════════════ EMAIL CAMPAIGN CENTER (ADMIN) ═════════════════════
+
+CAMPAIGN_PRESETS = {
+    "announcement": ("Important announcement", "We have an update to share with you.\n\nPlease sign in to the Management System to review the latest information."),
+    "welcome": ("Welcome to the Management System!", "Welcome aboard! Your account is ready. Sign in to explore your dashboard, account details, and available library services."),
+    "come_back": ("Your Management System account is ready", "It has been a little while since your last visit. Sign in to check your dashboard and see what is new."),
+    "update": ("A new system update is available", "We have made an update to the Management System. Please sign in to review the latest changes."),
+    "reminder": ("A quick reminder from the Management System", "This is a friendly reminder to review any pending items or upcoming due dates in your account."),
+    "maintenance": ("Scheduled maintenance notice", "The Management System may be temporarily unavailable during scheduled maintenance. Thank you for your patience."),
+    "custom": ("A message from the Management System", "Write your message here. You can edit this message before sending."),
+}
+
+
+def _parse_campaign_schedule(raw_value):
+    """Interpret browser datetime-local input in India time, store naive UTC in DB."""
+    try:
+        local_dt = datetime.fromisoformat((raw_value or "").strip())
+    except (TypeError, ValueError):
+        raise ValueError("Choose a valid scheduled date and time.")
+    if local_dt.tzinfo is not None:
+        local_dt = local_dt.astimezone(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+    local_dt = local_dt.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+    if local_dt <= datetime.now(ZoneInfo("Asia/Kolkata")):
+        raise ValueError("Scheduled time must be in the future (India time).")
+    return local_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _valid_campaign_url(value):
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if len(value) > 500 or not value.startswith(("https://", "http://")) or "\r" in value or "\n" in value:
+        raise ValueError("CTA link must be a valid full http:// or https:// URL.")
+    return value
+
+
+def _campaign_email_counts(campaign):
+    rows = db.session.query(EmailCampaignRecipient.status, db.func.count(EmailCampaignRecipient.id)).filter_by(
+        campaign_id=campaign.id
+    ).group_by(EmailCampaignRecipient.status).all()
+    counts = {status: int(count) for status, count in rows}
+    return {"sent": counts.get("sent", 0), "failed": counts.get("failed", 0), "pending": counts.get("pending", 0)}
+
+
+@app.route("/admin/email-campaigns", methods=["GET"])
+@admin_required
+def email_campaigns():
+    users = User.query.filter(User.email.isnot(None)).order_by(User.name.asc()).all()
+    campaigns = EmailCampaign.query.order_by(EmailCampaign.created_at.desc(), EmailCampaign.id.desc()).limit(100).all()
+    campaign_ids = [campaign.id for campaign in campaigns]
+    count_map = {campaign_id: {"sent": 0, "failed": 0, "pending": 0} for campaign_id in campaign_ids}
+    if campaign_ids:
+        summary_rows = db.session.query(
+            EmailCampaignRecipient.campaign_id, EmailCampaignRecipient.status,
+            db.func.count(EmailCampaignRecipient.id)
+        ).filter(EmailCampaignRecipient.campaign_id.in_(campaign_ids)).group_by(
+            EmailCampaignRecipient.campaign_id, EmailCampaignRecipient.status
+        ).all()
+        for campaign_id, status, count in summary_rows:
+            if status in {"sent", "failed", "pending"}:
+                count_map[campaign_id][status] = int(count)
+    for campaign in campaigns:
+        campaign.report_counts = count_map[campaign.id]
+    detail_id = request.args.get("detail", type=int)
+    detail_campaign = EmailCampaign.query.get(detail_id) if detail_id else None
+    detail_recipients = []
+    if detail_campaign:
+        detail_recipients = EmailCampaignRecipient.query.filter_by(campaign_id=detail_campaign.id).order_by(
+            EmailCampaignRecipient.status.asc(), EmailCampaignRecipient.email.asc()).limit(500).all()
+    app_url = _campaign_base_url()
+    login_url = app_url + url_for("login_page") if app_url else url_for("login_page", _external=True)
+    eligible_users = [u for u in users if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", (u.email or "").strip()) and not (u.email or "").strip().casefold().endswith(".local")]
+    eligible_active_users = [u for u in eligible_users if u.is_active]
+    return render_template(
+        "email_campaigns.html", current_name=session.get("name", "Admin"), users=users,
+        eligible_count=len(eligible_users), eligible_active_count=len(eligible_active_users),
+        campaigns=campaigns, detail_campaign=detail_campaign, detail_recipients=detail_recipients,
+        login_url=login_url, provider=_campaign_provider_name(), submission_key=secrets.token_urlsafe(28),
+        now_ist=datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%dT%H:%M"),
+        utc_tz=timezone.utc, ist_tz=ZoneInfo("Asia/Kolkata"),
+    )
+
+
+@app.route("/admin/email-campaigns/create", methods=["POST"])
+@admin_required
+def create_email_campaign():
+    subject = request.form.get("subject", "").strip()
+    message = request.form.get("message", "").strip()
+    template = request.form.get("template", "announcement").strip()
+    mode = request.form.get("recipient_mode", "all").strip()
+    action = request.form.get("campaign_action", "send_now").strip()
+    submit_key = request.form.get("submission_key", "").strip()[:80]
+    cta_label = request.form.get("cta_label", "Sign in to Management System").strip()[:80]
+    try:
+        cta_url = _valid_campaign_url(request.form.get("cta_url", ""))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("email_campaigns"))
+    if not submit_key:
+        submit_key = secrets.token_urlsafe(24)
+    existing = EmailCampaign.query.filter_by(submission_key=submit_key).first()
+    if existing:
+        flash("This form was already submitted. Open the campaign report to view the original result.", "success")
+        return redirect(url_for("email_campaigns", detail=existing.id))
+    if not subject or len(subject) > 200 or "\r" in subject or "\n" in subject:
+        flash("Enter an email subject of 1–200 characters.", "error")
+        return redirect(url_for("email_campaigns"))
+    if not message or len(message) > 12000:
+        flash("Enter an email message (maximum 12,000 characters).", "error")
+        return redirect(url_for("email_campaigns"))
+    if template not in CAMPAIGN_PRESETS:
+        template = "custom"
+    if mode not in {"all", "active", "selected", "single"}:
+        flash("Choose a valid recipient group.", "error")
+        return redirect(url_for("email_campaigns"))
+
+    if mode == "all":
+        selected_users = User.query.filter(User.email.isnot(None)).order_by(User.id.asc()).all()
+    elif mode == "active":
+        selected_users = User.query.filter_by(is_active=True).filter(User.email.isnot(None)).order_by(User.id.asc()).all()
+    else:
+        raw_ids = request.form.getlist("selected_user_ids")
+        if mode == "single":
+            raw_ids = [request.form.get("single_user_id", "").strip()]
+        ids = []
+        for raw in raw_ids:
+            try:
+                uid = int(raw)
+                if uid > 0 and uid not in ids:
+                    ids.append(uid)
+            except (ValueError, TypeError):
+                continue
+        if not ids:
+            flash("Select at least one user first.", "error")
+            return redirect(url_for("email_campaigns"))
+        selected_users = User.query.filter(User.id.in_(ids), User.email.isnot(None)).order_by(User.id.asc()).all()
+        if mode == "single" and len(selected_users) != 1:
+            flash("Choose one valid user for the single-recipient option.", "error")
+            return redirect(url_for("email_campaigns"))
+
+    # Emails are case-insensitively deduplicated before the campaign is persisted.
+    unique_users = {}
+    for user in selected_users:
+        email = (user.email or "").strip()
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or email.casefold().endswith(".local"):
+            continue
+        unique_users.setdefault(email.casefold(), user)
+    if not unique_users:
+        flash("No valid email recipients were found in this selection.", "error")
+        return redirect(url_for("email_campaigns"))
+    try:
+        recipient_cap = max(1, min(int(os.environ.get("EMAIL_CAMPAIGN_MAX_RECIPIENTS", "5000")), 50000))
+    except ValueError:
+        recipient_cap = 5000
+    if len(unique_users) > recipient_cap:
+        flash(f"This campaign has {len(unique_users)} recipients, above the configured safety cap of {recipient_cap}. Increase EMAIL_CAMPAIGN_MAX_RECIPIENTS only if you intend to send to a larger list.", "error")
+        return redirect(url_for("email_campaigns"))
+
+    scheduled_at = None
+    status = "queued"
+    if action == "schedule":
+        try:
+            scheduled_at = _parse_campaign_schedule(request.form.get("scheduled_at", ""))
+            status = "scheduled"
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("email_campaigns"))
+    elif action != "send_now":
+        flash("Choose Send now or Schedule email.", "error")
+        return redirect(url_for("email_campaigns"))
+    elif mode in {"all", "active"} and len(unique_users) >= 10:
+        try:
+            cooldown = max(0, min(int(os.environ.get("EMAIL_CAMPAIGN_BROADCAST_COOLDOWN_SECONDS", "60")), 3600))
+        except ValueError:
+            cooldown = 60
+        if cooldown:
+            recent_broadcast = EmailCampaign.query.filter(
+                EmailCampaign.created_by == session.get("username", "admin"),
+                EmailCampaign.test_only.is_(False),
+                EmailCampaign.recipient_mode.in_(["all", "active"]),
+                EmailCampaign.scheduled_at.is_(None),
+                EmailCampaign.status != "cancelled",
+                EmailCampaign.created_at >= datetime.utcnow() - timedelta(seconds=cooldown),
+            ).first()
+            if recent_broadcast:
+                flash(f"To prevent accidental duplicate announcements, wait {cooldown} seconds between immediate broadcasts. You can schedule the next one instead.", "error")
+                return redirect(url_for("email_campaigns", detail=recent_broadcast.id))
+
+    if not cta_url and cta_label:
+        cta_url = _campaign_base_url() + url_for("login_page")
+    campaign = EmailCampaign(
+        submission_key=submit_key, subject=subject, message=message, template=template,
+        cta_label=cta_label or None, cta_url=cta_url or None, recipient_mode=mode,
+        status=status, created_by=session.get("username", "admin"), scheduled_at=scheduled_at,
+        total_recipients=len(unique_users),
+    )
+    db.session.add(campaign)
+    try:
+        db.session.flush()
+    except IntegrityError:
+        db.session.rollback()
+        duplicate = EmailCampaign.query.filter_by(submission_key=submit_key).first()
+        if duplicate:
+            flash("This campaign form was already submitted. The existing report is shown; no duplicate campaign was created.", "success")
+            return redirect(url_for("email_campaigns", detail=duplicate.id))
+        app.logger.exception("Email campaign insert failed due to a database integrity constraint")
+        flash("The campaign could not be saved because of a database constraint. No duplicate send was started.", "error")
+        return redirect(url_for("email_campaigns"))
+    for user in unique_users.values():
+        db.session.add(EmailCampaignRecipient(
+            campaign_id=campaign.id, user_id=user.id, email=user.email.strip(),
+            recipient_name=(user.name or user.username or "there")[:120], status="pending",
+        ))
+    db.session.commit()
+    log_action(session.get("username", "admin"), "ADMIN_EMAIL_CAMPAIGN_CREATE",
+               f"Campaign {campaign.id} created; mode={mode}; recipients={campaign.total_recipients}; status={status}")
+    if status == "queued":
+        result = _process_campaign_batch(campaign.id)
+        flash(f"Campaign #{campaign.id} queued. First batch processed: {result.get('processed', 0)}; status: {result.get('status', 'queued')}. Open the report to continue or retry failed recipients.", "success")
+    else:
+        flash(f"Campaign #{campaign.id} scheduled for {scheduled_at.replace(tzinfo=timezone.utc).astimezone(ZoneInfo('Asia/Kolkata')).strftime('%d %b %Y, %I:%M %p')} IST. Automatic delivery requires the configured scheduler to be active.", "success")
+    return redirect(url_for("email_campaigns", detail=campaign.id))
+
+
+@app.route("/admin/email-campaigns/test", methods=["POST"])
+@admin_required
+def send_test_campaign_email():
+    email = request.form.get("test_to", "").strip()
+    subject = request.form.get("subject", "").strip()[:200]
+    message = request.form.get("message", "").strip()[:12000]
+    cta_label = request.form.get("cta_label", "Sign in to Management System").strip()[:80]
+    try:
+        cta_url = _valid_campaign_url(request.form.get("cta_url", ""))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("email_campaigns"))
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        flash("Enter a valid test email address.", "error")
+        return redirect(url_for("email_campaigns"))
+    if not subject or not message:
+        flash("Enter a subject and message before sending a test.", "error")
+        return redirect(url_for("email_campaigns"))
+    if not cta_url and cta_label:
+        cta_url = _campaign_base_url() + url_for("login_page")
+    campaign = EmailCampaign(
+        submission_key=secrets.token_urlsafe(28), subject=subject, message=message,
+        template="test", cta_label=cta_label or None, cta_url=cta_url or None,
+        recipient_mode="test", status="queued", created_by=session.get("username", "admin"),
+        total_recipients=1, test_only=True,
+    )
+    db.session.add(campaign)
+    db.session.flush()
+    db.session.add(EmailCampaignRecipient(campaign_id=campaign.id, email=email, recipient_name="Admin / Test recipient", status="pending"))
+    db.session.commit()
+    result = _process_campaign_batch(campaign.id, batch_size=1)
+    campaign = db.session.get(EmailCampaign, campaign.id)
+    campaign.status = "test_sent" if campaign.sent_count == 1 else "test_failed"
+    db.session.commit()
+    log_action(session.get("username", "admin"), "ADMIN_EMAIL_TEST", f"Test email campaign {campaign.id}; status={campaign.status}")
+    if campaign.status == "test_sent":
+        flash(f"Test email was accepted by the email provider and recorded for {email}.", "success")
+    else:
+        flash("Test email failed. Open its report to see the delivery error and verify your Brevo/SMTP environment variables.", "error")
+    return redirect(url_for("email_campaigns", detail=campaign.id))
+
+
+@app.route("/admin/email-campaigns/<int:campaign_id>/process", methods=["POST"])
+@admin_required
+def process_email_campaign(campaign_id):
+    campaign = EmailCampaign.query.get_or_404(campaign_id)
+    result = _process_campaign_batch(campaign.id)
+    flash(f"Batch processed: {result.get('processed', 0)} recipient(s). Campaign status: {result.get('status', 'unknown')}.", "success")
+    return redirect(url_for("email_campaigns", detail=campaign.id))
+
+
+@app.route("/admin/email-campaigns/<int:campaign_id>/retry", methods=["POST"])
+@admin_required
+def retry_email_campaign(campaign_id):
+    campaign = EmailCampaign.query.get_or_404(campaign_id)
+    failed = EmailCampaignRecipient.query.filter_by(campaign_id=campaign.id, status="failed").all()
+    if not failed:
+        flash("This campaign has no failed recipients to retry.", "error")
+        return redirect(url_for("email_campaigns", detail=campaign.id))
+    for recipient in failed:
+        recipient.status = "pending"
+        recipient.error = None
+        recipient.sent_at = None
+    campaign.status = "queued"
+    campaign.claimed_at = None
+    campaign.sent_at = None
+    campaign.failed_count = 0
+    db.session.commit()
+    result = _process_campaign_batch(campaign.id)
+    log_action(session.get("username", "admin"), "ADMIN_EMAIL_CAMPAIGN_RETRY", f"Campaign {campaign.id}; retry count={len(failed)}")
+    flash(f"Retry batch processed: {result.get('processed', 0)}. Remaining retry recipients stay queued.", "success")
+    return redirect(url_for("email_campaigns", detail=campaign.id))
+
+
+@app.route("/admin/email-campaigns/<int:campaign_id>/schedule", methods=["POST"])
+@admin_required
+def update_email_campaign_schedule(campaign_id):
+    campaign = EmailCampaign.query.get_or_404(campaign_id)
+    if campaign.status != "scheduled":
+        flash("Only scheduled, not-yet-sent campaigns can be rescheduled.", "error")
+        return redirect(url_for("email_campaigns", detail=campaign.id))
+    try:
+        campaign.scheduled_at = _parse_campaign_schedule(request.form.get("scheduled_at", ""))
+        db.session.commit()
+        flash("Campaign schedule updated successfully.", "success")
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    return redirect(url_for("email_campaigns", detail=campaign.id))
+
+
+@app.route("/admin/email-campaigns/<int:campaign_id>/cancel", methods=["POST"])
+@admin_required
+def cancel_email_campaign(campaign_id):
+    campaign = EmailCampaign.query.get_or_404(campaign_id)
+    if campaign.status != "scheduled":
+        flash("Only a scheduled campaign can be cancelled. Already queued/sent emails cannot be recalled.", "error")
+        return redirect(url_for("email_campaigns", detail=campaign.id))
+    campaign.status = "cancelled"
+    campaign.scheduled_at = None
+    db.session.commit()
+    log_action(session.get("username", "admin"), "ADMIN_EMAIL_CAMPAIGN_CANCEL", f"Campaign {campaign.id} cancelled")
+    flash("Scheduled campaign cancelled. No recipients were emailed by this campaign.", "success")
+    return redirect(url_for("email_campaigns", detail=campaign.id))
+
+
+@app.route("/api/cron/email-campaigns", methods=["GET"])
+def process_scheduled_email_campaigns():
+    """Vercel/external cron endpoint. Secured using CRON_SECRET; never exposes user data."""
+    expected = os.environ.get("CRON_SECRET", "").strip()
+    supplied = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if not expected or not supplied or not secrets.compare_digest(expected, supplied):
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    now = datetime.utcnow()
+    # A timed-out worker may have left a campaign in 'sending'; recover it after five minutes.
+    EmailCampaign.query.filter(EmailCampaign.status == "sending", EmailCampaign.claimed_at < now - timedelta(minutes=5)).update(
+        {"status": "queued", "claimed_at": None}, synchronize_session=False)
+    EmailCampaign.query.filter(EmailCampaign.status == "scheduled", EmailCampaign.scheduled_at <= now).update(
+        {"status": "queued"}, synchronize_session=False)
+    db.session.commit()
+    due = EmailCampaign.query.filter(EmailCampaign.status == "queued").order_by(EmailCampaign.created_at.asc()).limit(3).all()
+    results = []
+    for campaign in due:
+        results.append({"campaign_id": campaign.id, **_process_campaign_batch(campaign.id)})
+    db.session.remove()
+    return jsonify({"ok": True, "checked_at_utc": now.isoformat() + "Z", "campaigns": results}), 200
 
 
 # ════════════════════════ ANALYTICS (admin) ═════════════════════

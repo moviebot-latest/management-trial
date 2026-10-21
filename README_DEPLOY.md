@@ -1,4 +1,4 @@
-# Management System V23 — Complete Vercel + Neon package
+# Management System V51 — Email Campaign Center + Auth OTP Polish
 
 This package is a repaired continuation of the uploaded Management System V20 project. It keeps the existing Flask + SQLAlchemy architecture and templates, updates the landing/auth experience, and adds guarded database-startup behavior. It is **not** the separate Library Management System project.
 
@@ -64,3 +64,18 @@ Never paste production secrets into chat or commit them to GitHub. `.env.example
 ## Verification boundary
 
 `CODE_TEST_REPORT.md` lists the automated static/smoke checks actually run. In this build environment Flask dependencies could not be installed because package-index DNS/network access was unavailable. Therefore the packaged source passed static checks plus a separate SQLite migration smoke test, but this environment did not verify a live Flask server, the real Neon database, Brevo email delivery, or your live Vercel deployment. Do not interpret the static test pass as live production sign-off.
+
+## Admin Email Campaign Center (added in V51)
+
+- Open **Dashboard → Admin → Email Campaigns**. Admin authorization is enforced on the server; normal users cannot open or submit campaign actions.
+- Audience choices: all valid-email accounts, active accounts, selected users (search by name/username/email), or one selected account. Recipient email addresses are de-duplicated and stored with the campaign, and each recipient has a `pending`, `sent`, or `failed` outcome.
+- Branded HTML templates: announcement, welcome, come-back, system update, reminder, maintenance, and custom. The browser preview escapes message text; email bodies are also HTML-escaped server-side. A CTA button can link to the real sign-in URL.
+- Send a test email to one address before sending broadly. Test sends are recorded in campaign history. Provider acceptance is recorded as `sent`; it does not guarantee inbox placement.
+- Large campaigns are processed in batches. Open the campaign report and choose **Send next batch** if needed; failed recipients can be retried without resending to successful recipients. Duplicate form posts are guarded by a unique submission key and a per-campaign unique recipient constraint. Each recipient gets an individual send (no exposed recipient list/BCC). A default 5,000-recipient cap and 60-second cooldown between immediate all/active-user broadcasts reduce accidental bulk sends; tune `EMAIL_CAMPAIGN_MAX_RECIPIENTS` and `EMAIL_CAMPAIGN_BROADCAST_COOLDOWN_SECONDS` when needed.
+- Scheduled campaigns are stored in the database in UTC (the composer takes India Standard Time). For automatic delivery, configure a scheduler to call `GET /api/cron/email-campaigns` with header `Authorization: Bearer <CRON_SECRET>` at the cadence supported by your host. The endpoint fails closed when `CRON_SECRET` is missing/wrong. On Vercel plans supporting minutely cron, add this under `crons` in `vercel.json`: `{"path":"/api/cron/email-campaigns","schedule":"* * * * *"}`. Vercel Hobby has a once-per-day cron frequency restriction; for near-minute delivery, use a plan that supports minutely jobs or an external scheduler that calls this secure endpoint. Until a scheduler is configured, scheduled campaigns remain safely queued in the database.
+- Add `CRON_SECRET`, `PUBLIC_APP_URL` (your actual production domain), `EMAIL_CAMPAIGN_MAX_RECIPIENTS`, `EMAIL_CAMPAIGN_BROADCAST_COOLDOWN_SECONDS`, and optionally `EMAIL_CAMPAIGN_BATCH_SIZE` in Vercel Environment Variables, in addition to the existing Brevo/SMTP sender settings. Keep secrets private.
+- New tables are `email_campaign` and `email_campaign_recipient`; the code uses additive `create_all` behavior and does not drop existing user, OTP, reset, book, payment, or audit data. Back up the existing Neon database before deploying any application update.
+
+## OTP screens
+
+Registration OTP and forgot-password OTP now use clearer verification steps, mobile-friendly 6-digit inputs, expiry guidance, resend countdowns, protected resend forms, and confirmation/loading states. The password-recovery “Start over” link explicitly clears only the reset session state; it does not delete user or OTP history.
