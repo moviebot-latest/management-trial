@@ -1438,3 +1438,85 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* V23: POST logout controls retain the original link appearance. */
 .logout-form{margin:0;display:inline-flex}.logout-form .sidebar-logout{width:100%;border:0;background:transparent;text-align:left;font:inherit;cursor:pointer}.logout-form .btn-logout{font:inherit;cursor:pointer}
+
+/* Login request error state: keep step 3/4 feedback visible and animated. */
+.ai-step.failed{border-color:rgba(248,113,113,.38)!important;background:rgba(127,29,29,.18)!important;animation:authRise .25s ease both}.ai-step.failed .step-icon{background:linear-gradient(135deg,#dc2626,#f97316)!important;color:#fff!important;box-shadow:0 0 14px rgba(248,113,113,.28)}.ai-step.failed span:nth-child(2) b,.ai-step.failed span:nth-child(2) small,.ai-step.failed strong{color:#fecaca!important}.ai-step.active{animation:authRise .28s ease both}
+
+/* V53 mobile/laptop accessibility and touch fixes */
+@media (min-width: 901px) {
+  .auth-page { display:flex; align-items:stretch; min-height:100vh; min-height:100svh; }
+  .auth-side { flex:0 0 min(42vw, 500px); min-height:100vh; }
+  .auth-form-side { flex:1 1 auto; min-width:0; display:flex; align-items:center; justify-content:center; }
+  .auth-form-box.login-card { width:min(100%, 560px); }
+}
+@media (max-width: 900px) {
+  .auth-page { min-height:100vh; min-height:100svh; overflow:visible; }
+  .auth-side { flex:0 0 auto; }
+  .auth-form-side { width:100%; flex:1 1 auto; }
+  .auth-form-box.login-card { width:100%; max-width:560px; }
+}
+@media (max-width: 560px) {
+  .auth-side-features { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .auth-form-box.login-card { padding:22px 16px; }
+  .password-wrap.input-shell { gap:7px; padding-right:5px; }
+  #loginForm .password-wrap.input-shell .eye-btn {
+    display:inline-grid; place-items:center; flex:0 0 44px; width:44px; min-width:44px;
+    height:44px; min-height:44px; margin:0; padding:0; border-radius:12px;
+    position:static; transform:none; font-size:19px; line-height:1; touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #loginForm .password-wrap.input-shell input { min-width:0; flex:1 1 0; }
+}
+/* Eye control remains aligned and has a reliable touch target at every viewport. */
+#loginForm .password-wrap.input-shell .eye-btn {
+  display:inline-grid; place-items:center; flex:0 0 44px; width:44px; min-width:44px;
+  height:44px; min-height:44px; margin:0; padding:0; border:0; border-radius:12px;
+  position:static; transform:none; font-size:19px; line-height:1; cursor:pointer;
+  touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+  background:transparent; color:#52607a;
+}
+#loginForm .password-wrap.input-shell .eye-btn:hover,
+#loginForm .password-wrap.input-shell .eye-btn:focus-visible { background:#eef0ff; color:#5145e5; outline:2px solid #b8b5ff; outline-offset:1px; }
+#loginForm .password-wrap.input-shell { gap:8px; padding-right:5px; }
+/* Mobile menu button is a real 48px touch target and stays above the drawer/backdrop. */
+.mobile-menu-btn {
+  position:relative; z-index:1201; flex:0 0 48px; width:48px; min-width:48px;
+  height:48px; min-height:48px; display:none; align-items:center; justify-content:center;
+  padding:0; line-height:1; touch-action:manipulation; pointer-events:auto;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+}
+@media (max-width:768px) {
+  .mobile-menu-btn { display:inline-flex; }
+  .sidebar { z-index:1200; max-height:100dvh; overflow-y:auto; overscroll-behavior:contain; }
+  body.sidebar-open { overflow:hidden; }
+  body.sidebar-open::after {
+    content:""; position:fixed; inset:0; z-index:1100; background:rgba(15,23,42,.36);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .topbar { position:relative; z-index:1202; }
+  .topbar-right { min-width:0; }
+  .topbar-right .logout-form { flex:0 0 auto; }
+  .topbar-title { overflow-wrap:anywhere; }
+}
+/* Login process: Step 03/04 remain clearly animated while the actual request is pending. */
+.ai-step.active { animation: v53StepPulse 1.35s ease-in-out infinite alternate; }
+.ai-step.active .step-icon { animation: v53IconPulse 1.1s ease-in-out infinite alternate; }
+.ai-step.active strong { animation: v53StatusBlink 1.2s ease-in-out infinite; }
+.ai-step.done, .ai-step.failed { animation:none!important; }
+@keyframes v53StepPulse { from { box-shadow:0 0 0 rgba(99,102,241,0); } to { box-shadow:0 0 22px rgba(56,189,248,.17); } }
+@keyframes v53IconPulse { from { transform:scale(1); } to { transform:scale(1.06); } }
+@keyframes v53StatusBlink { 50% { opacity:.58; } }
+.ai-step span:nth-child(2) b { font-size:10px; }
+.ai-step span:nth-child(2) small { font-size:8px; line-height:1.35; }
+.ai-step strong { font-size:8px; }
+@media(max-width:520px) {
+  .ai-loader-shell { width:min(460px,calc(100vw - 20px)); max-height:calc(100dvh - 16px); overflow-y:auto; padding:14px 12px 12px; }
+  .ai-core-zone { height:132px; }
+  .ai-step { gap:7px; padding:7px 8px; }
+  .ai-step span:nth-child(2) b { font-size:10px; }
+  .ai-step span:nth-child(2) small { font-size:8px; }
+  .ai-step strong { font-size:8px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .ai-step.active, .ai-step.active .step-icon, .ai-step.active strong { animation:none!important; }
+}
