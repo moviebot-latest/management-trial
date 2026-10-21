@@ -26,10 +26,14 @@ except ImportError:
 
 app = Flask(__name__)
 
-# ── Secret Key ───────────────────────────────────────────────────────
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
+# ── Secret Key / deployment configuration ────────────────────────────
+# Keep the public landing page available if Vercel environment variables
+# are missing. Never invent a production secret or silently use SQLite for
+# production data; auth/database routes are gated below until configured.
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "").strip() or None
+_config_errors = []
 if not app.config["SECRET_KEY"]:
-    raise RuntimeError("SECRET_KEY is required. Add a strong SECRET_KEY in Vercel Environment Variables and redeploy.")
+    _config_errors.append("SECRET_KEY is missing")
 
 # ── Session & Cookie Security ──────────────────────────────────────────
 is_production = os.environ.get("FLASK_DEBUG", "0") != "1"
@@ -44,10 +48,15 @@ app.config.update(
 
 # ── Database ──────────────────────────────────────────────────────────────
 database_url = os.environ.get("DATABASE_URL", "").strip()
+_database_configured = bool(database_url)
 if not database_url:
     if os.environ.get("VERCEL"):
-        raise RuntimeError("DATABASE_URL is required on Vercel. Configure the Neon PostgreSQL connection string in Project Settings → Environment Variables.")
-    database_url = "sqlite:///management.db"
+        _config_errors.append("DATABASE_URL is missing")
+        # Placeholder only to let Flask import; request guard below prevents
+        # any auth/database route from using this non-persistent fallback.
+        database_url = "sqlite:///:memory:"
+    else:
+        database_url = "sqlite:///management.db"
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -494,6 +503,10 @@ def inject_globals():
 
 
 def _csrf_token():
+    # The public landing page can render during incomplete deployment setup.
+    # Do not touch Flask's session when SECRET_KEY is absent.
+    if not app.config.get("SECRET_KEY"):
+        return ""
     if "_csrf_token" not in session:
         session["_csrf_token"] = secrets.token_urlsafe(32)
     return session["_csrf_token"]
@@ -501,6 +514,15 @@ def _csrf_token():
 
 @app.before_request
 def before_request():
+    # Static assets and the public landing page should remain available, while
+    # every session/auth/database endpoint fails closed with an actionable 503.
+    public_paths = {"/", "/style.css", "/ui_advanced.js", "/favicon.ico"}
+    if _config_errors and request.path not in public_paths and request.endpoint != "static":
+        return jsonify({
+            "status": "configuration_error",
+            "message": "Deployment configuration is incomplete. Set SECRET_KEY and DATABASE_URL in Vercel Environment Variables, then redeploy.",
+            "missing": list(_config_errors),
+        }), 503
     if session.get("user_id"):
         session.modified = True
     # CSRF on POST (skip landing / static)
@@ -1931,6 +1953,9 @@ _db_init_error = None
 
 def _ensure_db_ready():
     global _db_ready, _db_init_error
+    if not _database_configured and os.environ.get("VERCEL"):
+        _db_init_error = "DATABASE_URL is missing"
+        return False
     if _db_ready:
         return True
     try:
