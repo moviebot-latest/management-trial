@@ -161,12 +161,12 @@
   .footer-copy{font-size:12px;width:100%}
 
   /* V23 motion system: purposeful, light and accessible (MadeToScale guide). */
-  .hero-rotator{display:inline-grid;vertical-align:bottom;position:relative;min-height:1.16em;min-width:12ch;text-align:left;white-space:nowrap}
+  .hero-rotator{display:inline-block;vertical-align:bottom;position:relative;min-height:1.16em;min-width:0;text-align:inherit;white-space:normal}
   .hero h1 .hero-static-word{display:inline-block;background:none;-webkit-text-fill-color:#0f172a;color:#0f172a;opacity:0;transform:translateY(40px);animation:heroWordReveal .72s cubic-bezier(.2,.75,.25,1) forwards}
   .hero h1 .hero-static-word.word-one{animation-delay:.08s}.hero h1 .hero-static-word.word-two{animation-delay:.2s}
   @keyframes heroWordReveal{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
-  .rotator-word{grid-area:1/1;opacity:0;transform:translateY(12px);transition:opacity .42s ease,transform .42s ease;pointer-events:none}
-  .rotator-word.is-active{opacity:1;transform:translateY(0);pointer-events:auto}
+  .rotator-word{display:none;opacity:1;transform:none;transition:none;pointer-events:none;white-space:normal;overflow-wrap:anywhere}
+  .rotator-word.is-active{display:inline-block;opacity:1;transform:none;pointer-events:auto}
   body.motion-ready [data-reveal]{opacity:0;transform:translateY(18px);transition:opacity .58s ease,transform .58s cubic-bezier(.2,.75,.25,1)}
   body.motion-ready [data-reveal].is-visible{opacity:1;transform:translateY(0)}
   .feat-card[data-reveal]:nth-child(3n+2){transition-delay:.08s}.feat-card[data-reveal]:nth-child(3n){transition-delay:.16s}
@@ -174,8 +174,8 @@
   .hero-mockup:hover{box-shadow:0 34px 90px rgba(15,23,42,.24);border-color:#c7d2fe}
   .btn-hero-primary,.btn-hero-ghost,.lnav-btn,.btn-cta-white{will-change:transform;touch-action:manipulation}
   .btn-hero-primary:focus-visible,.btn-hero-ghost:focus-visible,.lnav-toggle:focus-visible,.lnav-link:focus-visible{outline:3px solid #a5b4fc;outline-offset:3px}
-  @media(max-width:560px){.hero-rotator{min-width:0}.rotator-word{white-space:nowrap}.hero h1{letter-spacing:-1px}.hero-static-word{display:inline-block}}
-  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}body.motion-ready [data-reveal]{opacity:1!important;transform:none!important}.hero h1 .hero-static-word{opacity:1!important;transform:none!important;animation:none!important}.rotator-word{opacity:0;transform:none}.rotator-word.is-active{opacity:1}}
+  @media(max-width:560px){.hero-rotator{display:block;width:100%;min-width:0;min-height:1.22em;text-align:center;white-space:normal}.rotator-word{white-space:normal;max-width:100%;overflow-wrap:anywhere}.hero h1{font-size:clamp(2rem,9vw,2.65rem);line-height:1.12;letter-spacing:-.8px}.hero-static-word{display:inline-block}}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}body.motion-ready [data-reveal]{opacity:1!important;transform:none!important}.hero h1 .hero-static-word{opacity:1!important;transform:none!important;animation:none!important}.rotator-word{display:none;opacity:1;transform:none}.rotator-word.is-active{display:inline-block;opacity:1}}
 
   /* V23: guide-inspired motion and interaction patterns, adapted to real HR data. */
   .live-updated{display:flex;align-items:center;justify-content:center;gap:8px;min-height:38px}
