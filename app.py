@@ -368,6 +368,7 @@ def send_otp_email(email, otp, name, purpose="verification"):
       <div style=\"font-size:32px;font-weight:800;letter-spacing:10px;text-align:center;padding:18px;background:#f1efff;border-radius:14px\">{otp}</div>
       <p style=\"color:#667085\">This code expires in {OTP_EXPIRY_MINUTES} minutes. If you did not request this, you can ignore this email.</p>
       </div></body></html>"""
+    brevo_error = None
     if use_brevo:
         payload = json.dumps({
             "sender": {"name": sender_name, "email": sender_email},
@@ -393,9 +394,18 @@ def send_otp_email(email, otp, name, purpose="verification"):
                 return True
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")[:300]
-            raise RuntimeError(f"Brevo email send failed ({exc.code}). {detail}") from exc
+            brevo_error = RuntimeError(f"Brevo email send failed ({exc.code}). {detail}")
         except urllib.error.URLError as exc:
-            raise RuntimeError("Brevo email service is temporarily unavailable.") from exc
+            brevo_error = RuntimeError("Brevo email service is temporarily unavailable.")
+        except Exception as exc:
+            brevo_error = RuntimeError(f"Brevo email send failed: {type(exc).__name__}.")
+
+        # If Brevo is configured but unavailable/rejects the message, try SMTP too
+        # when SMTP credentials are present. Never log API keys or passwords.
+        if _smtp_configured():
+            app.logger.warning("Brevo OTP delivery failed; attempting configured SMTP fallback (%s).", type(brevo_error).__name__)
+        else:
+            raise brevo_error
 
     # SMTP fallback: port 465 uses implicit TLS; other ports use STARTTLS.
     host = os.environ.get("SMTP_HOST", "").strip()
@@ -421,8 +431,11 @@ def send_otp_email(email, otp, name, purpose="verification"):
                 server.login(smtp_user, smtp_password)
                 server.send_message(message)
         return True
-    except (OSError, smtplib.SMTPException) as exc:
-        raise RuntimeError(f"SMTP email send failed: {type(exc).__name__}.") from exc
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
+        smtp_error = RuntimeError(f"SMTP email send failed: {type(exc).__name__}.")
+        if brevo_error is not None:
+            raise RuntimeError(f"Both email providers failed. {brevo_error}; {smtp_error}") from exc
+        raise smtp_error from exc
 
 
 def mask_email(email):
@@ -664,7 +677,7 @@ def public_script():
 @app.route("/__version")
 def deployment_version():
     """Non-sensitive marker to verify which deployment is serving requests."""
-    return jsonify({"version": "V43", "application": "Management System"}), 200
+    return jsonify({"version": "V48", "application": "Management System"}), 200
 
 
 @app.route("/")
