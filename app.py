@@ -59,6 +59,13 @@ if not database_url:
         database_url = "sqlite:///management.db"
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
+# Neon URLs copied from newer dashboards may explicitly select psycopg v3
+# (postgresql+psycopg://). This project installs psycopg2-binary, so normalize
+# that driver name to psycopg2 before SQLAlchemy creates its engine.
+if database_url.startswith("postgresql+psycopg://"):
+    database_url = database_url.replace(
+        "postgresql+psycopg://", "postgresql+psycopg2://", 1
+    )
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -516,7 +523,7 @@ def _csrf_token():
 def before_request():
     # Static assets and the public landing page should remain available, while
     # every session/auth/database endpoint fails closed with an actionable 503.
-    public_paths = {"/", "/style.css", "/ui_advanced.js", "/favicon.ico"}
+    public_paths = {"/", "/__version", "/style.css", "/ui_advanced.js", "/favicon.ico"}
     if _config_errors and request.path not in public_paths and request.endpoint != "static":
         return jsonify({
             "status": "configuration_error",
@@ -596,6 +603,12 @@ def public_stylesheet():
 @app.route("/ui_advanced.js")
 def public_script():
     return send_from_directory(os.path.join(app.root_path, "public"), "ui_advanced.js", mimetype="application/javascript")
+
+
+@app.route("/__version")
+def deployment_version():
+    """Non-sensitive marker to verify which deployment is serving requests."""
+    return jsonify({"version": "V43", "application": "Management System"}), 200
 
 
 @app.route("/")

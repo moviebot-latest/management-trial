@@ -1,33 +1,28 @@
-# Code and deployment audit — V41
+# Management System V42 — audit and deployment patch report
 
-## Checks completed
-- Python source compiled successfully with the available Python interpreter.
-- All 23 HTML templates parsed successfully as Jinja templates.
-- Every template named in `render_template(...)` exists.
-- Active route/template references were reviewed.
-- `vercel.json`, `.vercelignore`, `requirements.txt`, and root-level `app.py` were checked.
-- ZIP integrity was tested after packaging.
+## Changes based on the uploaded `management-trial-main.zip`
+- Preserved the submitted app, templates, CSS/JS, environment examples, database migration logic, and legacy files.
+- Updated `vercel.json` to explicitly build root `app.py` with Vercel's Python builder and route requests to it.
+- Added `GET /__version` returning a non-sensitive V42 marker so the owner can verify whether the expected deployment is live.
+- No database tables or records are dropped by this patch. No credentials were added.
 
-## Important limits
-- The environment used for this audit does not have Flask / Flask-SQLAlchemy / psycopg installed, and outbound package downloads are unavailable. A live Flask test-client run could therefore not be completed.
-- No access to the user's private Vercel or Neon dashboards is available here. Environment-variable values, live Neon availability, Brevo delivery, and the current production deployment cannot be authenticated from source code alone.
-- The old `settings.html`, `books.html`, `cart.html`, `demo_payment.html`, and `my_orders.html` files are legacy/orphan templates: this source does not register all their referenced endpoints/models, and no current route renders these templates. They should not be treated as working purchase/order/settings flows. They were retained rather than deleted.
+## Local static checks
+- Python syntax compilation: passed.
+- All HTML templates parsed as Jinja templates: passed.
+- Every literal `render_template(...)` target exists: passed.
+- JavaScript syntax checks: passed where Node.js was available.
+- JSON parse of `vercel.json`: passed.
+- ZIP integrity: passed after packaging.
 
-## Changes in V41
-- Bumped schema marker to version 34 so a V33-marked database performs one further idempotent migration pass.
-- Made legacy role migration explicitly skip a fresh database with no `user` table and re-raise real migration errors.
-- Added `GET /login` redirect alias; the sign-in form still posts to `POST /login`.
-- Reduced SQLAlchemy per-instance pool from 5+5 connections to 1 connection for serverless deployment.
-- `/healthz` now checks database configuration, runs database initialization, then checks connectivity; it will not mistake Vercel's SQLite fallback for a persistent Neon database.
-- `/init-status` no longer lets every anonymous request force a migration retry; detailed errors still require admin authentication or a `CRON_SECRET` token.
-- Database init failure blocks write operations with an actionable 503 response rather than letting downstream requests produce confusing partial failures.
-- Raw SQL driver error details are hidden by default; use Vercel Function Logs for private diagnostic information.
-- Logged forgot-password OTP and resend exceptions for diagnosis.
-- Added `.gitignore` for credentials and local DB files. Updated Vercel deployment documentation.
+## Not verified (important)
+- The live Vercel deployment and its Runtime Logs were not accessible from this environment.
+- Flask and Flask-SQLAlchemy are not installed in the audit runtime and outbound package downloads are unavailable, so no Flask test-client or live route test was possible.
+- Actual Vercel environment variable values, Neon connectivity/migrations, Brevo OTP delivery, and end-to-end user/admin flows remain unverified.
+- The screenshot's `500 FUNCTION_INVOCATION_FAILED` proves a serverless invocation failed, but does not identify its underlying exception. The Runtime Logs are still needed to confirm whether the remaining cause is a dependency/build error, import-time exception, environment configuration, or runtime issue.
 
-## Deployment checks the owner must still perform
-1. Put the extracted contents at the repository root so `app.py`, `vercel.json`, and `requirements.txt` sit at the same level.
-2. Confirm Vercel's connected Git repository/branch and production alias are the intended project. The visible registration error message in earlier screenshots matched the V38/V39 source, not V40, so the live alias may still point at an older deployment.
-3. Set Vercel Production variables: `DATABASE_URL` (correct Neon PostgreSQL project), `SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and email variables `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`; add `ADMIN_EMAIL` if admin notifications are wanted. Never paste secrets into chat or commit them.
-4. Redeploy. Visit `/healthz`: expect HTTP 200 with `database_connection: ok` and `initialization_ready: true`. If not, inspect Function Logs and `/init-status` (use an authenticated admin session or `?token=<CRON_SECRET>` for details; do not share the token).
-5. Test Create Account OTP, Forgot Password OTP, existing member login, admin login, book issue/return, payment receipt and refund in the deployed site. This ZIP has not been live-tested against your private Neon/Brevo services.
+## Deployment verification
+1. Deploy this ZIP's contents from the repository root (where `app.py`, `vercel.json`, and `requirements.txt` are together).
+2. Visit `/__version`; expected response contains `"version":"V42"`. If it still shows the Vercel 500 page, inspect Runtime Logs for the first exception.
+3. Visit `/healthz`; expect HTTP 200 and `database: ok` only when the existing Neon database is configured and initialization succeeds. A 503 here is a database/configuration issue, not proof that records were deleted.
+4. Verify Vercel Production environment variables without sharing their values: `SECRET_KEY`, `DATABASE_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` (plus Brevo sender/API variables for email OTP). Keep the existing Neon `DATABASE_URL`; do not create a new database or reset tables as a troubleshooting step.
+5. Test registration OTP, login, forgot-password OTP, admin login, issue/return, and any order/payment flows that are actually connected to routes in this source.

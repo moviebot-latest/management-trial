@@ -1,14 +1,23 @@
-# Management System V24 — code-level verification report
+# Management System V43 — PostgreSQL Driver Fix
 
-## Changes in this patch
-- Missing `SECRET_KEY` no longer raises during module import; the public landing page can render without creating a session.
-- Missing `DATABASE_URL` on Vercel no longer raises during module import and never silently uses a persistent local SQLite file. A non-persistent in-memory placeholder is used only to let Flask import; database/auth endpoints are blocked by a configuration guard.
-- Requests that need auth/database while required configuration is missing return HTTP 503 with a non-secret diagnostic listing missing variable names.
-- Existing database URI is still used whenever `DATABASE_URL` is configured. No table drop or data deletion was added.
+## Confirmed production error from Vercel logs
+`ModuleNotFoundError: No module named 'psycopg'` while SQLAlchemy creates its PostgreSQL engine during import of `app.py`.
 
-## Checks run
-- `python -m py_compile app.py`: passed.
-- ZIP integrity: checked after packaging.
+## Targeted repair
+- Preserved the supplied `management-trial-main.zip` project files and existing database logic.
+- Added normalization of `postgresql+psycopg://` Neon URLs to `postgresql+psycopg2://`, matching the already-declared `psycopg2-binary==2.9.10` dependency.
+- Left existing `DATABASE_URL` credentials untouched; no database reset or migration was added by this patch.
+- Updated `/__version` to report V43 for deployment identification.
 
-## Not verified
-This is not proof that the live Vercel deployment works. The live Vercel logs, actual environment variables, Neon connection, Brevo delivery, and end-to-end login/registration must still be checked in the user's deployment. Do not share secret values in chat. If `SECRET_KEY` and `DATABASE_URL` are already set, use Vercel Runtime Logs to identify the actual failure rather than assuming this patch fixes every possible 500.
+## Checks completed
+- All source archive files retained (42/42 files; no source files missing).
+- Python AST/syntax parse passed.
+- Jinja template parse and template reference checks passed.
+- `vercel.json` JSON parse and ZIP integrity passed.
+- Driver URL normalization was checked for the exact `postgresql+psycopg://` scheme shown by the runtime exception.
+
+## Limitation
+This fixes the specific driver mismatch indicated by the supplied logs, but live Vercel/Neon execution cannot be confirmed from this environment. After deploying, if another error appears, use the new Runtime Logs; do not reset the existing Neon database.
+
+## Landing-page animation coverage
+See `ANIMATION_COVERAGE.md` for the 12 adapted motion/interaction patterns, their source implementation, and accessibility safeguards.
