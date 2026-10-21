@@ -1,0 +1,5 @@
+V43 PostgreSQL driver compatibility patch
+
+This package includes both psycopg2-binary and psycopg[binary] so SQLAlchemy can import either PostgreSQL driver if DATABASE_URL uses postgresql://, postgresql+psycopg2://, or postgresql+psycopg://. The app.py normalization for postgresql+psycopg:// is retained.
+
+After replacing the project files in the GitHub main branch, confirm Vercel installs the updated requirements.txt in the latest deployment. Then check Runtime Logs. This patch has not been verified against the live Vercel deployment or production database. Do not delete/reset the existing Neon database.
