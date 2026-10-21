@@ -12,7 +12,7 @@ Emails are sent for: registration OTP, welcome, book issue, return, additional f
 Every email is saved in `email_log`; staff can open **Email Notifications** on the dashboard (`/admin/email-logs`) to see status, send a test email or run reminders.
 Emails are sent before the response (required on Vercel serverless); a failed email never blocks the library action.
 
-Variables (one provider): Brevo `BREVO_API_KEY` + `BREVO_SENDER_EMAIL` (+ `BREVO_SENDER_NAME`), or SMTP `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (+ `SMTP_FROM`). Optional: `ADMIN_EMAIL`, `LATE_FEE_PER_DAY`, `DUE_SOON_DAYS` (default 2), `CRON_SECRET`.
+Variables (one provider): Brevo `BREVO_API_KEY` + `BREVO_SENDER_EMAIL` (+ `BREVO_SENDER_NAME`), or SMTP `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (+ `SMTP_FROM`). Registration and password-reset OTP now use Brevo when configured, otherwise fall back to SMTP. For Gmail SMTP, use an App Password (not your normal Gmail password) with 2-Step Verification enabled. Optional: `ADMIN_EMAIL`, `LATE_FEE_PER_DAY`, `DUE_SOON_DAYS` (default 2), `CRON_SECRET`.
 Reminders: `vercel.json` runs `/cron/send-reminders` daily (09:00 IST). Set `CRON_SECRET` in Vercel — Vercel sends it automatically as a Bearer token.
 Vercel limits: request bodies max ~4.5 MB (big book-PDF uploads fail), function timeout, large PyMuPDF bundle.
 

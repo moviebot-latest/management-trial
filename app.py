@@ -7,6 +7,8 @@ import json
 import html
 import urllib.request
 import urllib.error
+import smtplib
+from email.message import EmailMessage
 import threading
 import time
 from datetime import date, timedelta, datetime, timezone
@@ -320,13 +322,31 @@ def _brevo_configured():
                 os.environ.get("BREVO_SENDER_EMAIL", "").strip())
 
 
-def send_brevo_otp(email, otp, name, purpose="verification"):
-    """Send a Brevo OTP email for registration verification or password reset."""
+def _smtp_configured():
+    return bool(os.environ.get("SMTP_HOST", "").strip() and
+                os.environ.get("SMTP_USER", "").strip() and
+                os.environ.get("SMTP_PASSWORD", "").strip() and
+                (os.environ.get("SMTP_FROM", "").strip() or os.environ.get("SMTP_USER", "").strip()))
+
+
+def _email_configured():
+    """Return true when either supported transactional email provider is configured."""
+    return _brevo_configured() or _smtp_configured()
+
+
+def send_otp_email(email, otp, name, purpose="verification"):
+    """Send an OTP using Brevo when configured, otherwise use configured SMTP."""
     api_key = os.environ.get("BREVO_API_KEY", "").strip()
     sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
     sender_name = os.environ.get("BREVO_SENDER_NAME", "Management System").strip() or "Management System"
-    if not api_key or not sender_email:
-        raise RuntimeError("Brevo email service is not configured.")
+    use_brevo = bool(api_key and sender_email)
+    if not use_brevo and not _smtp_configured():
+        raise RuntimeError(
+            "Email is not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL, "
+            "or configure SMTP_HOST, SMTP_USER, SMTP_PASSWORD and SMTP_FROM in Vercel."
+        )
+    if not sender_email:
+        sender_email = os.environ.get("SMTP_FROM", "").strip() or os.environ.get("SMTP_USER", "").strip()
 
     raw_name = (name or "there").strip()[:120]
     safe_name = html.escape(raw_name, quote=True)
@@ -348,33 +368,61 @@ def send_brevo_otp(email, otp, name, purpose="verification"):
       <div style=\"font-size:32px;font-weight:800;letter-spacing:10px;text-align:center;padding:18px;background:#f1efff;border-radius:14px\">{otp}</div>
       <p style=\"color:#667085\">This code expires in {OTP_EXPIRY_MINUTES} minutes. If you did not request this, you can ignore this email.</p>
       </div></body></html>"""
-    payload = json.dumps({
-        "sender": {"name": sender_name, "email": sender_email},
-        "to": [{"email": email, "name": raw_name}],
-        "subject": subject,
-        "htmlContent": html,
-        "textContent": plain
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.brevo.com/v3/smtp/email",
-        data=payload,
-        headers={
-            "accept": "application/json",
-            "api-key": api_key,
-            "content-type": "application/json",
-        },
-        method="POST",
-    )
+    if use_brevo:
+        payload = json.dumps({
+            "sender": {"name": sender_name, "email": sender_email},
+            "to": [{"email": email, "name": raw_name}],
+            "subject": subject,
+            "htmlContent": html,
+            "textContent": plain
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+                "content-type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise RuntimeError("Brevo rejected the email request.")
+                return True
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")[:300]
+            raise RuntimeError(f"Brevo email send failed ({exc.code}). {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError("Brevo email service is temporarily unavailable.") from exc
+
+    # SMTP fallback: port 465 uses implicit TLS; other ports use STARTTLS.
+    host = os.environ.get("SMTP_HOST", "").strip()
+    port = int(os.environ.get("SMTP_PORT", "587").strip() or "587")
+    smtp_user = os.environ.get("SMTP_USER", "").strip()
+    smtp_password = os.environ.get("SMTP_PASSWORD", "")
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = f"{sender_name} <{sender_email}>"
+    message["To"] = email
+    message.set_content(plain)
+    message.add_alternative(html, subtype="html")
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            if response.status < 200 or response.status >= 300:
-                raise RuntimeError("Brevo rejected the email request.")
-            return True
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")[:300]
-        raise RuntimeError(f"Brevo email send failed ({exc.code}). {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError("Brevo email service is temporarily unavailable.") from exc
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=10) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(smtp_user, smtp_password)
+                server.send_message(message)
+        return True
+    except (OSError, smtplib.SMTPException) as exc:
+        raise RuntimeError(f"SMTP email send failed: {type(exc).__name__}.") from exc
 
 
 def mask_email(email):
@@ -419,7 +467,7 @@ def create_password_reset_otp(user):
     db.session.add(row)
     db.session.commit()
     try:
-        send_brevo_otp(user.email, otp, user.name, purpose="password_reset")
+        send_otp_email(user.email, otp, user.name, purpose="password_reset")
     except Exception:
         # Preserve a previously usable reset row if Brevo fails; only remove a new failed attempt.
         db.session.rollback()
@@ -469,7 +517,7 @@ def create_email_otp(email, name, gender, department, username, password_hash):
     db.session.add(row)
     db.session.commit()
     try:
-        send_brevo_otp(email, otp, name)
+        send_otp_email(email, otp, name)
     except Exception:
         # Do not erase an existing pending registration when the email provider fails.
         db.session.rollback()
@@ -738,7 +786,7 @@ def register():
 
     if not all([name, gender, department, email, username, password, confirm]):
         return err("All fields are required.")
-    if not _brevo_configured():
+    if not _email_configured():
         return err("Email verification is not configured yet. Please contact the administrator.")
     if gender not in VALID_GENDERS:
         return err("Invalid gender selected.")
@@ -1122,7 +1170,7 @@ def forgot_password():
         flash("The admin password is managed in Vercel Environment Variables. Update ADMIN_PASSWORD there and redeploy.", "error")
         return render_template("forgot_password.html", username=username, reset_sent=False,
                                reset_verified=False, masked_email=""), 403
-    if not _brevo_configured():
+    if not _email_configured():
         flash("Password reset email is not configured. Please contact the administrator.", "error")
         return render_template("forgot_password.html", username=username, reset_sent=False,
                                reset_verified=False, masked_email=""), 503
@@ -1442,7 +1490,7 @@ def create_user():
 
     if not all([name, gender, department, email, username, password, confirm]):
         return err("All fields are required.")
-    if not _brevo_configured():
+    if not _email_configured():
         return err("Email verification is not configured. Add the Brevo environment variables first.")
     if gender not in VALID_GENDERS:
         return err("Invalid gender.")
