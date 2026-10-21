@@ -33,7 +33,7 @@
         <div class="sidebar-avatar">{{ current_name[:1]|upper }}</div>
         <div><div class="sidebar-user-name">{{ current_name }}</div><div class="sidebar-user-role">Admin</div></div>
       </div>
-      <a href="/logout" class="sidebar-logout"><span>→</span> Sign Out</a>
+      <form method="post" action="/logout" class="logout-form"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button type="submit" class="sidebar-logout"><span>→</span> Sign Out</button></form>
     </div>
   </aside>
 

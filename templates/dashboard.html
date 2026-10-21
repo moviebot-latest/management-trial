@@ -35,7 +35,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <div class="sidebar-brand-logo">MS</div>
         <div>
           <div class="sidebar-brand-name">Mgmt System</div>
-          <div class="sidebar-brand-sub">v21 &mdash; Advanced</div>
+          <div class="sidebar-brand-sub">v23 &mdash; Advanced</div>
         </div>
       </div>
     </div>
@@ -81,9 +81,10 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
           <div class="sidebar-user-role">{{ role|capitalize }}</div>
         </div>
       </div>
-      <a href="/logout" class="sidebar-logout">
-        <span>→</span> Sign Out
-      </a>
+      <form method="post" action="/logout" class="logout-form">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="sidebar-logout"><span>→</span> Sign Out</button>
+      </form>
     </div>
   </aside>
   <!-- ==================== /SIDEBAR ==================== -->
@@ -108,7 +109,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <a href="{{ url_for('settings') }}" class="btn btn-ghost topbar-action">⚙️ Settings</a>
         <button class="btn btn-primary" type="button" onclick="openModal('createModal')">+ New User</button>
         {% endif %}
-        <a href="/logout" class="btn btn-logout">↪ Logout</a>
+        <form method="post" action="/logout" class="logout-form"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-logout">↪ Logout</button></form>
         <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
     </header>

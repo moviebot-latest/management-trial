@@ -53,7 +53,7 @@
   <div class="ai-scanline" aria-hidden="true"></div>
   <div class="ai-loader-shell">
     <div class="ai-corner c1"></div><div class="ai-corner c2"></div><div class="ai-corner c3"></div><div class="ai-corner c4"></div>
-    <div class="ai-status"><span class="status-pulse"></span><span>SECURE AI VERIFICATION</span><b>ONLINE</b></div>
+    <div class="ai-status"><span class="status-pulse"></span><span>SECURE SIGN-IN REQUEST</span><b>ONLINE</b></div>
 
     <div class="ai-core-zone">
       <div class="orbit orbit-a"></div>
@@ -67,25 +67,25 @@
       <div class="core-label">AI<br><small>CORE</small></div>
     </div>
 
-    <div class="ai-title">Authenticating</div>
-    <div class="ai-sub" id="verifySub">Initializing secure neural handshake</div>
+    <div class="ai-title">Connecting securely</div>
+    <div class="ai-sub" id="verifySub">Submitting your sign-in request to the server</div>
 
     <div class="ai-metrics">
-      <div><span>ENCRYPTION</span><b>AES-256</b></div>
-      <div><span>SESSION</span><b>SECURE</b></div>
-      <div><span>STATUS</span><b id="aiMetricStatus">VERIFYING</b></div>
+      <div><span>REQUEST</span><b>HTTPS</b></div>
+      <div><span>SESSION</span><b>PROTECTED</b></div>
+      <div><span>STATUS</span><b id="aiMetricStatus">WAITING</b></div>
     </div>
 
     <div class="ai-steps">
-      <div class="ai-step" id="stepUser"><span class="step-icon">01</span><span><b>Identity scan</b><small>Checking username</small></span><strong>WAIT</strong></div>
-      <div class="ai-step" id="stepPass"><span class="step-icon">02</span><span><b>Credential scan</b><small>Checking password</small></span><strong>WAIT</strong></div>
-      <div class="ai-step" id="stepServer"><span class="step-icon">03</span><span><b>Server handshake</b><small>Verifying with server</small></span><strong>WAIT</strong></div>
-      <div class="ai-step" id="stepDone"><span class="step-icon">04</span><span><b>Access granted</b><small>Preparing workspace</small></span><strong>WAIT</strong></div>
+      <div class="ai-step active" id="stepUser"><span class="step-icon">01</span><span><b>Request validation</b><small>Checking required fields</small></span><strong>READY</strong></div>
+      <div class="ai-step active" id="stepPass"><span class="step-icon">02</span><span><b>Secure submission</b><small>Sending credentials to server</small></span><strong>LIVE</strong></div>
+      <div class="ai-step" id="stepServer"><span class="step-icon">03</span><span><b>Server response</b><small>Waiting for authentication result</small></span><strong>WAIT</strong></div>
+      <div class="ai-step" id="stepDone"><span class="step-icon">04</span><span><b>Next step</b><small>Server will open dashboard or show an error</small></span><strong>WAIT</strong></div>
     </div>
 
-    <div class="ai-progress-head"><span>SECURITY PROGRESS</span><b id="aiPercent">0%</b></div>
-    <div class="ai-progress"><span id="verifyProgress"></span><i></i></div>
-    <div class="ai-footer"><span>● ZERO TRUST</span><span>● SESSION ENCRYPTED</span><span>● LIVE PROTECTION</span></div>
+    <div class="ai-progress-head"><span>SERVER REQUEST</span><b id="aiPercent">IN PROGRESS</b></div>
+    <div class="ai-progress ai-progress-indeterminate"><span id="verifyProgress"></span><i></i></div>
+    <div class="ai-footer"><span>● HTTPS TRANSPORT</span><span>● SERVER-VERIFIED LOGIN</span><span>● PROTECTED REQUEST</span></div>
   </div>
 </div>
 <script src="/ui_advanced.js"></script>
@@ -94,42 +94,24 @@ function togglePw(id,btn){
   const i=document.getElementById(id),show=i.type==='password';
   i.type=show?'text':'password';
   btn.textContent=show?'🙈':'👁️';
+  btn.setAttribute('aria-label',show?'Hide password':'Show password');
 }
-const form=document.getElementById('loginForm'), loader=document.getElementById('loginLoader');
-const stages=[
-  ['stepUser','Identity scan','Checking username'],
-  ['stepPass','Credential scan','Checking password'],
-  ['stepServer','Server handshake','Verifying with server'],
-  ['stepDone','Access granted','Preparing workspace']
-];
-function stage(i){
-  stages.forEach((x,n)=>{
-    const el=document.getElementById(x[0]);
-    el.classList.toggle('active',n===i);
-    el.classList.toggle('done',n<i);
-    const strong=el.querySelector('strong');
-    if(strong) strong.textContent=n<i?'DONE':n===i?'LIVE':'WAIT';
-  });
-  document.getElementById('verifySub').textContent=stages[i][2];
-  document.getElementById('aiMetricStatus').textContent=i===3?'READY':'VERIFYING';
-  const pct=i===3?100:(i+1)*25;
-  document.getElementById('verifyProgress').style.width=pct+'%';
-  document.getElementById('aiPercent').textContent=pct+'%';
-}
+const form=document.getElementById('loginForm'),loader=document.getElementById('loginLoader');
 form.addEventListener('submit',function(e){
-  e.preventDefault();
-  const u=document.getElementById('username').value.trim();
-  const p=document.getElementById('password').value;
-  if(!u||!p){form.reportValidity();return;}
+  if(!form.reportValidity()){e.preventDefault();return;}
+  const username=document.getElementById('username').value.trim();
+  const password=document.getElementById('password').value;
+  if(!username||!password){e.preventDefault();return;}
+  // No artificial delay or fake success state: display progress, then send the real POST immediately.
   const btn=document.getElementById('loginBtn');
-  btn.disabled=true;
-  loader.classList.add('show');
-  loader.setAttribute('aria-hidden','false');
-  stage(0);
-  setTimeout(()=>stage(1),420);
-  setTimeout(()=>stage(2),840);
-  setTimeout(()=>stage(3),1240);
-  setTimeout(()=>HTMLFormElement.prototype.submit.call(form),1580);
+  btn.disabled=true;btn.setAttribute('aria-busy','true');
+  const label=btn.querySelector('span');if(label)label.textContent='Signing in…';
+  loader.classList.add('show');loader.setAttribute('aria-hidden','false');
+  document.getElementById('aiMetricStatus').textContent='WAITING';
+  document.getElementById('aiPercent').textContent='WAITING';
+  document.getElementById('verifySub').textContent='Waiting for the server to verify your credentials';
+  HTMLFormElement.prototype.submit.call(form);
+  e.preventDefault();
 });
 </script>
 </body>

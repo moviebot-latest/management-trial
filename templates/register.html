@@ -23,6 +23,7 @@
 
   <div class="auth-side">
     <div class="auth-side-logo">MS</div>
+    <div class="auth-side-live"><span></span> Secure account setup</div>
     <h2>Join the<br>Team Today</h2>
     <p>Create your account to get instant access to the management dashboard and team tools.</p>
     <ul class="auth-side-features">
@@ -70,7 +71,7 @@
         </form>
       </div>
       {% else %}
-      <form id="regForm" method="post" action="{{ url_for('register') }}" novalidate>
+      <form id="regForm" method="post" action="{{ url_for('register') }}">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
@@ -131,7 +132,7 @@
       {% endif %}
 
       <div class="auth-footer" style="margin-top:16px">
-        Already have an account? <a href="/">Sign in</a>
+        Already have an account? <a href="/login">Sign in</a>
       </div>
     </div>
   </div>
@@ -141,9 +142,9 @@
 function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'🙈':'👁️';}
 function onPw(pw){const sw=document.getElementById('sw'),pwr=document.getElementById('pwr');if(!pw){sw.style.display='none';pwr.style.display='none';return;}sw.style.display='block';pwr.style.display='grid';const ch={'r-len':pw.length>=8,'r-up':/[A-Z]/.test(pw),'r-lo':/[a-z]/.test(pw),'r-num':/\d/.test(pw),'r-sp':/[^A-Za-z0-9]/.test(pw)};Object.keys(ch).forEach(id=>document.getElementById(id).className=ch[id]?'met':'');const sc=Object.values(ch).filter(Boolean).length,bars=sw.querySelectorAll('.strength-bars span'),lbl=document.getElementById('sl');bars.forEach(b=>b.className='');const cls=[null,'weak','medium','medium','strong','vstrong'],nm=['','Weak','Fair','Fair','Strong','Very Strong'];for(let i=0;i<sc;i++)bars[i].className=cls[sc];lbl.textContent=nm[sc];lbl.style.color=sc>=4?'#10b981':sc>=3?'#6366f1':sc>=2?'#f59e0b':'#f43f5e';}
 function onMatch(){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,e=document.getElementById('merr');e.textContent=c&&p!==c?'Passwords do not match.':''}
-async function checkField(url,inputId,statusId){const input=document.getElementById(inputId),status=document.getElementById(statusId),value=input.value.trim();if(!value){status.textContent='';status.className='availability';return true;}status.textContent='◌ Checking…';status.className='availability checking';const fd=new FormData();fd.append('_csrf_token','{{ csrf_token }}');fd.append(input.name,value);try{const r=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});const data=await r.json();if(data.available){status.textContent='✓ Available';status.className='availability available';return true;}status.textContent='✕ Already used or unavailable — try a different one';status.className='availability taken';return false;}catch(e){status.textContent='Could not verify right now';status.className='availability taken';return false;}}
+async function checkField(url,inputId,statusId){const input=document.getElementById(inputId),status=document.getElementById(statusId),value=input.value.trim();if(!value){status.textContent='';status.className='availability';return true;}status.textContent='◌ Checking…';status.className='availability checking';const fd=new FormData();fd.append('_csrf_token','{{ csrf_token }}');fd.append(input.name,value);try{const r=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});if(!r.ok)throw new Error('availability check unavailable');const data=await r.json();if(data.available){status.textContent='✓ Available';status.className='availability available';return true;}status.textContent='✕ Already used or unavailable — try a different one';status.className='availability taken';return false;}catch(e){status.textContent='Could not check now — the server will validate this field on submit.';status.className='availability checking';return true;}}
 let userTimer,emailTimer;document.getElementById('r-user')?.addEventListener('input',()=>{clearTimeout(userTimer);userTimer=setTimeout(()=>checkField('{{ url_for('check_registration_username') }}','r-user','usernameStatus'),450);});document.getElementById('r-email')?.addEventListener('input',()=>{clearTimeout(emailTimer);emailTimer=setTimeout(()=>checkField('{{ url_for('check_registration_email') }}','r-email','emailStatus'),450);});
-document.getElementById('regForm')?.addEventListener('submit',async function(e){e.preventDefault();const form=this,p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,er=document.getElementById('merr');if(p!==c){er.textContent='Passwords do not match.';document.getElementById('r-conf').focus();return;}const uOk=await checkField('{{ url_for('check_registration_username') }}','r-user','usernameStatus');const eOk=await checkField('{{ url_for('check_registration_email') }}','r-email','emailStatus');if(uOk&&eOk){ if(typeof showPageLoader==='function') showPageLoader('Sending verification code securely…'); HTMLFormElement.prototype.submit.call(form); }});
+document.getElementById('regForm')?.addEventListener('submit',async function(e){e.preventDefault();const form=this;if(!form.reportValidity())return;const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,er=document.getElementById('merr');if(p!==c){er.textContent='Passwords do not match.';document.getElementById('r-conf').focus();return;}const uOk=await checkField('{{ url_for('check_registration_username') }}','r-user','usernameStatus');const eOk=await checkField('{{ url_for('check_registration_email') }}','r-email','emailStatus');if(uOk&&eOk){const btn=form.querySelector('button[type=submit]');if(btn){btn.disabled=true;btn.setAttribute('aria-busy','true');btn.dataset.originalText=btn.textContent;btn.textContent='Sending verification code…';} if(typeof showPageLoader==='function') showPageLoader('Sending verification code securely…'); HTMLFormElement.prototype.submit.call(form); }});
 document.getElementById('otp')?.addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,6);const s=document.getElementById('otpStatus');if(this.value.length===6){s.textContent='✓ Code ready — verifying securely…';s.style.color='#059669';}else{s.textContent='Waiting for your 6-digit code…';s.style.color='#6366f1';}});
 </script>
 </body>

@@ -27,7 +27,7 @@
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-user"><div class="sidebar-avatar">{{ user.name[:1]|upper }}</div><div><div class="sidebar-user-name">{{ user.name }}</div><div class="sidebar-user-role">{{ user.role|capitalize }}</div></div></div>
-      <a href="/logout" class="sidebar-logout"><span>→</span> Sign Out</a>
+      <form method="post" action="/logout" class="logout-form"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button type="submit" class="sidebar-logout"><span>→</span> Sign Out</button></form>
     </div>
   </aside>
 
@@ -37,7 +37,7 @@
       <div class="topbar-right">
         <span class="badge {% if role=='admin' %}badge-admin{% else %}badge-active{% endif %}">{{ role|capitalize }}</span>
         {% if role != 'admin' %}<a href="/change-password" class="btn btn-ghost topbar-action">🔒 Password</a>{% endif %}
-        <a href="/logout" class="btn btn-logout">↪ Logout</a>
+        <form method="post" action="/logout" class="logout-form"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-logout">↪ Logout</button></form>
         <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
     </header>
