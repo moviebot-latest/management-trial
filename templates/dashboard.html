@@ -113,7 +113,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <button class="btn btn-primary" type="button" onclick="openModal('createModal')">+ New User</button>
         {% endif %}
         <form method="post" action="/logout" class="logout-form"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-logout">↪ Logout</button></form>
-        <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
+        <button class="mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false" onclick="window.toggleSidebar && window.toggleSidebar();">☰</button>
       </div>
     </header>
 
@@ -668,6 +668,6 @@ function openEdit(btn){
 
 
 
-<script src="{{ url_for('static', filename='ui_advanced.js') }}?v=menu4"></script>
+<script src="{{ url_for('static', filename='ui_advanced.js') }}?v=menu5"></script>
 </body>
 </html>
