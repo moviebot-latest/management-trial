@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Create Account — Management System</title>
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#6366f1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.verify-card{margin:18px 0;padding:22px;border:1px solid #ddd6fe;border-radius:20px;background:linear-gradient(135deg,#faf8ff,#fff);box-shadow:0 10px 30px rgba(99,102,241,.10)}
+.verify-orb{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:28px;box-shadow:0 0 0 8px rgba(99,102,241,.08);animation:otpPulse 1.8s infinite}
+@keyframes otpPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 8px rgba(99,102,241,.08)}50%{transform:scale(1.06);box-shadow:0 0 0 15px rgba(99,102,241,.02)}}
+.otp-input{letter-spacing:12px;text-align:center;font-size:28px;font-weight:800}
+.otp-status{margin-top:10px;font-weight:700;color:#6366f1;min-height:24px}.availability{font-size:13px;margin-top:6px;min-height:18px;font-weight:700}.available{color:#059669}.taken{color:#dc2626}.checking{color:#6366f1}
+@media(max-width:640px){.otp-input{letter-spacing:8px;font-size:24px}.verify-card{padding:18px}.auth-side{display:none!important}.auth-form-side{width:100%!important;padding:18px 12px!important}.auth-form-box{width:100%!important;max-width:520px!important;padding:24px 18px!important}.auth-form-box [style*="grid-template-columns"]{grid-template-columns:1fr!important;gap:0!important}}
+/* Registration flow refinements */
+.signup-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 22px}
+.signup-step{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 5px;border:1px solid #e7eaf4;background:#f8f9ff;border-radius:12px;color:#9198ad;font-size:11px;font-weight:800;min-width:0}
+.signup-step b{display:grid;place-items:center;width:21px;height:21px;flex:0 0 21px;border-radius:50%;background:#e7eaf4;color:#747c93;font-size:10px}
+.signup-step.active{border-color:#c7d2fe;background:#eef2ff;color:#4f46e5}.signup-step.active b{background:#4f46e5;color:#fff}
+.signup-step.done{border-color:#bbf7d0;background:#f0fdf4;color:#15803d}.signup-step.done b{background:#16a34a;color:#fff}
+.otp-mail-note{display:flex;align-items:flex-start;gap:10px;border:1px solid #e0e7ff;border-radius:13px;background:#f5f7ff;color:#59627d;padding:12px;font-size:12px;line-height:1.6;margin:14px 0 0}
+.otp-mail-note strong{color:#343b69}.resend-line{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#7b849a}.resend-btn{border:0;background:none;color:#5b50d9;font-weight:800;cursor:pointer;padding:7px 9px;border-radius:8px}.resend-btn:disabled{color:#9ca3af;cursor:not-allowed}.resend-btn:not(:disabled):hover{background:#eef2ff}
+@media(prefers-reduced-motion:reduce){.verify-orb,.auth-side:after,.auth-page:before,.auth-page:after{animation:none!important}}
+</style></head>
+<body>
+<div class="auth-page">
+
+  <div class="auth-side">
+    <div class="auth-side-logo">MS</div>
+    <div class="auth-side-live"><span></span> Secure account setup</div>
+    <h2>Join the<br>Team Today</h2>
+    <p>Create your account to get instant access to the management dashboard and team tools.</p>
+    <ul class="auth-side-features">
+      <li><span class="feat-icon">⚡</span> Quick 2-minute setup</li>
+      <li><span class="feat-icon">🏢</span> Choose your department</li>
+      <li><span class="feat-icon">🔐</span> Secure from day one</li>
+      <li><span class="feat-icon">📈</span> Access team analytics</li>
+    </ul>
+  </div>
+
+  <div class="auth-form-side">
+    <div class="auth-form-box" style="max-width:460px">
+      <div class="auth-logo-sm">MS</div>
+      <h1 class="auth-title">Create your account</h1>
+      <p class="auth-sub">A few details, one quick verification, and you're in.</p>
+      <div class="signup-steps" aria-label="Account creation progress">
+        <div class="signup-step {{ 'done' if otp_sent else 'active' }}"><b>{% if otp_sent %}✓{% else %}1{% endif %}</b><span>Details</span></div>
+        <div class="signup-step {{ 'active' if otp_sent else '' }}"><b>2</b><span>Verify</span></div>
+        <div class="signup-step"><b>3</b><span>Complete</span></div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}"><span class="flash-icon">{% if cat=='error' %}⚠️{% else %}✅{% endif %}</span>{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      {% if otp_sent %}
+      <div class="verify-card" id="verifyCard">
+        <div class="verify-orb">✉️</div>
+        <h2 style="margin:14px 0 6px">Verify your email</h2>
+        <p style="margin:0;color:#667085">We sent a 6-digit code to <strong>{{ pending_email }}</strong>.</p>
+        <div class="otp-mail-note"><span aria-hidden="true">🛡️</span><div>Check your inbox and spam folder. Your code expires in <strong>10 minutes</strong>. Never share it with anyone.</div></div>
+
+        <form method="post" action="{{ url_for('verify_registration_otp') }}" style="margin-top:18px">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="email" value="{{ pending_email }}">
+          <div class="field">
+            <label for="otp">Verification code</label>
+            <input id="otp" name="otp" class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="••••••" required autofocus>
+          </div>
+          <div class="otp-status" id="otpStatus">Waiting for your 6-digit code…</div>
+          <button class="submit-btn" type="submit" id="verifyBtn">🔐 Verify & Create Account <span aria-hidden="true">→</span></button>
+        </form>
+
+        <form method="post" action="{{ url_for('resend_registration_otp') }}" class="resend-line" id="resendForm">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="email" value="{{ pending_email }}">
+          <span id="resendHint">Didn't receive the email?</span>
+          <button id="resendBtn" class="resend-btn" type="submit" {% if resend_wait|default(0) > 0 %}disabled{% endif %}>↻ Resend code</button>
+          <span id="resendCountdown" aria-live="polite"></span>
+        </form>
+      </div>
+      {% else %}
+      <form id="regForm" method="post" action="{{ url_for('register') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+          <div class="field">
+            <label for="r-name">Full Name</label>
+            <input id="r-name" name="name" autocomplete="name" placeholder="Your full name" required maxlength="120" autofocus>
+          </div>
+          <div class="field">
+            <label for="r-email">Email</label>
+            <input id="r-email" name="email" type="email" autocomplete="email" placeholder="you@gmail.com" required maxlength="160">
+            <div class="availability" id="emailStatus"></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+          <div class="field">
+            <label for="r-gender">Gender</label>
+            <select id="r-gender" name="gender" required>
+              <option value="">Select…</option>
+              <option>Male</option><option>Female</option>
+              <option>Other</option><option>Prefer not to say</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="r-dept">Department</label>
+            <select id="r-dept" name="department" required>
+              <option value="">Select…</option>
+              {% for d in valid_departments %}<option>{{ d }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="r-user">Username</label>
+          <input id="r-user" name="username" autocomplete="username" placeholder="Example: aman.kumar or aman_26" required maxlength="80" pattern="[a-zA-Z0-9_.\-]+" title="Letters, numbers, _ - . only">
+          <div style="font-size:13px;color:#98a2b3;margin-top:5px">Example usernames: <b>aman.kumar</b> · <b>aman_26</b> · <b>aman-kumar</b></div>
+          <div class="availability" id="usernameStatus"></div>
+        </div>
+
+        <div class="field">
+          <label for="r-pw">Password</label>
+          <div class="password-wrap">
+            <input id="r-pw" name="password" type="password" autocomplete="new-password" placeholder="Min 8 chars with mix of types" required minlength="8" pattern="(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="Use 8+ characters with uppercase, lowercase, a number and a special character" oninput="onPw(this.value)">
+            <button type="button" class="eye-btn" onclick="togglePw('r-pw',this)">👁️</button>
+          </div>
+          <div class="strength" id="sw" style="display:none"><div class="strength-bars"><span></span><span></span><span></span><span></span></div><div class="strength-label" id="sl"></div></div>
+          <ul class="pw-rules" id="pwr" style="display:none"><li id="r-len">8+ characters</li><li id="r-up">Uppercase (A-Z)</li><li id="r-lo">Lowercase (a-z)</li><li id="r-num">Number (0-9)</li><li id="r-sp">Special char</li></ul>
+        </div>
+
+        <div class="field">
+          <label for="r-conf">Confirm Password</label>
+          <div class="password-wrap"><input id="r-conf" name="confirm" type="password" autocomplete="new-password" placeholder="Repeat your password" required minlength="8" oninput="onMatch()"><button type="button" class="eye-btn" onclick="togglePw('r-conf',this)">👁️</button></div>
+          <span class="field-err" id="merr"></span>
+        </div>
+
+        <button class="submit-btn" type="submit">📧 Send verification code &rarr;</button>
+      </form>
+      {% endif %}
+
+      <div class="auth-footer" style="margin-top:16px">
+        Already have an account? <a href="/login">Sign in</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+function togglePw(id,btn){const i=document.getElementById(id),s=i.type==='password';i.type=s?'text':'password';btn.textContent=s?'🙈':'👁️';}
+function onPw(pw){const sw=document.getElementById('sw'),pwr=document.getElementById('pwr');if(!pw){sw.style.display='none';pwr.style.display='none';if(document.getElementById('r-conf')?.value)onMatch();return;}sw.style.display='block';pwr.style.display='grid';const ch={'r-len':pw.length>=8,'r-up':/[A-Z]/.test(pw),'r-lo':/[a-z]/.test(pw),'r-num':/\d/.test(pw),'r-sp':/[^A-Za-z0-9]/.test(pw)};Object.keys(ch).forEach(id=>document.getElementById(id).className=ch[id]?'met':'');const sc=Object.values(ch).filter(Boolean).length,bars=sw.querySelectorAll('.strength-bars span'),lbl=document.getElementById('sl');bars.forEach(b=>b.className='');const cls=[null,'weak','medium','medium','strong','vstrong'],nm=['','Weak','Fair','Fair','Strong','Very Strong'];for(let i=0;i<Math.min(sc,bars.length);i++)bars[i].className=cls[sc];lbl.textContent=nm[sc];lbl.style.color=sc>=4?'#10b981':sc>=3?'#6366f1':sc>=2?'#f59e0b':'#f43f5e';if(document.getElementById('r-conf')?.value)onMatch();}
+function onMatch(){const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,e=document.getElementById('merr');e.textContent=c&&p!==c?'Passwords do not match.':''}
+async function checkField(url,inputId,statusId){const input=document.getElementById(inputId),status=document.getElementById(statusId),value=input.value.trim();if(!value){status.textContent='';status.className='availability';return true;}status.textContent='◌ Checking…';status.className='availability checking';const fd=new FormData();fd.append('_csrf_token','{{ csrf_token }}');fd.append(input.name,value);try{const r=await fetch(url,{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});if(!r.ok)throw new Error('availability check unavailable');const data=await r.json();if(data.available){status.textContent='✓ Available';status.className='availability available';return true;}status.textContent='✕ Already used or unavailable — try a different one';status.className='availability taken';return false;}catch(e){status.textContent='Could not check now — the server will validate this field on submit.';status.className='availability checking';return true;}}
+let userTimer,emailTimer;document.getElementById('r-user')?.addEventListener('input',()=>{clearTimeout(userTimer);userTimer=setTimeout(()=>checkField('{{ url_for('check_registration_username') }}','r-user','usernameStatus'),450);});document.getElementById('r-email')?.addEventListener('input',()=>{clearTimeout(emailTimer);emailTimer=setTimeout(()=>checkField('{{ url_for('check_registration_email') }}','r-email','emailStatus'),450);});
+document.getElementById('regForm')?.addEventListener('submit',async function(e){e.preventDefault();const form=this;if(!form.reportValidity())return;const p=document.getElementById('r-pw').value,c=document.getElementById('r-conf').value,er=document.getElementById('merr');if(p!==c){er.textContent='Passwords do not match.';document.getElementById('r-conf').focus();return;}const uOk=await checkField('{{ url_for('check_registration_username') }}','r-user','usernameStatus');const eOk=await checkField('{{ url_for('check_registration_email') }}','r-email','emailStatus');if(uOk&&eOk){const btn=form.querySelector('button[type=submit]');if(btn){btn.disabled=true;btn.setAttribute('aria-busy','true');btn.dataset.originalText=btn.textContent;btn.textContent='Sending verification code…';} if(typeof showPageLoader==='function') showPageLoader('Sending verification code securely…'); HTMLFormElement.prototype.submit.call(form); }});
+document.getElementById('otp')?.addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,6);const s=document.getElementById('otpStatus');if(this.value.length===6){s.textContent='✓ Code ready — submit to verify securely.';s.style.color='#059669';}else{s.textContent='Waiting for your 6-digit code…';s.style.color='#6366f1';}});
+const resendBtn=document.getElementById('resendBtn'),resendCountdown=document.getElementById('resendCountdown');
+if(resendBtn&&resendCountdown){let seconds=Math.max(0,Number({{ resend_wait|default(0, true)|int }}));if(seconds>0){resendBtn.disabled=true;resendCountdown.textContent='Available in '+seconds+'s';const timer=window.setInterval(()=>{seconds=Math.max(0,seconds-1);if(seconds>0){resendCountdown.textContent='Available in '+seconds+'s';}else{window.clearInterval(timer);resendBtn.disabled=false;resendCountdown.textContent='';}},1000);}else{resendBtn.disabled=false;resendCountdown.textContent='';}}
+document.getElementById('resendForm')?.addEventListener('submit',function(){const b=this.querySelector('button[type=submit]');if(b){b.disabled=true;b.textContent='Sending…';}});
+document.getElementById('verifyBtn')?.form?.addEventListener('submit',function(e){const input=document.getElementById('otp');if(input&&input.value.length!==6){e.preventDefault();input.focus();return;}const b=document.getElementById('verifyBtn');if(b){b.disabled=true;b.setAttribute('aria-busy','true');b.innerHTML='Verifying code…';}});
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edit Book - Library Management System</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="modern-library">
+<header class="appbar">
+  <a class="menu-btn" href="{{ url_for('dashboard') }}#screen-books" aria-label="Back">←</a>
+  <div class="app-title"><small>LIBRARY MANAGEMENT SYSTEM</small><h1>Edit Book</h1></div>
+  <div class="app-avatar">A</div>
+</header>
+<main class="modern-content">
+  <div class="page-heading"><small>BOOK MANAGEMENT</small><h2>Edit Book</h2><p>Update the book information and save the changes.</p></div>
+  <div class="add-layout">
+    <div class="add-intro">
+      <div class="big-book">✎</div><h3>Edit {{ book.title }}</h3>
+      <p>Book ID: <strong>{{ book.book_id }}</strong></p>
+      <p>Available: <strong>{{ book.available_copies }}</strong> / {{ book.total_copies }}</p>
+      <p>Changes are saved to the same library database.</p>
+    </div>
+    <div class="glass-form add-form">
+      <form method="post" action="{{ url_for('edit_book', book_id=book.id) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <div class="form-grid modern-form">
+          <label>Book Title<input name="title" value="{{ book.title }}" required></label>
+          <label>Author<input name="author" value="{{ book.author }}" required></label>
+          <label>ISBN<input name="isbn" value="{{ book.isbn or '' }}"></label>
+          <label>Category<input name="category" value="{{ book.category }}"></label>
+          <label>Publication Year<input name="publication_year" type="number" value="{{ book.publication_year or '' }}"></label>
+          <label>Total Copies<input name="copies" type="number" min="{{ book.total_copies - book.available_copies }}" value="{{ book.total_copies }}" required></label>
+          <label>Cover Image URL<input name="cover_url" value="{{ book.cover_url or '' }}"></label>
+          <label class="full">Book PDF {% if book.pdf_path %}<a href="{{ url_for('view_book_pdf', book_id=book.id) }}" target="_blank">Open PDF</a>{% else %}<span class="muted">None</span>{% endif %}</label>
+          <label class="full">Description<textarea name="description">{{ book.description or '' }}</textarea></label>
+        </div>
+        <button class="gradient-btn save-btn" type="submit">✓ Save Changes</button>
+        <a class="reset-btn" style="display:block;text-align:center" href="{{ url_for('dashboard') }}#screen-books">Cancel</a>
+      </form>
+    </div>
+  </div>
+</main>
+</body></html>

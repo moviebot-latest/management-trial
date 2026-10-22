@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Return Book | Library Management System</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.return-wrap{min-height:100vh;padding:22px 16px 60px;display:grid;place-items:center;background:linear-gradient(145deg,#f4f6ff,#faf8ff,#eef5ff)}.return-card{width:min(760px,100%);background:rgba(255,255,255,.96);border:1px solid #fff;border-radius:30px;padding:24px;box-shadow:0 24px 70px rgba(50,40,120,.16)}.back{display:inline-flex;padding:10px 14px;border-radius:13px;background:#eeecff;color:#513dc5;font-weight:800;text-decoration:none;margin-bottom:18px}.hero{padding:25px;border-radius:24px;color:#fff;background:linear-gradient(120deg,#303ec7,#a039ef);margin-bottom:18px}.hero small{letter-spacing:2px;font-weight:800;opacity:.8}.hero h1{font-size:34px;margin:7px 0}.hero p{margin:0;opacity:.9}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.item{padding:15px 16px;border-radius:17px;background:#f7f8ff;border:1px solid #e3e6f0}.item small{display:block;color:#7d879a;margin-bottom:5px}.item b{font-size:17px;color:#17233f;word-break:break-word}.calculator{margin:18px 0;padding:19px;border-radius:22px;background:#f7f5ff;border:1px solid #ded8ff}.calc-row{display:flex;justify-content:space-between;padding:9px 0;color:#657089}.calc-row strong{color:#18243f}.fine{margin-top:8px;padding-top:14px;border-top:1px solid #ddd8f5;font-size:21px}.fine strong{color:#7b2be2}.admin-box{margin:18px 0;padding:18px;border-radius:22px;background:linear-gradient(135deg,#fff9ec,#fff);border:1px solid #f0dfb9}.admin-box h3{margin:0 0 7px;color:#8d5a00}.admin-box p{margin:4px 0;color:#5f6678}.photo-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.photo-row img{width:86px;height:86px;object-fit:cover;border-radius:14px;border:1px solid #ded9c8;box-shadow:0 8px 18px rgba(40,45,90,.10)}.ok{padding:15px;border-radius:17px;background:#e8faef;color:#08733a;font-weight:800;margin:15px 0}.late{padding:15px;border-radius:17px;background:#fff0ed;color:#a52e21;font-weight:800;margin:15px 0}.payment-note{padding:15px;border-radius:17px;background:#fff7e8;color:#89520b;margin-bottom:14px}.payment-note b{display:block;font-size:19px;margin-bottom:3px}.actions{display:flex;gap:10px}.actions>*{flex:1;text-align:center}.cancel{display:block;padding:15px;border-radius:16px;background:#eceef4;color:#3d465b;font-weight:800;text-decoration:none}.return-main{border:0;cursor:pointer}.no-fine{color:#08733a;font-weight:800}@media(max-width:600px){.return-card{padding:18px;border-radius:24px}.grid{grid-template-columns:1fr}.actions{flex-direction:column}.hero h1{font-size:29px}}
+.admin-head{display:flex;gap:12px;align-items:center}.admin-badge{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:#fff0c8;color:#9a6200;font-weight:950;font-size:24px}.admin-box h3{margin:0;color:#8d5a00}.admin-head p{margin:3px 0 0;color:#7d735f;font-size:12px}.evidence-title{margin-top:14px;font-weight:900;color:#5d5139}.photo-row a{display:block}.photo-row img{cursor:zoom-in}</style>
+</head>
+<body>
+<main class="return-wrap"><section class="return-card">
+<a class="back" href="{{ url_for('dashboard') }}#screen-issues">← Back to Issue &amp; Return</a>
+<div class="hero"><small>LIBRARY OPERATIONS</small><h1>Return Book</h1><p>Review the return date, time, fine details and any book evidence before completing the return.</p></div>
+<div class="grid">
+<div class="item"><small>User ID</small><b>#{{ loan.user.id }}</b></div><div class="item"><small>Member</small><b>{{ loan.user.name }}</b></div>
+<div class="item"><small>Gmail</small><b>{{ loan.user.email }}</b></div><div class="item"><small>Username</small><b>@{{ loan.user.username }}</b></div>
+<div class="item"><small>Book ID</small><b>{{ loan.book.book_id }}</b></div><div class="item"><small>Book Name</small><b>{{ loan.book.title }}</b></div>
+<div class="item"><small>Issue Date</small><b>{{ to_ist(loan.issued_at).strftime('%d %b %Y') }}</b></div><div class="item"><small>Issue Time</small><b>{{ to_ist(loan.issued_at).strftime('%I:%M:%S %p') }}</b></div>
+<div class="item"><small>Due / Free Return Date</small><b>{{ to_ist(loan.due_at).strftime('%d %b %Y') }}</b></div><div class="item"><small>Due Time</small><b>{{ to_ist(loan.due_at).strftime('%I:%M:%S %p') }}</b></div>
+<div class="item"><small>Return Date</small><b>{{ to_ist(now).strftime('%d %b %Y') }}</b></div><div class="item"><small>Return Time</small><b>{{ to_ist(now).strftime('%I:%M:%S %p') }}</b></div>
+</div>
+<div class="calculator">
+<div class="calc-row"><span>Free Period</span><strong>14 days</strong></div>
+<div class="calc-row"><span>Late Days</span><strong>{{ late_days }}</strong></div>
+<div class="calc-row"><span>Automatic Late Fine</span><strong>₹{{ '%.2f'|format(fine) }}</strong></div>
+<div class="calc-row fine"><span>Admin Additional Fine</span><strong>₹{{ '%.2f'|format(admin_fine) }}</strong></div>
+<div class="calc-row fine"><span>Total Fine</span><strong>₹{{ '%.2f'|format(total_fine) }}</strong></div>
+</div>
+{% if admin_fine > 0 %}<section class="admin-box"><div class="admin-head"><span class="admin-badge">₹</span><div><h3>Additional Fine Applied</h3><p>Added by administrator for this issued book.</p></div></div><p><b>Reason:</b> {{ admin_reason or 'Additional damage/issue' }}</p>{% if admin_photos %}<div class="evidence-title">📷 Book Evidence Photos</div><div class="photo-row">{% for photo in admin_photos %}<a href="{{ photo_url(photo) }}" target="_blank" rel="noopener"><img src="{{ photo_url(photo) }}" alt="Book evidence photo"></a>{% endfor %}</div>{% else %}<p>No book photos attached.</p>{% endif %}</section>{% endif %}
+{% if total_fine > 0 %}
+<div class="late">⚠️ Total fine is ₹{{ '%.2f'|format(total_fine) }}. Payment is required before the book can be returned.</div>
+<div class="actions"><a class="gradient-btn save-btn return-main" href="{{ url_for('payment_page', loan_id=loan.id) }}">💳 Pay ₹{{ '%.2f'|format(total_fine) }} &amp; Return</a><a class="cancel" href="{{ url_for('dashboard') }}#screen-issues">Cancel</a></div>
+{% else %}
+<div class="ok">✅ Returned within the free period. No payment is required.</div>
+<form method="post" action="{{ url_for('return_book', loan_id=loan.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><div class="actions"><button class="gradient-btn save-btn return-main" type="submit">↩ Return Book — ₹0</button><a class="cancel" href="{{ url_for('dashboard') }}">Cancel</a></div></form>
+{% endif %}
+</section></main>
+</body></html>
