@@ -9,7 +9,35 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=sidebar-final-fix3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+<style id="dashboard-mobile-sidebar-fix">
+.sidebar-backdrop { display: none; }
+@media (max-width: 768px) {
+  .app-shell { position: relative; }
+  .sidebar-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 1290;
+    background: rgba(15, 23, 42, .36); opacity: 0; visibility: hidden;
+    pointer-events: none; transition: opacity .2s ease, visibility .2s ease;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  body.sidebar-open .sidebar-backdrop {
+    opacity: 1; visibility: visible; pointer-events: auto;
+  }
+  /* Remove the old pseudo-overlay that could dim/cover the drawer. */
+  body.sidebar-open::after { content: none !important; display: none !important; }
+  .sidebar, .sidebar.open {
+    z-index: 1300 !important; max-height: 100dvh; overflow-y: auto;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    pointer-events: auto;
+  }
+  .sidebar .nav-item, .sidebar a, .sidebar button,
+  .sidebar .logout-form, .sidebar .sidebar-logout {
+    position: relative; pointer-events: auto; touch-action: manipulation;
+  }
+}
+</style>
+
 </head>
 <body>
 
@@ -27,6 +55,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 </script>
 
 <div class="app-shell">
+
+  <!-- Mobile sidebar backdrop: kept inside app-shell for reliable stacking. -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 
   <!-- ==================== SIDEBAR ==================== -->
   <aside class="sidebar" id="sidebar">
@@ -668,6 +699,22 @@ function openEdit(btn){
 
 
 
-<script src="{{ url_for('static', filename='ui_advanced.js') }}?v=sidebar-final-fix3&v=menu4"></script>
+<script src="{{ url_for('static', filename='ui_advanced.js') }}?v=menu4"></script>
+<script>
+(function(){
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!backdrop) return;
+  backdrop.addEventListener('click', function(){
+    const sidebar = document.getElementById('sidebar');
+    const menu = document.querySelector('.mobile-menu-btn');
+    if (sidebar) sidebar.classList.remove('open');
+    if (menu) {
+      menu.setAttribute('aria-expanded', 'false');
+      menu.setAttribute('aria-label', 'Open menu');
+    }
+    document.body.classList.remove('sidebar-open');
+  });
+})();
+</script>
 </body>
 </html>
