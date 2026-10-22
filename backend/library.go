@@ -238,12 +238,12 @@ func (a *App) issueLoan(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "Choose a valid book.")
 		return
 	}
-	uid := int64(s.UserID)
+	uid := s.UserID
 	if s.Role == "admin" || s.Role == "librarian" {
 		if b.UserID > 0 {
 			uid = b.UserID
 		}
-	} else if b.UserID > 0 && b.UserID != int64(s.UserID) {
+	} else if b.UserID > 0 && b.UserID != s.UserID {
 		fail(w, 403, "You can only issue a book to your own account.")
 		return
 	}
