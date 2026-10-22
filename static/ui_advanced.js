@@ -25,37 +25,43 @@
   };
 window.addEventListener('pageshow',()=>hidePageLoader());
 
-  window.toggleSidebar=function(forceOpen){
-    const sidebar=document.getElementById('sidebar');
-    const menu=document.querySelector('.mobile-menu-btn');
-    if(!sidebar) return;
-    const open = typeof forceOpen === 'boolean' ? forceOpen : !sidebar.classList.contains('open');
-    sidebar.classList.toggle('open',open);
-    document.body.classList.toggle('sidebar-open',open && window.innerWidth<=768);
-    if(menu){menu.setAttribute('aria-expanded',open?'true':'false');menu.setAttribute('aria-label',open?'Close menu':'Open menu');}
-  };
-
-  // Reliable mobile drawer controls: handle taps at the button itself, close on
-  // outside tap / navigation / Escape, and keep ARIA state in sync.
+  // Reliable mobile navigation: one handler controls the hamburger and drawer links.
   function setSidebarOpen(open){
     const sidebar=document.getElementById('sidebar');
     const menu=document.querySelector('.mobile-menu-btn');
-    if(!sidebar) return;
+    if(!sidebar)return;
     sidebar.classList.toggle('open',!!open);
-    document.body.classList.toggle('sidebar-open',!!open && window.innerWidth<=768);
+    document.body.classList.toggle('sidebar-open',!!open);
     if(menu){menu.setAttribute('aria-expanded',open?'true':'false');menu.setAttribute('aria-label',open?'Close menu':'Open menu');}
   }
+  window.toggleSidebar=function(){
+    const sidebar=document.getElementById('sidebar');
+    if(sidebar)setSidebarOpen(!sidebar.classList.contains('open'));
+  };
   document.addEventListener('click',function(e){
     const menu=e.target.closest('.mobile-menu-btn');
-    if(menu){e.preventDefault();setSidebarOpen(!document.getElementById('sidebar')?.classList.contains('open'));return;}
-    const sidebar=document.getElementById('sidebar');
-    if(sidebar && sidebar.classList.contains('open') && window.innerWidth<=768){
-      if(!e.target.closest('#sidebar')) setSidebarOpen(false);
-      else if(e.target.closest('a,button[type="submit"]')) setSidebarOpen(false);
+    if(menu){
+      e.preventDefault();
+      const sidebar=document.getElementById('sidebar');
+      if(sidebar)setSidebarOpen(!sidebar.classList.contains('open'));
+      return;
     }
+    const link=e.target.closest('#sidebar a.nav-item');
+    if(link && window.innerWidth<=768){
+      const href=link.getAttribute('href');
+      if(!href || href==='#' || href.startsWith('javascript:'))return;
+      // Keep normal browser navigation, but close the drawer before leaving.
+      setSidebarOpen(false);
+      window.location.assign(link.href);
+      return;
+    }
+    if(document.body.classList.contains('sidebar-open') && window.innerWidth<=768 && !e.target.closest('#sidebar')){
+      setSidebarOpen(false);
+    }
+  },true);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && document.body.classList.contains('sidebar-open'))setSidebarOpen(false);
   });
-  document.addEventListener('keydown',function(e){if(e.key==='Escape')setSidebarOpen(false);});
-  window.addEventListener('resize',function(){if(window.innerWidth>768){document.body.classList.remove('sidebar-open');}});
 
   document.addEventListener('click',function(e){
     const a=e.target.closest('a');
