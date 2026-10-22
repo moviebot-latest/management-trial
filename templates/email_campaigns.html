@@ -12,24 +12,30 @@
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top left,#eef0ff 0,transparent 34%),linear-gradient(145deg,#f7f8ff,#f4f7fb);font-family:Inter,system-ui,sans-serif;color:var(--ink)}
 .page{max-width:1450px;margin:auto;padding:20px clamp(12px,2.5vw,34px) 50px}.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}.brand{display:flex;gap:12px;align-items:center}.brand-mark{height:48px;width:48px;border-radius:16px;display:grid;place-items:center;color:white;font-weight:900;background:linear-gradient(135deg,#172554,#6366f1,#a855f7);box-shadow:0 8px 24px #6366f138}.brand h1{font-size:20px;line-height:1.2;margin:0}.brand p{font-size:12px;margin:5px 0 0;color:var(--muted)}.top-actions{display:flex;gap:8px;flex-wrap:wrap}.button,.btn{border:0;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:12px;padding:11px 15px;font:700 13px Inter,system-ui;cursor:pointer;transition:transform .15s,box-shadow .15s;background:#f0f1ff;color:#4c43c4}.button:hover,.btn:hover{transform:translateY(-1px)}.primary{color:#fff;background:linear-gradient(110deg,#445cf2,#863ce6);box-shadow:0 8px 20px #6454e32a}.dark{background:#202950;color:white}.ghost{background:white;color:#47516d;border:1px solid var(--line)}
 .hero{position:relative;overflow:hidden;padding:clamp(23px,3vw,38px);border-radius:28px;color:white;background:linear-gradient(120deg,#131b47 0%,#3334a2 50%,#8e3ce0 100%);box-shadow:0 20px 50px #332d9b22}.hero:after{content:"✉";position:absolute;right:3%;top:-30px;color:#ffffff12;font-size:190px;transform:rotate(-13deg)}.hero .eyebrow{font-size:11px;letter-spacing:2px;font-weight:900;color:#d5d8ff}.hero h2{position:relative;z-index:1;margin:10px 0;font-size:clamp(27px,4vw,40px);line-height:1.12;max-width:780px}.hero p{position:relative;z-index:1;margin:0;max-width:750px;font-size:14px;line-height:1.75;color:#e4e8ff}.stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0 22px}.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 6px 20px #232d5510}.stat span{display:block;color:var(--muted);font-size:12px;font-weight:700}.stat strong{display:block;font-size:25px;margin-top:5px;letter-spacing:-.8px}.stat small{font-size:11px;color:#8992a8}
-.layout{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(300px,.82fr);gap:18px;align-items:start}.card{background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:23px;box-shadow:0 12px 32px #202b4d0c;overflow:hidden;min-width:0}.card-head{padding:20px 22px;border-bottom:1px solid #edf0f7;display:flex;justify-content:space-between;gap:12px;align-items:center}.card-head h3{margin:0;font-size:16px}.card-head p{margin:5px 0 0;font-size:12px;color:var(--muted);line-height:1.5}.card-body{padding:20px 22px}.section-label{font-size:11px;font-weight:900;letter-spacing:1.2px;color:#69748f;text-transform:uppercase;margin:4px 0 11px}.field{margin-bottom:16px;min-width:0}.field label{display:block;margin:0 0 7px;font-size:12px;font-weight:800;color:#3a4565}.field input,.field textarea,.field select,.searchbox{display:block;width:100%;max-width:100%;border:1px solid #dfe4f1;background:#fff;border-radius:12px;padding:12px 13px;font:500 13px Inter,system-ui;color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s}.field textarea{min-height:128px;resize:vertical;line-height:1.6}.field input:focus,.field textarea:focus,.field select:focus,.searchbox:focus{border-color:#8b85f7;box-shadow:0 0 0 3px #635bff16}.field .hint{font-size:11px;color:#8a93a8;line-height:1.6;margin-top:6px}.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.preset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:17px}.preset{border:1px solid #e2e5f2;background:#fbfbff;border-radius:13px;padding:12px 8px;text-align:left;font:700 11px Inter;cursor:pointer;color:#56617e}.preset b{font-size:20px;display:block;margin-bottom:6px}.preset.active{border-color:#9e99ff;background:#f0efff;color:#4b40ce;box-shadow:0 0 0 2px #695bf40a}.mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:16px}.mode{border:1px solid #e3e7f2;border-radius:14px;padding:12px;display:flex;align-items:flex-start;gap:9px;background:#fff;cursor:pointer}.mode:has(input:checked){border-color:#938bf7;background:#f5f4ff}.mode input{margin:3px 0 0;accent-color:#5b4de2}.mode b{display:block;font-size:12px}.mode small{display:block;color:var(--muted);font-size:10px;line-height:1.45;margin-top:4px}.recipient-box{border:1px solid #e5e8f3;border-radius:15px;overflow:hidden}.recipient-top{padding:11px;background:#fafbff;border-bottom:1px solid #edf0f7}.recipient-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:9px}.mini-btn{border:1px solid #e0e4f0;background:#fff;color:#59627a;font:700 11px Inter;border-radius:9px;padding:7px 9px;cursor:pointer}.count{font-size:11px;color:#59627a;font-weight:800}.user-list{max-height:300px;overflow:auto;padding:7px 9px;scrollbar-width:thin;scrollbar-color:#c9c6f7 #f7f7fc}.user-list:empty:after{content:"No matching users found.";display:block;text-align:center;padding:24px 10px;color:#8992a8;font-size:12px}.user-item{display:flex;gap:9px;align-items:center;padding:10px 8px;border:1px solid transparent;border-bottom-color:#f0f2f8;border-radius:10px;cursor:pointer;transition:background .15s,border-color .15s}.user-item:hover{background:#f8f8ff}.user-item:has(input:checked){background:#f0efff;border-color:#c9c4ff}.user-item input{width:17px;height:17px;flex:0 0 auto;accent-color:#5b4de2;cursor:pointer}.user-item:last-child{border:0}.user-item input{accent-color:#5b4de2}.avatar{width:31px;height:31px;border-radius:10px;background:linear-gradient(135deg,#e0e7ff,#f3e8ff);display:grid;place-items:center;color:#5145c7;font-weight:900;font-size:11px;flex:0 0 auto}.user-meta{min-width:0;flex:1}.user-meta b{font-size:11px;display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.user-meta small{font-size:10px;color:#8992a8;display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.user-state{font-size:9px;font-weight:800;color:#12794a;background:#e8f8ee;border-radius:99px;padding:4px 6px;flex:0 0 auto}.user-state.off{color:#9a6200;background:#fff5dd}.check-label{display:flex;align-items:center;gap:7px;font-size:11px;color:#59627a;font-weight:700}.check-label input{accent-color:#5b4de2}
+.layout{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(300px,.82fr);gap:18px;align-items:start}.card{background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:23px;box-shadow:0 12px 32px #202b4d0c;overflow:hidden;min-width:0}.card-head{padding:20px 22px;border-bottom:1px solid #edf0f7;display:flex;justify-content:space-between;gap:12px;align-items:center}.card-head h3{margin:0;font-size:16px}.card-head p{margin:5px 0 0;font-size:12px;color:var(--muted);line-height:1.5}.card-body{padding:20px 22px}.section-label{font-size:11px;font-weight:900;letter-spacing:1.2px;color:#69748f;text-transform:uppercase;margin:4px 0 11px}.field{margin-bottom:16px;min-width:0}.field label{display:block;margin:0 0 7px;font-size:12px;font-weight:800;color:#3a4565}.field input,.field textarea,.field select,.searchbox{display:block;width:100%;max-width:100%;border:1px solid #dfe4f1;background:#fff;border-radius:12px;padding:12px 13px;font:500 13px Inter,system-ui;color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s}.field textarea{min-height:128px;resize:vertical;line-height:1.6}.field input:focus,.field textarea:focus,.field select:focus,.searchbox:focus{border-color:#8b85f7;box-shadow:0 0 0 3px #635bff16}.field .hint{font-size:11px;color:#8a93a8;line-height:1.6;margin-top:6px}.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.preset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:17px}.preset{border:1px solid #e2e5f2;background:#fbfbff;border-radius:13px;padding:12px 8px;text-align:left;font:700 11px Inter;cursor:pointer;color:#56617e}.preset b{font-size:20px;display:block;margin-bottom:6px}.preset.active{border-color:#9e99ff;background:#f0efff;color:#4b40ce;box-shadow:0 0 0 2px #695bf40a}.mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:16px}.mode{border:1px solid #e3e7f2;border-radius:14px;padding:12px;display:flex;align-items:flex-start;gap:9px;background:#fff;cursor:pointer}.mode:has(input:checked){border-color:#938bf7;background:#f5f4ff}.mode input{margin:3px 0 0;accent-color:#5b4de2}.mode b{display:block;font-size:12px}.mode small{display:block;color:var(--muted);font-size:10px;line-height:1.45;margin-top:4px}.recipient-box{border:1px solid #e5e8f3;border-radius:15px;overflow:hidden}.recipient-top{padding:11px;background:#fafbff;border-bottom:1px solid #edf0f7}.recipient-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:9px}.mini-btn{border:1px solid #e0e4f0;background:#fff;color:#59627a;font:700 11px Inter;border-radius:9px;padding:7px 9px;cursor:pointer}.count{font-size:11px;color:#59627a;font-weight:800}.user-list{max-height:230px;overflow:auto;padding:3px 10px}.user-item{display:flex;gap:9px;align-items:center;padding:9px 3px;border-bottom:1px solid #f0f2f8}.user-item:last-child{border:0}.user-item input{accent-color:#5b4de2}.avatar{width:31px;height:31px;border-radius:10px;background:linear-gradient(135deg,#e0e7ff,#f3e8ff);display:grid;place-items:center;color:#5145c7;font-weight:900;font-size:11px;flex:0 0 auto}.user-meta{min-width:0;flex:1}.user-meta b{font-size:11px;display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.user-meta small{font-size:10px;color:#8992a8;display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.user-state{font-size:9px;font-weight:800;color:#12794a;background:#e8f8ee;border-radius:99px;padding:4px 6px}.user-state.off{color:#9a6200;background:#fff5dd}.check-label{display:flex;align-items:center;gap:7px;font-size:11px;color:#59627a;font-weight:700}.check-label input{accent-color:#5b4de2}
 .preview-wrap{position:sticky;top:12px}.preview-shell{padding:18px;background:linear-gradient(150deg,#edf0ff,#f8f2ff)}.preview-bar{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;font-weight:900;color:#6d7691;margin-bottom:12px}.email-preview{background:white;border:1px solid #e1e5f1;border-radius:17px;overflow:hidden;box-shadow:0 10px 25px #3d467412}.email-header{padding:25px 16px;text-align:center;background:linear-gradient(130deg,#172554,#4f46e5 65%,#9333ea);color:white}.email-logo{width:44px;height:44px;margin:0 auto 9px;border-radius:14px;background:#ffffff25;display:grid;place-items:center;font-size:18px;font-weight:900}.email-overline{font-size:9px;letter-spacing:1.8px;color:#dbeafe;font-weight:900}.email-header h4{font-size:20px;line-height:1.3;margin:10px 0 0;overflow-wrap:anywhere}.email-content{padding:22px 19px}.email-to{font-size:13px;font-weight:800;margin-bottom:13px}.preview-message{font-size:12px;line-height:1.8;color:#526079;overflow-wrap:anywhere;white-space:normal;min-height:100px}.preview-cta{display:inline-flex;margin:20px 0 3px;padding:12px 15px;border-radius:10px;background:#5b4de2;color:white;font-size:11px;font-weight:900;text-decoration:none}.email-foot{padding:13px 12px;background:#f8f9ff;border-top:1px solid #eef0f7;text-align:center;color:#949cb0;font-size:10px}.provider-note{margin-top:12px;border:1px solid #e5e7f5;border-radius:13px;padding:12px;color:#69748d;font-size:11px;line-height:1.6;background:#fbfbff}.provider-note.good{background:#eaf8f0;border-color:#c9efd8;color:#167344}.provider-note.bad{background:#fff2f2;border-color:#ffd6d9;color:#a52b3b}.form-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:20px}.form-actions .button{min-height:43px}.flash{margin:12px 0;padding:12px 14px;border-radius:13px;font-size:12px;font-weight:700;line-height:1.55}.flash.success{background:#e8f8ef;border:1px solid #c8eed7;color:#137844}.flash.error{background:#fff0f1;border:1px solid #ffd5d9;color:#a92b39}.flash.warning{background:#fff7e8;color:#996000}.pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:99px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.3px}.pill.sent,.pill.test_sent{background:#e5f8ed;color:#147849}.pill.queued,.pill.scheduled,.pill.sending{background:#fff5dd;color:#8c5d00}.pill.failed,.pill.test_failed{background:#fff0f1;color:#b12638}.pill.partial{background:#f2eaff;color:#7143bd}.pill.cancelled{background:#eef0f4;color:#727b90}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:740px;font-size:11px}th,td{padding:12px 13px;text-align:left;vertical-align:top;border-bottom:1px solid #eff1f7}th{font-size:9px;letter-spacing:1px;color:#8992aa;background:#fafbff;white-space:nowrap}td b{font-size:11px}td small{display:block;color:#8a93a8;margin-top:4px;line-height:1.5}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.actions-inline form{display:inline}.link{font-size:10px;font-weight:900;text-decoration:none;color:#5547d6}.report{margin-top:22px}.empty{text-align:center;padding:32px 18px;color:#838ca2;font-size:12px;line-height:1.7}.recipient-status{font-size:10px;font-weight:900;text-transform:uppercase}.recipient-status.sent{color:#157a49}.recipient-status.pending{color:#9a6200}.recipient-status.failed{color:#b12638}.small-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.small-form input{max-width:210px;padding:8px;border:1px solid #e0e4f0;border-radius:9px;font:11px Inter}.hidden{display:none!important}
 @media(max-width:1050px){.layout{grid-template-columns:minmax(0,1fr)}.preview-wrap{position:static}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.page{padding:12px 10px 32px}.brand h1{font-size:17px}.brand p{font-size:11px}.hero{border-radius:21px}.stat{padding:13px}.stat strong{font-size:22px}.card{border-radius:18px}.card-head,.card-body{padding:17px 14px}.row2,.mode-grid{grid-template-columns:1fr}.preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.preset:last-child{grid-column:span 2}.form-actions{display:grid;grid-template-columns:1fr}.form-actions .button{width:100%}.top-actions{width:100%}.top-actions .button{flex:1}.user-state{display:none}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
-/* V54: clearer audience cards and consistent controls on touch screens */
-.mode-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.mode{position:relative;min-width:0;min-height:88px;padding:15px;align-items:flex-start;gap:11px;border-radius:16px;transition:border-color .18s,background .18s,box-shadow .18s}
-.mode:hover{border-color:#b8b3ff;box-shadow:0 5px 16px #5145e50d}
-.mode:has(input:checked){border-color:#7467ee;background:linear-gradient(135deg,#f4f2ff,#fff);box-shadow:0 0 0 2px #7568ee1a}
-.mode input[type=radio]{appearance:auto;-webkit-appearance:radio;width:19px!important;min-width:19px;height:19px!important;flex:0 0 19px;margin:1px 0 0!important;padding:0;accent-color:#5b4de2;cursor:pointer}
-.mode span{display:block;min-width:0;flex:1}.mode b{font-size:13px;line-height:1.4;color:#263252}.mode small{font-size:11px;line-height:1.5;margin-top:5px}
-.mode:has(input:checked) b{color:#4b40ce}
-.recipient-box{background:#fff}.recipient-top{padding:14px}.recipient-actions .mini-btn{min-height:36px;padding:8px 11px;touch-action:manipulation}.searchbox{min-height:45px}.user-item{min-height:54px;padding:11px 9px}.user-item input[type=checkbox]{width:19px!important;height:19px!important;min-width:19px;}
-.form-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.form-actions .button{min-height:48px;white-space:normal;text-align:center;line-height:1.3}
-.field input,.field select,.field textarea,.searchbox{min-width:0}
-@media(max-width:760px){.mode-grid{grid-template-columns:1fr}.mode{min-height:74px;padding:14px}.form-actions{grid-template-columns:1fr}.form-actions .button{width:100%}.row2{grid-template-columns:minmax(0,1fr)}.top-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.top-actions .button{min-width:0}.recipient-actions{align-items:stretch}.recipient-actions>div{display:flex;gap:6px}.recipient-actions .mini-btn{flex:1}.user-list{max-height:260px}.card-head{align-items:flex-start}.card-head .pill{flex:0 0 auto}}
-@media(min-width:761px) and (max-width:1050px){.mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:minmax(0,1fr)}}
+
+/* Branded confirmation dialog for campaign actions */
+.confirm-overlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(12,18,45,.62);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.confirm-overlay.is-open{display:flex;animation:confirmFade .18s ease-out}
+.confirm-card{width:min(100%,460px);overflow:hidden;border:1px solid rgba(255,255,255,.75);border-radius:25px;background:#fff;box-shadow:0 28px 90px rgba(12,18,45,.32);animation:confirmPop .22s ease-out}
+.confirm-accent{height:7px;background:linear-gradient(90deg,#445cf2,#8b3fe7,#16b8a6)}
+.confirm-body{padding:25px 25px 20px;text-align:left}
+.confirm-icon{display:grid;place-items:center;width:54px;height:54px;margin-bottom:17px;border-radius:18px;background:linear-gradient(135deg,#eeedff,#f6eaff);font-size:27px}
+.confirm-kicker{margin:0 0 7px;color:#7161d8;font-size:10px;font-weight:900;letter-spacing:1.7px;text-transform:uppercase}
+.confirm-title{margin:0;color:#18213f;font-size:23px;line-height:1.25;font-weight:850;letter-spacing:-.5px}
+.confirm-message{margin:11px 0 0;color:#66708a;font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+.confirm-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 25px 23px;background:#fafbff;border-top:1px solid #edf0f7}
+.confirm-btn{min-height:45px;padding:0 18px;border:1px solid #e0e5f1;border-radius:13px;background:#fff;color:#4a5571;font:750 13px Inter,system-ui,sans-serif;cursor:pointer;touch-action:manipulation}
+.confirm-btn.primary{border:0;background:linear-gradient(110deg,#445cf2,#853de6);color:#fff;box-shadow:0 8px 18px #6454e32d}
+.confirm-btn:focus-visible{outline:3px solid #a5b4fc;outline-offset:3px}
+@keyframes confirmFade{from{opacity:0}to{opacity:1}}
+@keyframes confirmPop{from{opacity:.6;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:480px){.confirm-overlay{padding:14px}.confirm-card{border-radius:22px}.confirm-body{padding:22px 20px 17px}.confirm-title{font-size:21px}.confirm-foot{padding:14px 20px 20px}.confirm-btn{flex:1;padding:0 12px}}
+
 </style>
 </head>
 <body>
@@ -73,7 +79,7 @@ Please sign in to the Management System to review the latest information.</texta
             <div class="field"><label for="cta_url">Button link</label><input id="cta_url" name="cta_url" type="url" maxlength="500" value="{{ login_url }}" placeholder="https://your-domain/login"><div class="hint">Uses your public website URL. Set PUBLIC_APP_URL in Vercel for a fixed canonical domain.</div></div>
           </div>
 
-          <div class="section-label" style="margin-top:26px">02 · Who should receive it?</div><p style="margin:-4px 0 12px;color:#77819a;font-size:12px;line-height:1.55">Choose an audience below. Your selection controls exactly who receives this campaign.</p>
+          <div class="section-label" style="margin-top:26px">02 · Who should receive it?</div>
           <div class="mode-grid">
             <label class="mode"><input type="radio" name="recipient_mode" value="all" checked><span><b>🌐 All registered users</b><small>Everyone with a valid email address</small></span></label>
             <label class="mode"><input type="radio" name="recipient_mode" value="active"><span><b>✅ Active users</b><small>Only accounts currently active</small></span></label>
@@ -89,13 +95,13 @@ Please sign in to the Management System to review the latest information.</texta
             </div>
             <div id="userList" class="user-list">
               {% for u in users %}<label class="user-item" data-search="{{ (u.name ~ ' ' ~ u.username ~ ' ' ~ u.email)|lower }}" data-user-id="{{ u.id }}">
-                <input type="checkbox" name="selected_user_ids" value="{{ u.id }}" data-user-id="{{ u.id }}" aria-label="Select {{ u.name or u.username }}">
-                <span class="avatar">{{ (u.name or u.username or '?')[:1]|upper }}</span><span class="user-meta"><b>{{ u.name or 'Unnamed user' }}</b><small>@{{ u.username }} · {{ u.email }}</small></span>
+                <input type="checkbox" name="selected_user_ids" value="{{ u.id }}" data-user-id="{{ u.id }}">
+                <span class="avatar">{{ (u.name or u.username or '?')[:1]|upper }}</span><span class="user-meta"><b>{{ u.name }}</b><small>@{{ u.username }} · {{ u.email }}</small></span>
                 <span class="user-state {{ 'off' if not u.is_active else '' }}">{{ 'ACTIVE' if u.is_active else 'INACTIVE' }}</span>
               </label>{% endfor %}
             </div>
+            <div class="recipient-top hidden" id="singlePicker"><div class="field" style="margin:0"><label for="single_user_id">Choose one account</label><select name="single_user_id" id="single_user_id"><option value="">Select a user…</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name }} · {{ u.username }} · {{ u.email }}</option>{% endfor %}</select></div></div>
           </div>
-          <div class="recipient-box hidden" id="singlePicker" style="margin-top:10px"><div class="recipient-top"><div class="field" style="margin:0"><label for="single_user_id">👤 Choose one account</label><select name="single_user_id" id="single_user_id"><option value="">Select a user…</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name or 'Unnamed user' }} · @{{ u.username }} · {{ u.email }}</option>{% endfor %}</select><div class="hint">Only this account will receive the campaign.</div></div></div></div>
 
           <div class="section-label" style="margin-top:26px">03 · Send now or schedule</div>
           <div class="field"><label for="scheduled_at">Schedule date &amp; time (India / IST)</label><input id="scheduled_at" name="scheduled_at" type="datetime-local" min="{{ now_ist }}"><div class="hint">Only used when you click “Schedule email”. Scheduled delivery needs the cron endpoint configured and CRON_SECRET set.</div></div>
@@ -115,7 +121,7 @@ Please sign in to the Management System to review the latest information.</texta
           <div class="preview-bar"><span>EMAIL · RESPONSIVE</span><span>● LIVE</span></div>
           <div class="email-preview">
             <div class="email-header"><div class="email-logo">MS</div><div class="email-overline">MANAGEMENT SYSTEM</div><h4 id="previewSubject">Important announcement</h4></div>
-            <div class="email-content"><div class="email-to">Hello there,</div><div class="preview-message" id="previewMessage">We have an update to share with you.<br><br>Please sign in to the Management System to review the latest information.</div><div style="text-align:center"><a class="preview-cta" id="previewCta" href="{{ login_url }}" target="_blank" rel="noopener">Sign in to Management System →</a></div><p style="font-size:10px;line-height:1.7;color:#98a2b3;margin:22px 0 0">You are receiving this message from your Management System administrator. If this message was not intended for you, you may ignore it.</p></div>
+            <div class="email-content"><div class="email-to">Hello Aman / there,</div><div class="preview-message" id="previewMessage">We have an update to share with you.<br><br>Please sign in to the Management System to review the latest information.</div><div style="text-align:center"><a class="preview-cta" id="previewCta" href="{{ login_url }}" target="_blank" rel="noopener">Sign in to Management System →</a></div><p style="font-size:10px;line-height:1.7;color:#98a2b3;margin:22px 0 0">You are receiving this message from your Management System administrator. If this message was not intended for you, you may ignore it.</p></div>
             <div class="email-foot">Management System · Official notification</div>
           </div>
         </div>
@@ -157,6 +163,23 @@ Please sign in to the Management System to review the latest information.</texta
   </section>{% endif %}
   <p style="text-align:center;font-size:10px;line-height:1.7;color:#959db0;margin:20px 0 0">Delivery reports reflect provider acceptance, not proof that a message reached the inbox. Check Brevo / SMTP provider logs for final delivery, bounces or spam filtering.</p>
 </main>
+
+<div class="confirm-overlay" id="campaignConfirm" role="presentation" aria-hidden="true">
+  <section class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="campaignConfirmTitle" aria-describedby="campaignConfirmMessage">
+    <div class="confirm-accent"></div>
+    <div class="confirm-body">
+      <div class="confirm-icon" id="campaignConfirmIcon">✉️</div>
+      <p class="confirm-kicker" id="campaignConfirmKicker">Please confirm</p>
+      <h2 class="confirm-title" id="campaignConfirmTitle">Ready to continue?</h2>
+      <p class="confirm-message" id="campaignConfirmMessage">Please confirm this action.</p>
+    </div>
+    <div class="confirm-foot">
+      <button class="confirm-btn" type="button" id="campaignConfirmCancel">Cancel</button>
+      <button class="confirm-btn primary" type="button" id="campaignConfirmOk">Yes, continue</button>
+    </div>
+  </section>
+</div>
+
 <script>
 const presets = {
  announcement: {s:'Important announcement', m:'We have an update to share with you.\n\nPlease sign in to the Management System to review the latest information.'},
@@ -172,18 +195,70 @@ function refreshPreview(){document.getElementById('previewSubject').textContent=
 [subject,message,ctaLabel,ctaUrl].forEach(e=>e.addEventListener('input',refreshPreview));
 document.querySelectorAll('.preset').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.preset').forEach(b=>b.classList.toggle('active',b===btn));const key=btn.dataset.template;document.getElementById('template').value=key; if(presets[key]){subject.value=presets[key].s;message.value=presets[key].m;}else{document.getElementById('template').value='custom';}refreshPreview();}));
 const modes=[...document.querySelectorAll('input[name="recipient_mode"]')], picker=document.getElementById('recipientPicker'), userSearch=document.getElementById('userSearch'), userItems=[...document.querySelectorAll('.user-item')], checkboxes=[...document.querySelectorAll('input[name="selected_user_ids"]')], singlePicker=document.getElementById('singlePicker');
-function modeChanged(){const mode=modes.find(m=>m.checked)?.value||'all';picker.classList.toggle('hidden',mode!=='selected');singlePicker.classList.toggle('hidden',mode!=='single');document.getElementById('single_user_id').required=mode==='single';refreshSelectedCount();}
+function modeChanged(){const mode=modes.find(m=>m.checked)?.value||'all';picker.classList.toggle('hidden',mode==='all'||mode==='active');singlePicker.classList.toggle('hidden',mode!=='single');if(mode==='single'){document.getElementById('single_user_id').required=true;}else{document.getElementById('single_user_id').required=false;}refreshSelectedCount();}
 modes.forEach(m=>m.addEventListener('change',modeChanged));
 function visibleItems(){return userItems.filter(i=>!i.classList.contains('hidden'));}
 const ALL_USER_COUNT={{ eligible_count }};const ACTIVE_USER_COUNT={{ eligible_active_count }};
 function refreshSelectedCount(){const n=checkboxes.filter(c=>c.checked).length;const mode=modes.find(m=>m.checked)?.value||'all';let label=mode==='all'?`All users · ${ALL_USER_COUNT} recipients`:mode==='active'?`Active users · ${ACTIVE_USER_COUNT} recipients`:mode==='single'?(document.getElementById('single_user_id').value?'1 recipient':'Choose one user'):`${n} selected recipient${n===1?'':'s'}`;document.getElementById('selectedCount').textContent=label;document.getElementById('audienceSummary').textContent=mode==='all'?`Audience: all registered users with valid email addresses (${ALL_USER_COUNT} account(s) in the selector).`:mode==='active'?`Audience: active accounts with valid email addresses (${ACTIVE_USER_COUNT} account(s)).`:mode==='selected'?`Audience: ${n} selected user(s). Choose people using search below.`:`Audience: ${document.getElementById('single_user_id').value?'one selected user':'select exactly one user below'}.`; }
 userSearch.addEventListener('input',()=>{const q=userSearch.value.toLowerCase().trim();userItems.forEach(item=>item.classList.toggle('hidden',!!q&&!item.dataset.search.includes(q)));refreshSelectedCount();});
 checkboxes.forEach(c=>c.addEventListener('change',refreshSelectedCount));document.getElementById('single_user_id').addEventListener('change',refreshSelectedCount);
-document.getElementById('selectAll').addEventListener('click',()=>{visibleItems().forEach(item=>{const c=item.querySelector('input[type=checkbox]');if(c)c.checked=true;});refreshSelectedCount();});document.getElementById('clearAll').addEventListener('click',()=>{checkboxes.forEach(c=>c.checked=false);refreshSelectedCount();});
-document.getElementById('sendNow').addEventListener('click',e=>{if(form.reportValidity()&&!confirm('Send this campaign to the chosen audience now? The recipient list will be saved for delivery reporting.'))e.preventDefault();});
-document.getElementById('scheduleBtn').addEventListener('click',e=>{if(!document.getElementById('scheduled_at').value){alert('Choose a future date and time first.');e.preventDefault();return;}if(form.reportValidity()&&!confirm('Schedule this campaign for the selected date and time (IST)?'))e.preventDefault();});
-document.getElementById('testBtn').addEventListener('click',e=>{const target=document.getElementById('test_to');if(!subject.value.trim()||!message.value.trim()||!target.value.trim()){alert('Enter the subject, message, and test recipient email first.');e.preventDefault();return;}if(!confirm('Send a test copy only to '+target.value+'?'))e.preventDefault();});
-form.addEventListener('submit',e=>{const submitter=e.submitter;if(submitter===document.getElementById('testBtn')){submitter.disabled=true;submitter.textContent='Sending test…';return;}const mode=modes.find(m=>m.checked)?.value||'all';if(mode==='selected'&&!checkboxes.some(c=>c.checked)){alert('Select at least one recipient.');e.preventDefault();return;}if(mode==='single'&&!document.getElementById('single_user_id').value){alert('Choose one user.');e.preventDefault();return;}if(submitter===document.getElementById('sendNow')){submitter.disabled=true;submitter.textContent='Preparing campaign…';}});
+document.getElementById('selectAll').addEventListener('click',()=>visibleItems().forEach(item=>{const c=item.querySelector('input[type=checkbox]');c.checked=true;}));document.getElementById('clearAll').addEventListener('click',()=>checkboxes.forEach(c=>c.checked=false));document.getElementById('selectAll').addEventListener('click',refreshSelectedCount);document.getElementById('clearAll').addEventListener('click',refreshSelectedCount);
+const confirmOverlay=document.getElementById('campaignConfirm');
+const confirmTitle=document.getElementById('campaignConfirmTitle');
+const confirmMessage=document.getElementById('campaignConfirmMessage');
+const confirmIcon=document.getElementById('campaignConfirmIcon');
+const confirmKicker=document.getElementById('campaignConfirmKicker');
+const confirmOk=document.getElementById('campaignConfirmOk');
+const confirmCancel=document.getElementById('campaignConfirmCancel');
+let confirmResolver=null, lastConfirmFocus=null;
+function campaignConfirm({title,message,icon='✉️',kicker='Please confirm',okText='Yes, continue'}){
+  return new Promise(resolve=>{
+    confirmResolver=resolve;lastConfirmFocus=document.activeElement;
+    confirmTitle.textContent=title;confirmMessage.textContent=message;
+    confirmIcon.textContent=icon;confirmKicker.textContent=kicker;confirmOk.textContent=okText;
+    confirmOverlay.classList.add('is-open');confirmOverlay.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';confirmOk.focus();
+  });
+}
+function closeCampaignConfirm(answer){
+  confirmOverlay.classList.remove('is-open');confirmOverlay.setAttribute('aria-hidden','true');
+  document.body.style.overflow='';
+  if(confirmResolver){const resolve=confirmResolver;confirmResolver=null;resolve(answer);}
+  if(lastConfirmFocus&&typeof lastConfirmFocus.focus==='function')lastConfirmFocus.focus();
+}
+confirmOk.addEventListener('click',()=>closeCampaignConfirm(true));
+confirmCancel.addEventListener('click',()=>closeCampaignConfirm(false));
+confirmOverlay.addEventListener('click',e=>{if(e.target===confirmOverlay)closeCampaignConfirm(false);});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&confirmOverlay.classList.contains('is-open'))closeCampaignConfirm(false);});
+let approvedSubmitter=null;
+async function confirmSubmit(button, details){
+  if(!form.reportValidity())return;
+  const yes=await campaignConfirm(details);
+  if(!yes)return;
+  approvedSubmitter=button;
+  form.requestSubmit(button);
+}
+document.getElementById('sendNow').addEventListener('click',e=>{
+  e.preventDefault();
+  confirmSubmit(e.currentTarget,{title:'Send campaign now?',message:'This will send the campaign to the selected audience. The recipient list will be saved for delivery reporting.',icon:'🚀',kicker:'Send campaign',okText:'Send campaign'});
+});
+document.getElementById('scheduleBtn').addEventListener('click',e=>{
+  e.preventDefault();
+  const scheduled=document.getElementById('scheduled_at');
+  if(!scheduled.value){campaignConfirm({title:'Choose a send time',message:'Select a future date and time before scheduling this email campaign.',icon:'🗓️',kicker:'Schedule email',okText:'Got it'});return;}
+  confirmSubmit(e.currentTarget,{title:'Schedule this campaign?',message:'Your campaign will be scheduled for the selected date and time in India Standard Time (IST).',icon:'🗓️',kicker:'Schedule email',okText:'Confirm schedule'});
+});
+document.getElementById('testBtn').addEventListener('click',async e=>{
+  e.preventDefault();
+  const target=document.getElementById('test_to');
+  if(!subject.value.trim()||!message.value.trim()||!target.value.trim()){
+    campaignConfirm({title:'Complete the test email',message:'Enter an email subject, message, and test recipient address before sending a test copy.',icon:'📝',kicker:'Missing information',okText:'Got it'});return;
+  }
+  if(!form.reportValidity())return;
+  const yes=await campaignConfirm({title:'Send a test email?',message:'A test copy will be sent only to '+target.value+'. Your full campaign audience will not receive this test.',icon:'🧪',kicker:'Test email',okText:'Send test'});
+  if(yes){approvedSubmitter=e.currentTarget;form.requestSubmit(e.currentTarget);}
+});
+form.addEventListener('submit',e=>{const submitter=e.submitter;if(approvedSubmitter===submitter){approvedSubmitter=null;}if(submitter===document.getElementById('testBtn')){submitter.disabled=true;submitter.textContent='Sending test…';return;}const mode=modes.find(m=>m.checked)?.value||'all';if(mode==='selected'&&!checkboxes.some(c=>c.checked)){alert('Select at least one recipient.');e.preventDefault();return;}if(mode==='single'&&!document.getElementById('single_user_id').value){alert('Choose one user.');e.preventDefault();return;}if(submitter===document.getElementById('sendNow')){submitter.disabled=true;submitter.textContent='Preparing campaign…';}});
 refreshPreview();modeChanged();
 </script>
 </body></html>
