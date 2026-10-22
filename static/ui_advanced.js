@@ -25,14 +25,14 @@
   };
 window.addEventListener('pageshow',()=>hidePageLoader());
 
-  window.toggleSidebar=function(){
+  window.toggleSidebar=function(forceOpen){
     const sidebar=document.getElementById('sidebar');
     const menu=document.querySelector('.mobile-menu-btn');
     if(!sidebar) return;
-    const open=!sidebar.classList.contains('open');
+    const open = typeof forceOpen === 'boolean' ? forceOpen : !sidebar.classList.contains('open');
     sidebar.classList.toggle('open',open);
+    document.body.classList.toggle('sidebar-open',open && window.innerWidth<=768);
     if(menu){menu.setAttribute('aria-expanded',open?'true':'false');menu.setAttribute('aria-label',open?'Close menu':'Open menu');}
-    document.body.classList.toggle('sidebar-open',open);
   };
 
   // Reliable mobile drawer controls: handle taps at the button itself, close on
