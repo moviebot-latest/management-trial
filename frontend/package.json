@@ -1,7 +1,7 @@
 {
   "name": "management-system-frontend",
   "private": true,
-  "version": "58.0.0",
+  "version": "59.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -16,8 +16,5 @@
     "react-dom": "18.3.1",
     "lucide-react": "0.468.0"
   },
-  "devDependencies": {
-  "@types/react": "^18.3.18",
-  "@types/react-dom": "^18.3.5"
-  }
+  "devDependencies": {}
 }
