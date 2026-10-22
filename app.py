@@ -1791,7 +1791,7 @@ def email_campaigns():
     eligible_users = [u for u in users if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", (u.email or "").strip()) and not (u.email or "").strip().casefold().endswith(".local")]
     eligible_active_users = [u for u in eligible_users if u.is_active]
     return render_template(
-        "email_campaigns.html", current_name=session.get("name", "Admin"), users=eligible_users,
+        "email_campaigns.html", current_name=session.get("name", "Admin"), users=users,
         eligible_count=len(eligible_users), eligible_active_count=len(eligible_active_users),
         campaigns=campaigns, detail_campaign=detail_campaign, detail_recipients=detail_recipients,
         login_url=login_url, provider=_campaign_provider_name(), submission_key=secrets.token_urlsafe(28),
