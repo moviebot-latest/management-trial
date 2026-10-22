@@ -1,0 +1,9 @@
+Management System — V51 Email Campaign Center + Auth OTP Polish
+
+Based on the latest V50 package in the active workspace. Preserves the prior Flask + SQLAlchemy + Neon/Vercel architecture.
+
+Added: admin-only Email Campaign Center; all/active/selected/single-recipient modes; searchable recipient picker; safe branded email rendering; seven templates; live preview; test email sending and history; campaign per-recipient delivery reports; retry for failed recipients; scheduled campaigns with edit/cancel; protected CRON_SECRET endpoint; idempotent submission key and unique per-campaign recipient guard; Vercel navigation links; setup documentation.
+
+Polished: registration OTP visuals and resend countdown are retained; forgot-password OTP now has progressive steps, clearer expiry guidance, a resend cooldown, submit states, and a working Start over action.
+
+Validation boundary: Python syntax compilation and Jinja template parsing are run in this workspace. Full Flask/SQLAlchemy route tests and real SMTP/Brevo/Vercel/Neon delivery tests require application dependencies and the user's configured credentials/database; do not treat source validation as production delivery confirmation.

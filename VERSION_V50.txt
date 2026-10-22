@@ -1,0 +1,21 @@
+Management System V50 — Attractive Registration & Account Success
+
+Changes:
+- Refined account creation page with a 3-step progress indicator and improved mobile layout.
+- Improved email verification card and branded HTML OTP emails (also reused for password-reset OTP mail).
+- Added a server-calculated OTP resend countdown, matching the existing server-side resend limit.
+- Fixed password-strength UI edge case where a five-point score could access a non-existent fifth bar.
+- Added live password confirmation mismatch feedback when either password changes.
+- Added client-side password complexity pattern that mirrors the existing backend validation rules.
+- Added a one-time account success route/screen after OTP verification and database commit.
+- Added animated success checkmark, reduced-motion support, responsive layout, username and Employee ID display.
+- Added a branded account-created email with a direct login link using the current deployment URL.
+- Account creation remains successful even if the optional welcome email fails; the success page reports the email status.
+- No new Python package dependencies or database schema changes.
+
+Validation:
+- app.py Python syntax compilation passed.
+- register.html and account_success.html Jinja parsing and representative rendering passed.
+- Rendered registration-page inline JavaScript syntax validation passed with Node.js.
+- Welcome-email payload was tested with a mocked Brevo response, including recipient, login URL, username, and HTML escaping.
+- Full Flask/SQLAlchemy request integration and live email delivery were not runnable in this workspace because Flask packages are not installed and network access prevented installing them. Verify OTP/login/email behavior in a staging deployment before production rollout.
