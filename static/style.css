@@ -1520,3 +1520,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 @media(prefers-reduced-motion:reduce) {
   .ai-step.active, .ai-step.active .step-icon, .ai-step.active strong { animation:none!important; }
 }
+
+
+/* V54 responsive sidebar and reliable mobile touch targets */
+@media(max-width:768px){
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(86vw,320px);max-width:320px;transform:translateX(-105%);visibility:hidden;pointer-events:none;z-index:1200;transition:transform .24s ease,visibility .24s ease;box-shadow:12px 0 34px rgba(15,23,42,.18);}
+  .sidebar.open{transform:translateX(0);visibility:visible;pointer-events:auto;}
+  .topbar{position:sticky;top:0;z-index:1202;}
+  .mobile-menu-btn{position:relative;z-index:1203;pointer-events:auto;touch-action:manipulation;cursor:pointer;}
+  body.sidebar-open:after{pointer-events:auto;}
+}
+@media(min-width:769px){.sidebar{transform:none!important;visibility:visible!important;pointer-events:auto!important}.mobile-menu-btn{display:none!important}}
