@@ -1,9 +1,0 @@
-Management System V49 — Registration OTP HTML scope fix
-
-Root cause: send_otp_email() used html.escape(...) and later assigned the HTML email body to a local variable named html. Python therefore treated html as a local variable throughout the function and raised UnboundLocalError before sending OTP.
-
-Fix: import the standard library module as html_lib and call html_lib.escape(...) while retaining the local html variable for the email body. This also keeps HTML escaping of the display name.
-
-Based on V48 OTP/Brevo/SMTP fallback and diagnostics package. Existing templates, static files, database configuration, schema, and records are unchanged by this patch.
-
-Deployment: replace repository files with this ZIP's contents and redeploy. Verify registration OTP and password-reset OTP. Keep existing DATABASE_URL pointed to the existing Neon database.

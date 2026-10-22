@@ -1,7 +1,0 @@
-Management System V48 - OTP Provider Fallback + Diagnostics
-
-Based on V47. Fixes the provider failover gap: if Brevo is configured but its send request fails, the app now attempts SMTP when valid SMTP settings are also configured. If no SMTP fallback is configured, the Brevo failure is surfaced to server logs. SMTP failure logs remain credential-safe. Registration route logs the server-side exception for diagnosis.
-
-Required for email delivery: configure either BREVO_API_KEY + BREVO_SENDER_EMAIL, or SMTP_HOST + SMTP_PORT + SMTP_USER + SMTP_PASSWORD + SMTP_FROM in Vercel Production environment. If using both, SMTP can act as a fallback. Sender address must be authorized by the email provider. Redeploy after changing environment variables.
-
-No database reset/drop/truncate added. Existing Neon data is preserved. Syntax and ZIP integrity checks are required; live Vercel/email delivery cannot be verified offline.
