@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
@@ -8,9 +9,8 @@ import (
 	"management-system-go/backend"
 )
 
-var handlerOnce sync.Once
+var handlerMu sync.Mutex
 var apiHandler http.Handler
-var initErr error
 
 // Handler is the single Vercel Go Function. vercel.json forwards /api/* here
 // while preserving the original API path in the private __path query value.
@@ -27,10 +27,22 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		}
 		r.URL.Path = originalPath
 	}
-	handlerOnce.Do(func() { apiHandler, initErr = backend.NewHandler() })
-	if initErr != nil {
-		http.Error(w, "Service temporarily unavailable. Check server configuration and database connectivity.", http.StatusServiceUnavailable)
-		return
+	handlerMu.Lock()
+	if apiHandler == nil {
+		h, err := backend.NewHandler()
+		if err != nil {
+			handlerMu.Unlock()
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"message": "API initialization failed. Verify DATABASE_URL, SESSION_SECRET, and Neon database connectivity in Vercel Environment Variables and Runtime Logs.",
+				"code":    "API_INITIALIZATION_FAILED",
+			})
+			return
+		}
+		apiHandler = h
 	}
-	apiHandler.ServeHTTP(w, r)
+	h := apiHandler
+	handlerMu.Unlock()
+	h.ServeHTTP(w, r)
 }
