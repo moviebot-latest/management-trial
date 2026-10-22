@@ -17,6 +17,19 @@
 @media(max-width:1050px){.layout{grid-template-columns:minmax(0,1fr)}.preview-wrap{position:static}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.page{padding:12px 10px 32px}.brand h1{font-size:17px}.brand p{font-size:11px}.hero{border-radius:21px}.stat{padding:13px}.stat strong{font-size:22px}.card{border-radius:18px}.card-head,.card-body{padding:17px 14px}.row2,.mode-grid{grid-template-columns:1fr}.preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.preset:last-child{grid-column:span 2}.form-actions{display:grid;grid-template-columns:1fr}.form-actions .button{width:100%}.top-actions{width:100%}.top-actions .button{flex:1}.user-state{display:none}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* V54: clearer audience cards and consistent controls on touch screens */
+.mode-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.mode{position:relative;min-width:0;min-height:88px;padding:15px;align-items:flex-start;gap:11px;border-radius:16px;transition:border-color .18s,background .18s,box-shadow .18s}
+.mode:hover{border-color:#b8b3ff;box-shadow:0 5px 16px #5145e50d}
+.mode:has(input:checked){border-color:#7467ee;background:linear-gradient(135deg,#f4f2ff,#fff);box-shadow:0 0 0 2px #7568ee1a}
+.mode input[type=radio]{appearance:auto;-webkit-appearance:radio;width:19px!important;min-width:19px;height:19px!important;flex:0 0 19px;margin:1px 0 0!important;padding:0;accent-color:#5b4de2;cursor:pointer}
+.mode span{display:block;min-width:0;flex:1}.mode b{font-size:13px;line-height:1.4;color:#263252}.mode small{font-size:11px;line-height:1.5;margin-top:5px}
+.mode:has(input:checked) b{color:#4b40ce}
+.recipient-box{background:#fff}.recipient-top{padding:14px}.recipient-actions .mini-btn{min-height:36px;padding:8px 11px;touch-action:manipulation}.searchbox{min-height:45px}.user-item{min-height:54px;padding:11px 9px}.user-item input[type=checkbox]{width:19px!important;height:19px!important;min-width:19px;}
+.form-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.form-actions .button{min-height:48px;white-space:normal;text-align:center;line-height:1.3}
+.field input,.field select,.field textarea,.searchbox{min-width:0}
+@media(max-width:760px){.mode-grid{grid-template-columns:1fr}.mode{min-height:74px;padding:14px}.form-actions{grid-template-columns:1fr}.form-actions .button{width:100%}.row2{grid-template-columns:minmax(0,1fr)}.top-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.top-actions .button{min-width:0}.recipient-actions{align-items:stretch}.recipient-actions>div{display:flex;gap:6px}.recipient-actions .mini-btn{flex:1}.user-list{max-height:260px}.card-head{align-items:flex-start}.card-head .pill{flex:0 0 auto}}
+@media(min-width:761px) and (max-width:1050px){.mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
 <body>
@@ -60,7 +73,7 @@ Please sign in to the Management System to review the latest information.</texta
             <div class="field"><label for="cta_url">Button link</label><input id="cta_url" name="cta_url" type="url" maxlength="500" value="{{ login_url }}" placeholder="https://your-domain/login"><div class="hint">Uses your public website URL. Set PUBLIC_APP_URL in Vercel for a fixed canonical domain.</div></div>
           </div>
 
-          <div class="section-label" style="margin-top:26px">02 · Who should receive it?</div>
+          <div class="section-label" style="margin-top:26px">02 · Who should receive it?</div><p style="margin:-4px 0 12px;color:#77819a;font-size:12px;line-height:1.55">Choose an audience below. Your selection controls exactly who receives this campaign.</p>
           <div class="mode-grid">
             <label class="mode"><input type="radio" name="recipient_mode" value="all" checked><span><b>🌐 All registered users</b><small>Everyone with a valid email address</small></span></label>
             <label class="mode"><input type="radio" name="recipient_mode" value="active"><span><b>✅ Active users</b><small>Only accounts currently active</small></span></label>
