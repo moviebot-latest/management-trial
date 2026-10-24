@@ -1114,7 +1114,7 @@ def register():
 
     name       = request.form.get("name", "").strip()
     gender     = request.form.get("gender", "").strip()
-    department = request.form.get("department", "").strip()
+    department = "Unassigned"
     email      = request.form.get("email", "").strip().lower()
     username   = request.form.get("username", "").strip()
     password   = request.form.get("password", "")
@@ -1124,14 +1124,12 @@ def register():
         flash(msg, "error")
         return render_template("register.html", otp_sent=False, pending_email="", resend_wait=0), 400
 
-    if not all([name, gender, department, email, username, password, confirm]):
-        return err("All fields are required.")
+    if not all([name, gender, email, username, password, confirm]):
+        return err("All required fields must be completed.")
     if not _email_configured():
         return err("Email verification is not configured yet. Please contact the administrator.")
     if gender not in VALID_GENDERS:
         return err("Invalid gender selected.")
-    if department not in VALID_DEPARTMENTS:
-        return err("Invalid department selected.")
     if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
         return err("Invalid email address.")
     if not re.match(r'^[a-zA-Z0-9_.\-]+$', username):
@@ -2206,7 +2204,7 @@ def create_user():
     # The account is NOT inserted into User until the OTP is verified.
     name       = request.form.get("name",       "").strip()
     gender     = request.form.get("gender",     "").strip()
-    department = request.form.get("department", "").strip()
+    department = "Unassigned"
     email      = request.form.get("email",      "").strip().lower()
     username   = request.form.get("username",   "").strip()
     password   = request.form.get("password",   "")
@@ -2216,14 +2214,12 @@ def create_user():
         flash(msg, "error")
         return redirect(url_for("dashboard"))
 
-    if not all([name, gender, department, email, username, password, confirm]):
+    if not all([name, gender, email, username, password, confirm]):
         return err("All fields are required.")
     if not _email_configured():
         return err("Email verification is not configured. Add the Brevo environment variables first.")
     if gender not in VALID_GENDERS:
         return err("Invalid gender.")
-    if department not in VALID_DEPARTMENTS:
-        return err("Invalid department.")
     if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
         return err("Invalid email address.")
     if not re.match(r'^[a-zA-Z0-9_.\-]+$', username):
@@ -2402,6 +2398,30 @@ def edit_user(user_id):
     except IntegrityError:
         db.session.rollback()
         flash("Username or email already exists.", "error")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/admin/users/<int:user_id>/role", methods=["POST"])
+@admin_required
+def change_user_role(user_id):
+    """Allow an administrator to promote/demote non-admin accounts only."""
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("dashboard"))
+    if user.role == "admin":
+        flash("The environment-managed admin role cannot be changed here.", "error")
+        return redirect(url_for("dashboard"))
+    new_role = request.form.get("role", "").strip().lower()
+    if new_role not in {"user", "librarian"}:
+        flash("Choose a valid role.", "error")
+        return redirect(url_for("dashboard"))
+    old_role = user.role
+    user.role = new_role
+    db.session.commit()
+    log_action(session.get("username", "admin"), "ADMIN_ROLE_CHANGE",
+               f"Changed role for {user.username}: {old_role} -> {new_role}")
+    flash(f"{user.username} is now {'Librarian' if new_role == 'librarian' else 'User'}.", "success")
     return redirect(url_for("dashboard"))
 
 
