@@ -25,20 +25,51 @@
   };
 window.addEventListener('pageshow',()=>hidePageLoader());
 
-  // Reliable mobile navigation: one handler controls the hamburger and drawer links.
+  // Mobile navigation: one predictable drawer/backdrop/close-button controller.
+  const sidebarEl=document.getElementById('sidebar');
+  let sidebarBackdrop=null;
+  if(sidebarEl){
+    sidebarBackdrop=document.getElementById('sidebarBackdrop');
+    if(!sidebarBackdrop){
+      sidebarBackdrop=document.createElement('button');
+      sidebarBackdrop.type='button';
+      sidebarBackdrop.id='sidebarBackdrop';
+      sidebarBackdrop.className='sidebar-backdrop';
+      sidebarBackdrop.setAttribute('aria-label','Close navigation menu');
+      sidebarBackdrop.setAttribute('aria-hidden','true');
+      sidebarEl.parentNode.insertBefore(sidebarBackdrop,sidebarEl);
+    }
+    const sidebarTop=sidebarEl.querySelector('.sidebar-top');
+    if(sidebarTop && !sidebarTop.querySelector('.sidebar-close-btn')){
+      const closeBtn=document.createElement('button');
+      closeBtn.type='button';
+      closeBtn.className='sidebar-close-btn';
+      closeBtn.setAttribute('aria-label','Close menu');
+      closeBtn.innerHTML='&times;';
+      sidebarTop.appendChild(closeBtn);
+    }
+  }
   function setSidebarOpen(open){
     const sidebar=document.getElementById('sidebar');
     const menu=document.querySelector('.mobile-menu-btn');
     if(!sidebar)return;
-    sidebar.classList.toggle('open',!!open);
-    document.body.classList.toggle('sidebar-open',!!open);
-    if(menu){menu.setAttribute('aria-expanded',open?'true':'false');menu.setAttribute('aria-label',open?'Close menu':'Open menu');}
+    const shouldOpen=!!open && window.innerWidth<=768;
+    sidebar.classList.toggle('open',shouldOpen);
+    document.body.classList.toggle('sidebar-open',shouldOpen);
+    if(sidebarBackdrop){
+      sidebarBackdrop.setAttribute('aria-hidden',shouldOpen?'false':'true');
+      sidebarBackdrop.tabIndex=shouldOpen?0:-1;
+    }
+    if(menu){menu.setAttribute('aria-expanded',shouldOpen?'true':'false');menu.setAttribute('aria-label',shouldOpen?'Close menu':'Open menu');}
   }
   window.toggleSidebar=function(){
     const sidebar=document.getElementById('sidebar');
     if(sidebar)setSidebarOpen(!sidebar.classList.contains('open'));
   };
   document.addEventListener('click',function(e){
+    const closeBtn=e.target.closest('.sidebar-close-btn');
+    if(closeBtn){ e.preventDefault(); setSidebarOpen(false); return; }
+    if(e.target.closest('.sidebar-backdrop')){ e.preventDefault(); setSidebarOpen(false); return; }
     const menu=e.target.closest('.mobile-menu-btn');
     if(menu){
       e.preventDefault();
