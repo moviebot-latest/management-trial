@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='mobile-drawer-20261024') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='roles-and-mobile-fix-20261024') }}">
 <style>
 .verify-card{margin:18px 0;padding:22px;border:1px solid #ddd6fe;border-radius:20px;background:linear-gradient(135deg,#faf8ff,#fff);box-shadow:0 10px 30px rgba(99,102,241,.10)}
 .verify-orb{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:28px;box-shadow:0 0 0 8px rgba(99,102,241,.08);animation:otpPulse 1.8s infinite}
@@ -37,7 +37,7 @@
     <p>Create your account to get instant access to the management dashboard and team tools.</p>
     <ul class="auth-side-features">
       <li><span class="feat-icon">⚡</span> Quick 2-minute setup</li>
-      <li><span class="feat-icon">🏢</span> Choose your department</li>
+      <li><span class="feat-icon">👤</span> Personal account dashboard</li>
       <li><span class="feat-icon">🔐</span> Secure from day one</li>
       <li><span class="feat-icon">📈</span> Access team analytics</li>
     </ul>
@@ -47,7 +47,7 @@
     <div class="auth-form-box" style="max-width:460px">
       <div class="auth-logo-sm">MS</div>
       <h1 class="auth-title">Create your account</h1>
-      <p class="auth-sub">A few details, one quick verification, and you're in.</p>
+      <p class="auth-sub">Create your account with a quick email verification. New accounts start as User; an Admin can promote trusted accounts to Librarian.</p>
       <div class="signup-steps" aria-label="Account creation progress">
         <div class="signup-step {{ 'done' if otp_sent else 'active' }}"><b>{% if otp_sent %}✓{% else %}1{% endif %}</b><span>Details</span></div>
         <div class="signup-step {{ 'active' if otp_sent else '' }}"><b>2</b><span>Verify</span></div>
@@ -102,22 +102,13 @@
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
-          <div class="field">
+        <div class="field">
             <label for="r-gender">Gender</label>
             <select id="r-gender" name="gender" required>
               <option value="">Select…</option>
               <option>Male</option><option>Female</option>
               <option>Other</option><option>Prefer not to say</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="r-dept">Department</label>
-            <select id="r-dept" name="department" required>
-              <option value="">Select…</option>
-              {% for d in valid_departments %}<option>{{ d }}</option>{% endfor %}
-            </select>
-          </div>
         </div>
 
         <div class="field">

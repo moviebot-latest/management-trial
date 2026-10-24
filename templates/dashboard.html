@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='mobile-drawer-20261024') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='roles-and-mobile-fix-20261024') }}">
 
 <style id="dashboard-mobile-sidebar-fix">
 .sidebar-backdrop { display: none; }
@@ -104,6 +104,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       <a href="{{ url_for('export_users') }}" class="nav-item">
         <span class="nav-icon">📥</span> Export CSV
       </a>
+      {% elif role == 'librarian' %}
+      <div class="sidebar-section-title" style="margin-top:8px">Librarian Workspace</div>
+      <a href="{{ url_for('dashboard') }}" class="nav-item"><span class="nav-icon">📚</span> Staff Dashboard</a>
       {% endif %}
     </nav>
 
@@ -130,7 +133,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
     <header class="topbar">
       <div class="topbar-left">
         <div class="topbar-title">
-          {% if role == 'admin' %}Admin Dashboard{% else %}My Account{% endif %}
+          {% if role == 'admin' %}Admin Dashboard{% elif role == 'librarian' %}Librarian Dashboard{% else %}My Account{% endif %}
         </div>
         <div class="topbar-sub">Welcome back, {{ current_name }} &mdash; {{ current_username }}</div>
       </div>
@@ -316,6 +319,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
               <th>EMP ID</th>
               <th>Name</th>
               <th>Department</th>
+              <th>Role</th>
               <th>Email</th>
               <th>Username</th>
               <th>Status</th>
@@ -332,6 +336,19 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
               </td>
               <td>
                 <span class="badge badge-admin" style="font-size:10px">{{ u.department }}</span>
+              </td>
+              <td>
+                <span class="badge {% if u.role == 'admin' %}badge-admin{% elif u.role == 'librarian' %}badge-active{% else %}badge-inactive{% endif %}">{{ u.role|capitalize }}</span>
+                {% if u.role != 'admin' %}
+                <form method="post" action="{{ url_for('change_user_role', user_id=u.id) }}" class="inline-form" style="margin-top:6px">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                  <select name="role" aria-label="Change role for {{ u.username }}" style="max-width:120px;font-size:11px;padding:5px">
+                    <option value="user" {% if u.role == 'user' %}selected{% endif %}>User</option>
+                    <option value="librarian" {% if u.role == 'librarian' %}selected{% endif %}>Librarian</option>
+                  </select>
+                  <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Change role for {{ u.username|e }}?')">Save role</button>
+                </form>
+                {% endif %}
               </td>
               <td class="cell-email">{{ u.email }}</td>
               <td style="font-family:monospace;font-size:12px;color:var(--gray-500)">{{ u.username }}</td>
@@ -381,7 +398,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
             </tr>
             {% else %}
             <tr>
-              <td colspan="7" style="text-align:center;padding:32px;color:var(--gray-300);font-style:italic">
+              <td colspan="8" style="text-align:center;padding:32px;color:var(--gray-300);font-style:italic">
                 No users found. {% if search or dept_filter or status_filter %}Try clearing the filters.{% endif %}
               </td>
             </tr>
@@ -415,7 +432,38 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 
     </div>{# /panel users #}
 
-    <!-- ==================== USER (non-admin) VIEW ==================== -->
+    <!-- ==================== LIBRARIAN VIEW ==================== -->
+    {% elif role == 'librarian' %}
+
+    <div class="stats-row">
+      <div class="stat-card blue">
+        <div class="stat-icon-wrap">📚</div>
+        <div class="stat-label">Staff Workspace</div>
+        <div class="stat-value">Ready</div>
+        <div class="stat-hint">Librarian account</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-icon-wrap">🛡️</div>
+        <div class="stat-label">Access Level</div>
+        <div class="stat-value">Librarian</div>
+        <div class="stat-hint">Role assigned by Admin</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:20px">
+      <div class="panel-head"><div><h2>📚 Librarian Workspace</h2><p>Welcome, {{ current_name }}. Your account has librarian access.</p></div></div>
+      <div class="panel-body">
+        <div class="info-grid">
+          <div class="info-cell"><div class="lbl">Name</div><div class="val">{{ current_name }}</div></div>
+          <div class="info-cell"><div class="lbl">Username</div><div class="val">{{ current_username }}</div></div>
+          <div class="info-cell"><div class="lbl">Role</div><div class="val"><span class="badge badge-active">Librarian</span></div></div>
+          <div class="info-cell"><div class="lbl">Permissions</div><div class="val">Staff dashboard and account security</div></div>
+        </div>
+        <p style="margin-top:18px;color:var(--gray-400);font-size:13px">Administrative user management, account deletion, and system settings remain restricted to Admin.</p>
+        <a href="/change-password" class="btn btn-primary" style="margin-top:14px">🔒 Change Password</a>
+      </div>
+    </div>
+
+    <!-- ==================== USER / MEMBER VIEW ==================== -->
     {% else %}
 
     <div class="profile-grid">
@@ -488,15 +536,6 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
           <select name="gender" required>
             <option value="">Select…</option>
             <option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option>
-          </select>
-        </div>
-        <div class="field"><label>Department</label>
-          <select name="department" required>
-            <option value="">Select…</option>
-            <option>Administration</option><option>Human Resources</option><option>Finance</option>
-            <option>Sales</option><option>IT / Engineering</option><option>Operations</option>
-            <option>Marketing</option><option>Legal</option><option>Customer Support</option>
-            <option>Research &amp; Development</option>
           </select>
         </div>
         <div class="field"><label>Email</label><input name="email" type="email" required maxlength="160" placeholder="user@example.com"></div>
@@ -699,7 +738,7 @@ function openEdit(btn){
 
 
 
-<script src="{{ url_for('static', filename='ui_advanced.js', v='mobile-drawer-20261024') }}"></script>
+<script src="{{ url_for('static', filename='ui_advanced.js', v='roles-and-mobile-fix-20261024') }}"></script>
 <script>
 (function(){
   const backdrop = document.getElementById('sidebarBackdrop');
