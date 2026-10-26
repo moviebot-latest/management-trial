@@ -2,6 +2,7 @@ import os
 import csv
 import io
 import secrets
+import hashlib
 import re
 import json
 import html as html_lib
@@ -404,16 +405,22 @@ def send_otp_email(email, otp, name, purpose="verification"):
     raw_name = (name or "there").strip()[:120]
     safe_name = html_lib.escape(raw_name, quote=True)
     is_reset = purpose == "password_reset"
-    title = "🔐 Reset your password" if is_reset else "🔐 Verify your email"
-    intro = ("Use this one-time code to reset your Management System password:"
-             if is_reset else
-             "Use this one-time verification code to finish creating your Management System account:")
-    subject = ("Your Management System password reset code"
-               if is_reset else
-               "Your Management System verification code")
-    plain = (f"Your Management System password reset code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
-             if is_reset else
-             f"Your Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes.")
+    is_admin_login = purpose == "admin_login"
+    if is_admin_login:
+        title = "🔐 Admin sign-in verification"
+        intro = "A sign-in attempt passed the admin username and password check. Enter this one-time code to finish signing in to the Admin Panel:"
+        subject = "Your Admin Panel sign-in code"
+        plain = f"Your Admin Panel sign-in code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes. If this wasn't you, change your admin password immediately."
+    elif is_reset:
+        title = "🔐 Reset your password"
+        intro = "Use this one-time code to reset your Management System password:"
+        subject = "Your Management System password reset code"
+        plain = f"Your Management System password reset code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
+    else:
+        title = "🔐 Verify your email"
+        intro = "Use this one-time verification code to finish creating your Management System account:"
+        subject = "Your Management System verification code"
+        plain = f"Your Management System verification code is {otp}. It expires in {OTP_EXPIRY_MINUTES} minutes."
     html = f"""<!doctype html>
 <html lang=\"en\"><body style=\"margin:0;padding:24px 12px;background:#f4f6ff;font-family:Arial,Helvetica,sans-serif;color:#172033\">
   <div style=\"max-width:540px;margin:0 auto;background:#fff;border:1px solid #e8eaf5;border-radius:22px;overflow:hidden;box-shadow:0 16px 48px rgba(35,42,84,.12)\">
@@ -1078,7 +1085,42 @@ def login_page():
         log_action(user.username, "LOGIN_FAILED", f"Invalid password; {max(0, remaining)} attempt(s) remaining")
         return render_template("login.html"), 401
 
-    # Successful login: reset lockout and persist activity timestamp.
+    # Admin sign-in requires a second factor sent to the owner mailbox.
+    # Do not create an authenticated session until the OTP is verified.
+    if user.role == "admin":
+        owner_email = os.environ.get("ADMIN_EMAIL", "").strip()
+        if not owner_email:
+            app.logger.error("Admin 2-step login blocked: ADMIN_EMAIL is not configured.")
+            flash("Admin security email is not configured. Set ADMIN_EMAIL in Vercel Environment Variables.", "error")
+            return render_template("login.html"), 503
+        if not _email_configured():
+            app.logger.error("Admin 2-step login blocked: email provider is not configured.")
+            flash("Admin email verification is not configured. Set Brevo or SMTP environment variables in Vercel.", "error")
+            return render_template("login.html"), 503
+        otp = f"{secrets.randbelow(1000000):06d}"
+        try:
+            send_otp_email(owner_email, otp, "Admin", purpose="admin_login")
+        except Exception as exc:
+            app.logger.error("Admin OTP delivery failed: %s", type(exc).__name__)
+            flash("Could not send the admin verification email. Check Vercel email settings and try again.", "error")
+            return render_template("login.html"), 503
+
+        user.unlock()
+        db.session.commit()
+        session.clear()
+        session.permanent = True
+        session["pending_admin_otp"] = {
+            "user_id": user.id,
+            "otp_hash": hashlib.sha256(otp.encode("utf-8")).hexdigest(),
+            "expires_at": int(time.time()) + OTP_EXPIRY_MINUTES * 60,
+            "attempts": 0,
+            "sent_at": int(time.time()),
+        }
+        log_action(user.username, "ADMIN_OTP_SENT", "Admin second-factor code sent to configured owner mailbox")
+        flash(f"Verification code sent to owner email {mask_email(owner_email)}. It expires in {OTP_EXPIRY_MINUTES} minutes.", "success")
+        return redirect(url_for("admin_login_verify"))
+
+    # Non-admin accounts keep the normal password-only login flow.
     user.unlock()
     user.last_login = datetime.utcnow()
     db.session.commit()
@@ -1091,6 +1133,81 @@ def login_page():
     session["role"]      = user.role
     log_action(user.username, "LOGIN_SUCCESS", f"Successful login | role={user.role}")
 
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/admin-login/verify", methods=["GET", "POST"])
+def admin_login_verify():
+    """Second-factor verification for admin accounts only."""
+    pending = session.get("pending_admin_otp")
+    if not pending:
+        flash("Please enter your admin username and password first.", "error")
+        return redirect(url_for("login_page"))
+
+    owner_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    if request.method == "GET":
+        if int(time.time()) > int(pending.get("expires_at", 0)):
+            session.pop("pending_admin_otp", None)
+            flash("The admin verification code expired. Please sign in again.", "error")
+            return redirect(url_for("login_page"))
+        return render_template("admin_login_verify.html", owner_email=mask_email(owner_email), expiry_minutes=OTP_EXPIRY_MINUTES)
+
+    action = request.form.get("action", "verify")
+    now = int(time.time())
+    if action == "resend":
+        if now - int(pending.get("sent_at", 0)) < OTP_RESEND_SECONDS:
+            flash("Please wait a moment before requesting another code.", "error")
+            return redirect(url_for("admin_login_verify"))
+        if not owner_email or not _email_configured():
+            flash("Admin email delivery is not configured. Check Vercel environment variables.", "error")
+            return redirect(url_for("login_page"))
+        otp = f"{secrets.randbelow(1000000):06d}"
+        try:
+            send_otp_email(owner_email, otp, "Admin", purpose="admin_login")
+        except Exception as exc:
+            app.logger.error("Admin OTP resend failed: %s", type(exc).__name__)
+            flash("Could not resend the code. Check email configuration and try again.", "error")
+            return redirect(url_for("admin_login_verify"))
+        pending.update({"otp_hash": hashlib.sha256(otp.encode("utf-8")).hexdigest(), "expires_at": now + OTP_EXPIRY_MINUTES * 60, "attempts": 0, "sent_at": now})
+        session["pending_admin_otp"] = pending
+        flash("A new verification code was sent to the owner email.", "success")
+        return redirect(url_for("admin_login_verify"))
+
+    code = re.sub(r"\s+", "", request.form.get("otp", ""))
+    if now > int(pending.get("expires_at", 0)):
+        session.pop("pending_admin_otp", None)
+        flash("The verification code expired. Please sign in again.", "error")
+        return redirect(url_for("login_page"))
+    if int(pending.get("attempts", 0)) >= OTP_MAX_ATTEMPTS:
+        session.pop("pending_admin_otp", None)
+        flash("Too many incorrect codes. Please sign in again.", "error")
+        return redirect(url_for("login_page"))
+    candidate_hash = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    if not re.fullmatch(r"\d{6}", code) or not secrets.compare_digest(candidate_hash, pending.get("otp_hash", "")):
+        pending["attempts"] = int(pending.get("attempts", 0)) + 1
+        session["pending_admin_otp"] = pending
+        remaining = max(0, OTP_MAX_ATTEMPTS - pending["attempts"])
+        flash(f"Incorrect verification code. {remaining} attempt(s) remaining.", "error")
+        return render_template("admin_login_verify.html", owner_email=mask_email(owner_email), expiry_minutes=OTP_EXPIRY_MINUTES), 401
+
+    admin = db.session.get(User, int(pending.get("user_id", 0)))
+    session.pop("pending_admin_otp", None)
+    if not admin or not admin.is_active or admin.role != "admin":
+        session.clear()
+        flash("Admin account is no longer active. Contact the system owner.", "error")
+        return redirect(url_for("login_page"))
+
+    admin.unlock()
+    admin.last_login = datetime.utcnow()
+    db.session.commit()
+    session.clear()
+    session.permanent = True
+    session["user_id"] = admin.id
+    session["username"] = admin.username
+    session["name"] = admin.name
+    session["role"] = admin.role
+    log_action(admin.username, "LOGIN_SUCCESS", "Admin login completed after email OTP verification")
+    flash("Two-step verification complete. Welcome to the Admin Panel.", "success")
     return redirect(url_for("dashboard"))
 
 
@@ -2794,6 +2911,13 @@ def _migrate_existing_schema():
         _ensure_unique_index("user", col)
     _ensure_casefold_unique_index("user", "username")
     _ensure_casefold_unique_index("user", "email")
+
+    # Repair the legacy book table used by the dashboard and catalog. Existing Neon
+    # databases may predate the category field; add it safely without deleting records.
+    if inspect(db.engine).has_table("book"):
+        _add_missing_columns("book", {
+            "category": "VARCHAR(80) NOT NULL DEFAULT 'General'",
+        })
 
     # OTP/reset tables can contain in-progress user workflows. Never delete rows during
     # automatic schema repair: if a legacy partial table has malformed records, fail safely
