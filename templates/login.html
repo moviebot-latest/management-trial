@@ -140,7 +140,7 @@ form.addEventListener('submit',async function(e){
     const currentPath=window.location.pathname.replace(/\/$/,'')||'/';
     const finalPath=finalUrl.pathname.replace(/\/$/,'')||'/';
     const loginPath=new URL(form.action,window.location.href).pathname.replace(/\/$/,'')||'/login';
-    if(response.ok && finalPath!==loginPath && !/login/i.test(finalPath)){
+    if(response.ok && finalPath!==loginPath && !/^\/login\/?$/.test(finalPath)){
       setStep(stepDone,'active','LIVE','Opening your secure workspace');
       document.getElementById('aiMetricStatus').textContent='SUCCESS';
       document.getElementById('aiPercent').textContent='COMPLETE';
