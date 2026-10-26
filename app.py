@@ -2912,11 +2912,23 @@ def _migrate_existing_schema():
     _ensure_casefold_unique_index("user", "username")
     _ensure_casefold_unique_index("user", "email")
 
-    # Repair the legacy book table used by the dashboard and catalog. Existing Neon
-    # databases may predate the category field; add it safely without deleting records.
+    # Repair legacy book tables additively. Older production databases may predate
+    # several Book model fields, not just category. Add every non-primary-key model
+    # column that can safely be introduced without deleting or rewriting book rows.
+    # Required title/author/id columns are not fabricated here because their values
+    # cannot be reconstructed safely; existing catalog schemas are expected to have them.
     if inspect(db.engine).has_table("book"):
         _add_missing_columns("book", {
             "category": "VARCHAR(80) NOT NULL DEFAULT 'General'",
+            "isbn": "VARCHAR(32) NULL",
+            "publisher": "VARCHAR(140) NULL",
+            "publication_year": "INTEGER NULL",
+            "total_copies": "INTEGER NOT NULL DEFAULT 1",
+            "available_copies": "INTEGER NOT NULL DEFAULT 1",
+            "description": "TEXT NULL",
+            "cover_data": "TEXT NULL",
+            "created_by": "VARCHAR(80) NOT NULL DEFAULT 'system'",
+            "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         })
 
     # OTP/reset tables can contain in-progress user workflows. Never delete rows during
