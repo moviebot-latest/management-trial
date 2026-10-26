@@ -172,6 +172,23 @@ class User(db.Model):
         return max(0, int(secs // 60) + 1)
 
 
+class Book(db.Model):
+    """Library catalog item; additive model so existing account data stays untouched."""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(180), nullable=False, index=True)
+    author = db.Column(db.String(140), nullable=False)
+    category = db.Column(db.String(80), nullable=False, default="General")
+    isbn = db.Column(db.String(32), nullable=True, unique=True)
+    publisher = db.Column(db.String(140), nullable=True)
+    publication_year = db.Column(db.Integer, nullable=True)
+    total_copies = db.Column(db.Integer, nullable=False, default=1)
+    available_copies = db.Column(db.Integer, nullable=False, default=1)
+    description = db.Column(Text, nullable=True)
+    cover_data = db.Column(Text, nullable=True)
+    created_by = db.Column(db.String(80), nullable=False, default="system")
+    created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+
+
 class EmailVerification(db.Model):
     id              = db.Column(db.Integer, primary_key=True)
     email           = db.Column(db.String(160), unique=True, nullable=False, index=True)
@@ -1351,7 +1368,8 @@ def dashboard():
         return render_template("dashboard.html",
                                role=role,
                                current_name=current_name,
-                               current_username=current_user)
+                               current_username=current_user,
+                               book_count=Book.query.count())
 
     # Admin-only data
     search      = request.args.get("q",      "").strip()
@@ -1407,6 +1425,140 @@ def dashboard():
                            status_filter=status_filter,
                            all_departments=all_departments,
                            admin_pending_email=session.get("admin_pending_email", ""))
+
+
+# ═════════════════════════ BOOK CATALOG ═════════════════════════
+def staff_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("user_id"):
+            flash("Please login to access the book catalog.", "error")
+            return redirect(url_for("login_page"))
+        if session.get("role") not in {"admin", "librarian"}:
+            flash("Book management is available to Librarian and Admin accounts.", "error")
+            return redirect(url_for("books_catalog"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/books")
+@login_required
+def books_catalog():
+    q = request.args.get("q", "").strip()
+    category = request.args.get("category", "").strip()
+    query = Book.query
+    if q:
+        pat = f"%{q}%"
+        query = query.filter(db.or_(Book.title.ilike(pat), Book.author.ilike(pat), Book.isbn.ilike(pat)))
+    if category:
+        query = query.filter_by(category=category)
+    books = query.order_by(Book.created_at.desc()).limit(250).all()
+    categories = [row[0] for row in db.session.query(Book.category).distinct().order_by(Book.category).all() if row[0]]
+    return render_template("books_manage.html", books=books, q=q, category=category,
+                           categories=categories, can_manage=session.get("role") in {"admin", "librarian"},
+                           current_name=session.get("name", "Member"), role=session.get("role", "user"))
+
+
+@app.route("/books/add", methods=["GET", "POST"])
+@staff_required
+def add_book():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        author = request.form.get("author", "").strip()
+        category = request.form.get("category", "General").strip() or "General"
+        isbn = request.form.get("isbn", "").strip() or None
+        publisher = request.form.get("publisher", "").strip() or None
+        year_text = request.form.get("publication_year", "").strip()
+        copies_text = request.form.get("total_copies", "1").strip()
+        description = request.form.get("description", "").strip() or None
+        cover_data = request.form.get("cover_data", "").strip() or None
+        if not title or not author:
+            flash("Book title and author are required.", "error")
+            return render_template("add_book.html", book=None)
+        try:
+            year = int(year_text) if year_text else None
+            copies = int(copies_text)
+            if year is not None and not (1000 <= year <= datetime.utcnow().year + 2):
+                raise ValueError
+            if copies < 1 or copies > 100000:
+                raise ValueError
+        except ValueError:
+            flash("Enter a valid publication year and copy count.", "error")
+            return render_template("add_book.html", book=None)
+        if cover_data and (not cover_data.startswith("data:image/") or len(cover_data) > 1_300_000):
+            flash("Cover must be an image under about 900 KB. Generate a cover or choose a smaller image.", "error")
+            return render_template("add_book.html", book=None)
+        if isbn and Book.query.filter_by(isbn=isbn).first():
+            flash("That ISBN is already in the catalog.", "error")
+            return render_template("add_book.html", book=None)
+        book = Book(title=title, author=author, category=category, isbn=isbn,
+                    publisher=publisher, publication_year=year, total_copies=copies,
+                    available_copies=copies, description=description, cover_data=cover_data,
+                    created_by=session.get("username", "staff"))
+        db.session.add(book)
+        db.session.commit()
+        log_action(session.get("username", "staff"), "BOOK_CREATED", f"Added book: {title}")
+        flash(f'"{title}" was added to the catalog.', "success")
+        return redirect(url_for("books_catalog"))
+    return render_template("add_book.html", book=None)
+
+
+@app.route("/books/<int:book_id>/edit", methods=["GET", "POST"])
+@staff_required
+def edit_book(book_id):
+    book = Book.query.get_or_404(book_id)
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        author = request.form.get("author", "").strip()
+        if not title or not author:
+            flash("Book title and author are required.", "error")
+            return render_template("add_book.html", book=book)
+        isbn = request.form.get("isbn", "").strip() or None
+        if isbn and Book.query.filter(Book.isbn == isbn, Book.id != book.id).first():
+            flash("That ISBN is already used by another book.", "error")
+            return render_template("add_book.html", book=book)
+        try:
+            year_text = request.form.get("publication_year", "").strip()
+            copies = int(request.form.get("total_copies", book.total_copies))
+            year = int(year_text) if year_text else None
+            if copies < 1 or copies > 100000 or (year is not None and not (1000 <= year <= datetime.utcnow().year + 2)):
+                raise ValueError
+        except ValueError:
+            flash("Enter a valid publication year and copy count.", "error")
+            return render_template("add_book.html", book=book)
+        cover_data = request.form.get("cover_data", "").strip()
+        if cover_data and (not cover_data.startswith("data:image/") or len(cover_data) > 1_300_000):
+            flash("Cover image is too large. Generate a cover or choose a smaller image.", "error")
+            return render_template("add_book.html", book=book)
+        already_issued = max(0, (book.total_copies or 0) - (book.available_copies or 0))
+        book.title = title
+        book.author = author
+        book.category = request.form.get("category", "General").strip() or "General"
+        book.isbn = isbn
+        book.publisher = request.form.get("publisher", "").strip() or None
+        book.publication_year = year
+        book.total_copies = copies
+        book.available_copies = max(0, copies - already_issued)
+        book.description = request.form.get("description", "").strip() or None
+        if cover_data:
+            book.cover_data = cover_data
+        db.session.commit()
+        log_action(session.get("username", "staff"), "BOOK_UPDATED", f"Updated book: {title}")
+        flash(f'"{title}" was updated.', "success")
+        return redirect(url_for("books_catalog"))
+    return render_template("add_book.html", book=book)
+
+
+@app.route("/books/<int:book_id>/delete", methods=["POST"])
+@staff_required
+def delete_book(book_id):
+    book = Book.query.get_or_404(book_id)
+    title = book.title
+    db.session.delete(book)
+    db.session.commit()
+    log_action(session.get("username", "staff"), "BOOK_DELETED", f"Deleted book: {title}")
+    flash(f'"{title}" was removed from the catalog.', "success")
+    return redirect(url_for("books_catalog"))
 
 
 # ═════════════════════════ PROFILE ═══════════════════════════
