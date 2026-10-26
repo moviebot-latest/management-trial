@@ -2930,6 +2930,15 @@ def _migrate_existing_schema():
             "created_by": "VARCHAR(80) NOT NULL DEFAULT 'system'",
             "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         })
+        # Older deployments may have a legacy `price` column marked NOT NULL.
+        # This app's current Book form/model does not collect a price, so that
+        # leftover constraint blocks inserts. Keep the column and existing values,
+        # but allow NULL for new rows instead of deleting or rewriting book data.
+        book_cols_after_migration = _columns_for("book")
+        if "price" in book_cols_after_migration:
+            db.session.execute(text('ALTER TABLE "book" ALTER COLUMN "price" DROP NOT NULL'))
+            db.session.commit()
+            app.logger.info("Schema migration made legacy book.price nullable")
 
     # OTP/reset tables can contain in-progress user workflows. Never delete rows during
     # automatic schema repair: if a legacy partial table has malformed records, fail safely
