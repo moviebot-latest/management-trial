@@ -1,0 +1,41 @@
+{% extends "auth_base.html" %}
+{% block title %}Admin Two-Step Verification{% endblock %}
+{% block content %}
+<style>
+  .auth-shell{min-height:100vh;background:radial-gradient(circle at 12% 12%,#e8e7ff 0,transparent 32%),radial-gradient(circle at 88% 82%,#dff8f0 0,transparent 30%),#f5f6ff;display:flex;align-items:stretch}
+  .auth-aside{background:linear-gradient(145deg,#151b4d,#5a45d6)!important;color:#fff!important;padding:42px!important;display:flex;flex-direction:column;justify-content:space-between}
+  .auth-aside .brand,.auth-aside h2,.auth-aside p,.auth-aside h3,.auth-aside dt,.auth-aside dd{color:#fff!important}
+  .auth-main{flex:1;display:flex;align-items:center;justify-content:center;padding:28px}
+  .auth-panel{width:100%;max-width:480px;background:#fff;border:1px solid #e7e9f5;border-radius:28px;padding:clamp(26px,5vw,46px);box-shadow:0 24px 80px rgba(38,40,100,.13)}
+  .otp-mark{width:70px;height:70px;display:grid;place-items:center;margin:0 auto 20px;border-radius:22px;background:linear-gradient(135deg,#655cf6,#8a4df2);color:#fff;font-size:31px;box-shadow:0 12px 25px #7867f344}
+  .otp-eyebrow{text-align:center;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#7165e8}
+  .otp-title{text-align:center;font-size:clamp(26px,4vw,34px);line-height:1.15;letter-spacing:-1px;color:#171b35;margin:12px 0}
+  .otp-copy{text-align:center;color:#667085;font-size:14px;line-height:1.7;margin:0 auto 24px;max-width:350px}
+  .otp-destination{background:#f5f4ff;border:1px solid #e5e1ff;border-radius:14px;padding:12px;text-align:center;color:#5546bd;font-weight:700;font-size:13px;margin-bottom:20px;overflow-wrap:anywhere}
+  .otp-input{box-sizing:border-box;width:100%;padding:17px 12px;border:1.5px solid #dfe2ef;border-radius:15px;font-size:28px;font-weight:800;letter-spacing:10px;text-align:center;color:#202448;outline:none;background:#fcfcff}
+  .otp-input:focus{border-color:#7665f2;box-shadow:0 0 0 4px #7665f21c}
+  .otp-submit{width:100%;border:0;border-radius:15px;padding:16px;margin-top:16px;background:linear-gradient(100deg,#635cf6,#9251ee);color:white;font-weight:800;font-size:15px;box-shadow:0 12px 24px #7665f233;cursor:pointer}
+  .otp-submit:hover{filter:brightness(1.04);transform:translateY(-1px)}
+  .otp-meta{text-align:center;color:#8b91a6;font-size:12px;line-height:1.6;margin:18px 0 0}
+  .otp-actions{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:18px}
+  .otp-link{background:none;border:0;color:#6257d8;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;padding:6px}
+  .otp-security{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:24px;color:#8a91a7;font-size:11px}
+  @media(max-width:760px){.auth-aside{display:none!important}.auth-main{padding:18px}.auth-panel{border-radius:23px}.auth-shell{align-items:center}}
+</style>
+<div class="otp-mark" aria-hidden="true">✦</div>
+<div class="otp-eyebrow">Admin security · Step 2 of 2</div>
+<h1 class="otp-title">Verify it’s really you</h1>
+<p class="otp-copy">Your password was accepted. Enter the 6-digit security code we sent to the owner email to unlock the Admin Panel.</p>
+<div class="otp-destination">✉ &nbsp; Code sent to {{ owner_email }}</div>
+<form method="post" action="{{ url_for('admin_login_verify') }}" autocomplete="off">
+  <label for="otp" style="display:block;font-size:13px;font-weight:700;color:#343955;margin:0 0 9px">6-digit verification code</label>
+  <input class="otp-input" id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" placeholder="••••••" autocomplete="one-time-code" required autofocus aria-label="6-digit verification code">
+  <button class="otp-submit" type="submit">Verify &amp; open Admin Panel&nbsp; →</button>
+</form>
+<p class="otp-meta">The code expires in {{ expiry_minutes }} minutes.<br>Never share this code with anyone.</p>
+<div class="otp-actions">
+  <form method="post" action="{{ url_for('admin_login_verify') }}"><input type="hidden" name="action" value="resend"><button class="otp-link" type="submit">↻ Resend code</button></form>
+  <a class="otp-link" href="{{ url_for('login_page') }}">← Back to login</a>
+</div>
+<div class="otp-security">♙ &nbsp; Protected with two-step verification</div>
+{% endblock %}

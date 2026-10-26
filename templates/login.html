@@ -111,31 +111,62 @@ function showLoginError(message){
   if(!box){box=document.createElement('div');box.className='flash error';const formEl=document.getElementById('loginForm');formEl.parentNode.insertBefore(box,formEl);}
   box.className='flash error';box.textContent=message||'Sign-in failed. Please check your username and password and try again.';
 }
-// Submit through the browser's normal form navigation instead of fetch().
-// This preserves Flask's redirect/session-cookie flow and shows real server
-// errors (CSRF, database configuration, locked account) instead of masking
-// them with a generic client-side 'Sign-in failed' message.
-form.addEventListener('submit', function(e){
-  if(!form.reportValidity()){
-    e.preventDefault();
-    return;
-  }
-  const btn=document.getElementById('loginBtn');
-  const label=btn.querySelector('span');
-  btn.disabled=true;
-  btn.setAttribute('aria-busy','true');
-  if(label)label.textContent='Signing in…';
-  loader.classList.add('show');
-  loader.setAttribute('aria-hidden','false');
+form.addEventListener('submit',async function(e){
+  e.preventDefault();
+  if(!form.reportValidity())return;
+  const username=document.getElementById('username').value.trim();
+  const password=document.getElementById('password').value;
+  if(!username||!password)return;
+  const btn=document.getElementById('loginBtn'),label=btn.querySelector('span');
+  btn.disabled=true;btn.setAttribute('aria-busy','true');if(label)label.textContent='Signing in…';
+  loader.classList.add('show');loader.setAttribute('aria-hidden','false');
   document.getElementById('aiMetricStatus').textContent='SENDING';
   document.getElementById('aiPercent').textContent='PROCESSING';
-  document.getElementById('verifySub').textContent='Submitting credentials securely to the server';
+  document.getElementById('verifySub').textContent='Sending your sign-in request securely';
   setStep(stepUser,'done','DONE','Required fields validated');
-  setStep(stepPass,'active','LIVE','Browser submitting credentials securely');
-  setStep(stepServer,'active','LIVE','Waiting for server authentication');
-  setStep(stepDone,'active','LIVE','Dashboard opens after successful authentication');
-  // Do not call preventDefault: let the browser complete the POST and follow
-  // Flask's Set-Cookie + redirect response normally.
+  setStep(stepPass,'done','DONE','Credentials sent over HTTPS');
+  setStep(stepServer,'active','LIVE','Waiting for the real server response');
+  setStep(stepDone,'active','LIVE','Preparing the next step after the server reply');
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),25000);
+  try{
+    const response=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',redirect:'follow',signal:controller.signal,headers:{'X-Requested-With':'XMLHttpRequest'}});
+    clearTimeout(timeout);
+    setStep(stepServer,'done','DONE','Server response received');
+    document.getElementById('aiMetricStatus').textContent='RECEIVED';
+    document.getElementById('aiPercent').textContent='RESPONSE OK';
+    document.getElementById('verifySub').textContent='Server response received; preparing the next step';
+    const finalUrl=new URL(response.url,window.location.href);
+    const currentPath=window.location.pathname.replace(/\/$/,'')||'/';
+    const finalPath=finalUrl.pathname.replace(/\/$/,'')||'/';
+    const loginPath=new URL(form.action,window.location.href).pathname.replace(/\/$/,'')||'/login';
+    if(response.ok && finalPath!==loginPath && !/login/i.test(finalPath)){
+      setStep(stepDone,'active','LIVE','Opening your secure workspace');
+      document.getElementById('aiMetricStatus').textContent='SUCCESS';
+      document.getElementById('aiPercent').textContent='COMPLETE';
+      document.getElementById('verifySub').textContent='Authentication accepted; opening dashboard';
+      document.getElementById('verifyProgress').style.width='100%';
+      setTimeout(()=>{setStep(stepDone,'done','DONE','Workspace ready');window.location.assign(response.url);},550);
+      return;
+    }
+    const html=await response.text();
+    const parsed=new DOMParser().parseFromString(html,'text/html');
+    const flash=parsed.querySelector('.login-card .flash, .flash');
+    const errorText=flash?flash.textContent.trim():'Sign-in failed. Check your username and password, then try again.';
+    setStep(stepDone,'failed','ERROR','Server rejected the sign-in request');
+    document.getElementById('aiMetricStatus').textContent='DENIED';
+    document.getElementById('aiPercent').textContent='CHECK DETAILS';
+    document.getElementById('verifySub').textContent='The server returned a sign-in error';
+    setTimeout(()=>{loader.classList.remove('show');loader.setAttribute('aria-hidden','true');showLoginError(errorText);btn.disabled=false;btn.removeAttribute('aria-busy');if(label)label.textContent='Sign In Securely';},650);
+  }catch(err){
+    clearTimeout(timeout);
+    setStep(stepServer,'failed','ERROR',err.name==='AbortError'?'Server took too long to respond':'Could not reach the server');
+    setStep(stepDone,'failed','ERROR','Please try signing in again');
+    document.getElementById('aiMetricStatus').textContent='RETRY';
+    document.getElementById('aiPercent').textContent='RETRY';
+    document.getElementById('verifySub').textContent=err.name==='AbortError'?'Request timed out after 25 seconds':'Network/server error; your page is still safe to retry';
+    setTimeout(()=>{loader.classList.remove('show');loader.setAttribute('aria-hidden','true');showLoginError(err.name==='AbortError'?'The server took too long to respond. Please try again.':'Unable to connect to the server. Check your connection and try again.');btn.disabled=false;btn.removeAttribute('aria-busy');if(label)label.textContent='Sign In Securely';},650);
+  }
 });
 </script>
 </body>
