@@ -1,0 +1,21 @@
+Management Trial - targeted production fixes
+
+1. Admin OTP CSRF protection
+   - Added the server-generated _csrf_token field to the OTP verification form.
+   - Added the same token to the resend-code form.
+   - This addresses POST /admin-login/verify returning 400 with "Invalid or missing security token."
+
+2. Missing auth stylesheet
+   - Added static/auth.css because templates/auth_base.html referenced it but it was absent.
+
+3. Legacy PostgreSQL book.stock constraint
+   - Added an additive schema migration that sets a default of 1 on the legacy book.stock column when it exists.
+   - Existing rows/columns are preserved; no book records are deleted.
+   - This addresses legacy stock NOT NULL insert failures when the current model no longer supplies that column.
+
+4. Deployment marker
+   - Updated /__version from V51 to V52 for deployment verification.
+
+After uploading/replacing the project on GitHub, wait for Vercel deployment to complete. Visit /__version and confirm it reports V52. Then test admin username/password, OTP verify, OTP resend, and adding a book.
+
+Important: Runtime integration tests against the actual Neon database and email provider require the production environment. Do not share SECRET_KEY, ADMIN_PASSWORD, SMTP credentials, or OTP codes in chat.

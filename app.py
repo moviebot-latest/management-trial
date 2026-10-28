@@ -1020,7 +1020,7 @@ def public_script():
 @app.route("/__version")
 def deployment_version():
     """Non-sensitive marker to verify which deployment is serving requests."""
-    return jsonify({"version": "V51", "application": "Management System", "email_campaign_center": True}), 200
+    return jsonify({"version": "V52", "application": "Management System", "email_campaign_center": True}), 200
 
 
 @app.route("/")
@@ -2935,10 +2935,20 @@ def _migrate_existing_schema():
         # leftover constraint blocks inserts. Keep the column and existing values,
         # but allow NULL for new rows instead of deleting or rewriting book data.
         book_cols_after_migration = _columns_for("book")
-        if "price" in book_cols_after_migration:
+        if "price" in book_cols_after_migration and db.engine.dialect.name == "postgresql":
             db.session.execute(text('ALTER TABLE "book" ALTER COLUMN "price" DROP NOT NULL'))
             db.session.commit()
             app.logger.info("Schema migration made legacy book.price nullable")
+        # Legacy production tables can also retain a required `stock` column that
+        # is no longer part of the current Book model/form. Without a database
+        # default, new ORM inserts omit this legacy column and PostgreSQL rejects
+        # them with NotNullViolation. Preserve the column and its existing values,
+        # while defaulting it for new catalog rows.
+        if "stock" in book_cols_after_migration and db.engine.dialect.name == "postgresql":
+            db.session.execute(text('ALTER TABLE "book" ALTER COLUMN "stock" SET DEFAULT 1'))
+            db.session.execute(text('UPDATE "book" SET "stock" = 1 WHERE "stock" IS NULL'))
+            db.session.commit()
+            app.logger.info("Schema migration set a safe default for legacy book.stock")
 
     # OTP/reset tables can contain in-progress user workflows. Never delete rows during
     # automatic schema repair: if a legacy partial table has malformed records, fail safely
