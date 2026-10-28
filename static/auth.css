@@ -1,0 +1,16 @@
+/* Shared authentication layout for login, registration and admin OTP pages. */
+:root{color-scheme:light;--auth-ink:#171b35;--auth-muted:#667085;--auth-purple:#685cf6;--auth-line:#e7e9f5}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:"Public Sans",Inter,Arial,sans-serif;color:var(--auth-ink)}
+body.auth{min-height:100vh;background:#f5f6ff}
+a{color:var(--auth-purple)}
+.auth-shell{min-height:100vh;display:flex;background:radial-gradient(circle at 80% 20%,#e8e7ff 0,transparent 36%),#f5f6ff}
+.auth-aside{width:36%;min-width:300px;max-width:470px;padding:36px;background:linear-gradient(150deg,#151b4d,#5a45d6);color:#fff;display:flex;flex-direction:column;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px;color:#fff;text-decoration:none;font-weight:800}
+.brand-mark{width:42px;height:42px;border-radius:13px;background:#fff;color:#6655e9;display:grid;place-items:center;font-size:22px}
+.aside-copy{margin:48px 0}.aside-copy h2{font-size:clamp(26px,3vw,38px);line-height:1.15;letter-spacing:-1px;margin:0 0 14px}.aside-copy p{line-height:1.7;color:#e0e3ff}
+.checkout-card{border:1px solid #ffffff2e;background:#ffffff12;border-radius:18px;padding:20px}.checkout-card h3{margin:0 0 14px}.checkout-card dl{margin:0}.checkout-card .row{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid #ffffff24}.checkout-card dt{color:#d9dcff}.checkout-card dd{margin:0;font-weight:700}.stamp{margin-top:14px;color:#d9dcff;font-size:12px}
+.auth-main{flex:1;display:flex;align-items:center;justify-content:center;padding:28px;min-width:0}.auth-panel{width:100%;max-width:520px;background:#fff;border:1px solid var(--auth-line);border-radius:25px;padding:clamp(24px,4vw,44px);box-shadow:0 24px 80px #26286416}
+.notice,.flash{border-radius:12px;padding:12px 14px;margin:0 0 16px;line-height:1.5;font-size:14px}.notice.error,.flash.error{background:#fff0f0;border:1px solid #ffd0d0;color:#a32636}.notice.success,.flash.success{background:#eafaf1;border:1px solid #c4f0d6;color:#167245}
+.auth-panel input:not([type=hidden]):not([type=checkbox]),.auth-panel select,.auth-panel textarea{max-width:100%}
+@media(max-width:760px){.auth-aside{display:none}.auth-main{padding:16px}.auth-panel{border-radius:22px;padding:24px}}
