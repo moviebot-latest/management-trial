@@ -186,6 +186,9 @@ class Book(db.Model):
     available_copies = db.Column(db.Integer, nullable=False, default=1)
     description = db.Column(Text, nullable=True)
     cover_data = db.Column(Text, nullable=True)
+    # Some existing Neon/PostgreSQL databases have this legacy column as NOT NULL.
+    # Explicit ORM and database defaults ensure Add Book never inserts NULL here.
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     created_by = db.Column(db.String(80), nullable=False, default="system")
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
 
@@ -2927,9 +2930,17 @@ def _migrate_existing_schema():
             "available_copies": "INTEGER NOT NULL DEFAULT 1",
             "description": "TEXT NULL",
             "cover_data": "TEXT NULL",
+            "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
             "created_by": "VARCHAR(80) NOT NULL DEFAULT 'system'",
             "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         })
+        # Existing deployments may already have is_active as NOT NULL but without
+        # a default. Backfill old NULLs and set a database-side default for inserts.
+        if db.engine.dialect.name == "postgresql":
+            db.session.execute(text('UPDATE "book" SET "is_active" = TRUE WHERE "is_active" IS NULL'))
+            db.session.execute(text('ALTER TABLE "book" ALTER COLUMN "is_active" SET DEFAULT TRUE'))
+            db.session.commit()
+            app.logger.info("Schema migration repaired book.is_active default")
         # Older deployments may have a legacy `price` column marked NOT NULL.
         # This app's current Book form/model does not collect a price, so that
         # leftover constraint blocks inserts. Keep the column and existing values,
