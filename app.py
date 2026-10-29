@@ -184,13 +184,24 @@ class Book(db.Model):
     publication_year = db.Column(db.Integer, nullable=True)
     total_copies = db.Column(db.Integer, nullable=False, default=1)
     available_copies = db.Column(db.Integer, nullable=False, default=1)
+    # Legacy databases may have this required column; default keeps Add Book inserts valid.
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     description = db.Column(Text, nullable=True)
     cover_data = db.Column(Text, nullable=True)
-    # Some existing Neon/PostgreSQL databases have this legacy column as NOT NULL.
-    # Explicit ORM and database defaults ensure Add Book never inserts NULL here.
-    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     created_by = db.Column(db.String(80), nullable=False, default="system")
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+
+
+class BookLoan(db.Model):
+    """Tracks a book issued to a library member and its return status."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, ForeignKey("user.user_id"), nullable=False, index=True)
+    book_id = db.Column(db.Integer, ForeignKey("book.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="issued", index=True)
+    issued_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    due_at = db.Column(db.DateTime, nullable=True)
+    returned_at = db.Column(db.DateTime, nullable=True)
+    issued_by = db.Column(db.String(80), nullable=False, default="admin")
 
 
 class EmailVerification(db.Model):
@@ -1023,7 +1034,7 @@ def public_script():
 @app.route("/__version")
 def deployment_version():
     """Non-sensitive marker to verify which deployment is serving requests."""
-    return jsonify({"version": "V52", "application": "Management System", "email_campaign_center": True}), 200
+    return jsonify({"version": "V51", "application": "Management System", "email_campaign_center": True}), 200
 
 
 @app.route("/")
@@ -1544,6 +1555,7 @@ def dashboard():
                            dept_filter=dept_filter,
                            status_filter=status_filter,
                            all_departments=all_departments,
+                           books_for_issue=Book.query.filter(Book.available_copies > 0).order_by(Book.title.asc()).all(),
                            admin_pending_email=session.get("admin_pending_email", ""))
 
 
@@ -2467,6 +2479,93 @@ def audit_logs():
                            action_filter=action_filter)
 
 
+# ═══════════════════════ MEMBER DETAILS / BOOK ACTIVITY ═════════════════════
+@app.route("/admin/users/<int:user_id>/details")
+@login_required
+def admin_user_details(user_id):
+    if not is_admin():
+        return jsonify({"error": "Admin access required"}), 403
+    member = db.session.get(User, user_id)
+    if not member:
+        return jsonify({"error": "Member not found"}), 404
+    loans = (BookLoan.query.filter_by(user_id=member.id)
+             .order_by(BookLoan.issued_at.desc()).limit(30).all())
+    activity = (AuditLog.query.filter(db.func.lower(AuditLog.username) == member.username.lower())
+                .order_by(AuditLog.timestamp.desc()).limit(12).all())
+    return jsonify({
+        "member": {
+            "id": member.id, "employee_id": member.employee_id, "name": member.name,
+            "gender": member.gender, "department": member.department, "email": member.email,
+            "username": member.username, "role": member.role,
+            "active": bool(member.is_active), "created_at": member.created_at.isoformat() if member.created_at else None,
+            "last_login": member.last_login.isoformat() if member.last_login else None,
+        },
+        "loans": [{
+            "id": loan.id, "title": db.session.get(Book, loan.book_id).title if db.session.get(Book, loan.book_id) else "Book unavailable",
+            "author": db.session.get(Book, loan.book_id).author if db.session.get(Book, loan.book_id) else "",
+            "status": loan.status, "issued_at": loan.issued_at.isoformat() if loan.issued_at else None,
+            "due_at": loan.due_at.isoformat() if loan.due_at else None,
+            "returned_at": loan.returned_at.isoformat() if loan.returned_at else None,
+        } for loan in loans],
+        "activity": [{"action": log.action, "details": log.details or "", "timestamp": log.timestamp.isoformat() if log.timestamp else None}
+                     for log in activity],
+        "available_books": [{"id": book.id, "title": book.title, "author": book.author,
+                             "available_copies": book.available_copies}
+                            for book in Book.query.filter(Book.available_copies > 0).order_by(Book.title.asc()).limit(200).all()],
+        "issued_count": sum(1 for loan in loans if loan.status == "issued"),
+        "returned_count": sum(1 for loan in loans if loan.status == "returned"),
+        "csrf_token": _csrf_token(),
+    })
+
+
+@app.route("/admin/users/<int:user_id>/issue-book", methods=["POST"])
+@admin_required
+def issue_book_to_user(user_id):
+    member = db.session.get(User, user_id)
+    book = db.session.get(Book, request.form.get("book_id", type=int))
+    if not member or not book:
+        flash("Member or book could not be found.", "error")
+        return redirect(url_for("dashboard"))
+    if not member.is_active:
+        flash("Activate this member before issuing a book.", "error")
+        return redirect(url_for("dashboard"))
+    if (book.available_copies or 0) < 1:
+        flash("No copies of this book are currently available.", "error")
+        return redirect(url_for("dashboard"))
+    loan = BookLoan(user_id=member.id, book_id=book.id, status="issued",
+                    issued_at=datetime.utcnow(), due_at=datetime.utcnow() + timedelta(days=14),
+                    issued_by=session.get("username", "admin"))
+    book.available_copies -= 1
+    db.session.add(loan)
+    db.session.commit()
+    log_action(session.get("username"), "BOOK_ISSUED", f"{book.title} issued to {member.username} (due in 14 days)")
+    log_action(member.username, "BOOK_ISSUED", f"Book: {book.title}; due in 14 days")
+    flash(f'"{book.title}" issued to {member.name}. Due in 14 days.', "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/admin/book-loans/<int:loan_id>/return", methods=["POST"])
+@admin_required
+def return_issued_book(loan_id):
+    loan = db.session.get(BookLoan, loan_id)
+    if not loan or loan.status != "issued":
+        flash("Active book issue was not found.", "error")
+        return redirect(url_for("dashboard"))
+    book = db.session.get(Book, loan.book_id)
+    member = db.session.get(User, loan.user_id)
+    loan.status = "returned"
+    loan.returned_at = datetime.utcnow()
+    if book:
+        book.available_copies = min(book.total_copies or 0, (book.available_copies or 0) + 1)
+    db.session.commit()
+    title = book.title if book else "Book"
+    log_action(session.get("username"), "BOOK_RETURNED", f"{title} returned by {member.username if member else loan.user_id}")
+    if member:
+        log_action(member.username, "BOOK_RETURNED", f"Book: {title}")
+    flash(f'"{title}" marked as returned.', "success")
+    return redirect(url_for("dashboard"))
+
+
 # ════════════════════════ ADMIN USER MGMT ══════════════════════
 
 @app.route("/admin/users/create", methods=["POST"])
@@ -2928,14 +3027,14 @@ def _migrate_existing_schema():
             "publication_year": "INTEGER NULL",
             "total_copies": "INTEGER NOT NULL DEFAULT 1",
             "available_copies": "INTEGER NOT NULL DEFAULT 1",
+            "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
             "description": "TEXT NULL",
             "cover_data": "TEXT NULL",
-            "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
             "created_by": "VARCHAR(80) NOT NULL DEFAULT 'system'",
             "created_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         })
-        # Existing deployments may already have is_active as NOT NULL but without
-        # a default. Backfill old NULLs and set a database-side default for inserts.
+        # Repair existing PostgreSQL installations where is_active already existed
+        # as NOT NULL but had no database-side default (the old Add Book 500 error).
         if db.engine.dialect.name == "postgresql":
             db.session.execute(text('UPDATE "book" SET "is_active" = TRUE WHERE "is_active" IS NULL'))
             db.session.execute(text('ALTER TABLE "book" ALTER COLUMN "is_active" SET DEFAULT TRUE'))
@@ -2946,20 +3045,10 @@ def _migrate_existing_schema():
         # leftover constraint blocks inserts. Keep the column and existing values,
         # but allow NULL for new rows instead of deleting or rewriting book data.
         book_cols_after_migration = _columns_for("book")
-        if "price" in book_cols_after_migration and db.engine.dialect.name == "postgresql":
+        if "price" in book_cols_after_migration:
             db.session.execute(text('ALTER TABLE "book" ALTER COLUMN "price" DROP NOT NULL'))
             db.session.commit()
             app.logger.info("Schema migration made legacy book.price nullable")
-        # Legacy production tables can also retain a required `stock` column that
-        # is no longer part of the current Book model/form. Without a database
-        # default, new ORM inserts omit this legacy column and PostgreSQL rejects
-        # them with NotNullViolation. Preserve the column and its existing values,
-        # while defaulting it for new catalog rows.
-        if "stock" in book_cols_after_migration and db.engine.dialect.name == "postgresql":
-            db.session.execute(text('ALTER TABLE "book" ALTER COLUMN "stock" SET DEFAULT 1'))
-            db.session.execute(text('UPDATE "book" SET "stock" = 1 WHERE "stock" IS NULL'))
-            db.session.commit()
-            app.logger.info("Schema migration set a safe default for legacy book.stock")
 
     # OTP/reset tables can contain in-progress user workflows. Never delete rows during
     # automatic schema repair: if a legacy partial table has malformed records, fail safely
