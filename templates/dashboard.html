@@ -370,6 +370,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
               </td>
               <td>
                 <div class="cell-actions">
+                  <button class="btn btn-primary btn-sm" type="button" onclick="openMemberDetails({{ u.id }})">View</button>
                   <button class="btn btn-ghost btn-sm"
                     data-id="{{ u.id }}"
                     data-name="{{ u.name|e }}"
@@ -766,5 +767,43 @@ function openEdit(btn){
   });
 })();
 </script>
+
+<style>
+.member-detail-backdrop{position:fixed;inset:0;background:rgba(13,20,55,.48);backdrop-filter:blur(4px);z-index:3000;display:none;align-items:center;justify-content:center;padding:16px}
+.member-detail-backdrop.open{display:flex}.member-detail-panel{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:24px;box-shadow:0 24px 80px #11182755;color:#172554}
+.member-detail-head{background:linear-gradient(125deg,#111b55,#4930a8);color:#fff;padding:22px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.member-detail-head h2{margin:0;font-size:22px}.member-detail-close{border:0;border-radius:12px;background:#ffffff22;color:white;font-size:24px;width:42px;height:42px}
+.member-detail-body{padding:18px;display:grid;gap:16px}.member-detail-profile{display:flex;gap:14px;align-items:center;background:#f6f7ff;border-radius:18px;padding:16px}.member-avatar{width:58px;height:58px;border-radius:18px;background:#e9e5ff;color:#6d42e8;display:grid;place-items:center;font-size:24px;font-weight:800}
+.member-detail-profile h3{margin:0 0 4px}.member-detail-muted{color:#718096;font-size:13px}.member-detail-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.member-detail-stat{padding:14px;border-radius:16px;background:#f4f2ff}.member-detail-stat strong{display:block;font-size:24px;color:#6d42e8}.member-detail-section{border:1px solid #e8ebf5;border-radius:18px;padding:16px}.member-detail-section h3{margin:0 0 12px;font-size:16px}.member-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.member-detail-item{font-size:13px;overflow-wrap:anywhere}.member-detail-item b{display:block;color:#73809a;margin-bottom:4px}.member-activity-row,.member-book-row{padding:11px 0;border-bottom:1px solid #edf0f7;font-size:13px}.member-activity-row:last-child,.member-book-row:last-child{border-bottom:0}.member-status{display:inline-block;padding:5px 10px;border-radius:99px;background:#dcfce7;color:#047857;font-weight:700;font-size:12px}.member-status.off{background:#fee2e2;color:#b91c1c}.member-issue-form{display:flex;gap:8px;flex-wrap:wrap}.member-issue-form select{flex:1;min-width:190px;padding:10px;border:1px solid #dce2f0;border-radius:12px}.member-issue-form button{border:0;border-radius:12px;background:#7048f5;color:white;padding:10px 14px;font-weight:700}.member-return-form{display:inline-block;margin-top:8px}.member-return-form button{border:0;border-radius:9px;background:#fff1cc;color:#92400e;padding:7px 10px;font-weight:700}.member-detail-loading{padding:28px;text-align:center;color:#718096}
+@media(max-width:520px){.member-detail-backdrop{padding:7px}.member-detail-panel{max-height:95vh;border-radius:18px}.member-detail-head{padding:16px}.member-detail-body{padding:12px}.member-detail-stats{gap:6px}.member-detail-stat{padding:10px}.member-detail-stat strong{font-size:20px}.member-detail-grid{grid-template-columns:1fr}}
+</style>
+<div class="member-detail-backdrop" id="memberDetailBackdrop" onclick="if(event.target===this)closeMemberDetails()" aria-hidden="true">
+ <section class="member-detail-panel" role="dialog" aria-modal="true" aria-labelledby="memberDetailTitle">
+  <header class="member-detail-head"><div><h2 id="memberDetailTitle">Member Details</h2><div style="opacity:.8;font-size:13px;margin-top:4px">Profile, issued books and recent activity</div></div><button class="member-detail-close" type="button" onclick="closeMemberDetails()" aria-label="Close">×</button></header>
+  <div class="member-detail-body" id="memberDetailContent"><div class="member-detail-loading">Loading member details…</div></div>
+ </section>
+</div>
+<script>
+function memberEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function memberDate(v){if(!v)return '—';const d=new Date(v);return isNaN(d)?memberEsc(v):d.toLocaleString();}
+function closeMemberDetails(){const m=document.getElementById('memberDetailBackdrop');m.classList.remove('open');m.setAttribute('aria-hidden','true');document.body.style.overflow='';}
+async function openMemberDetails(id){
+ const modal=document.getElementById('memberDetailBackdrop'),content=document.getElementById('memberDetailContent');
+ modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';content.innerHTML='<div class="member-detail-loading">Loading member details…</div>';
+ try{
+  const r=await fetch('/admin/users/'+id+'/details',{credentials:'same-origin',cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load member');
+  const u=d.member,active=d.loans.filter(x=>x.status==='issued'),returned=d.loans.filter(x=>x.status==='returned');
+  let html=`<div class="member-detail-profile"><div class="member-avatar">${memberEsc((u.name||'M').trim().charAt(0).toUpperCase())}</div><div style="flex:1;min-width:0"><h3>${memberEsc(u.name)}</h3><div class="member-detail-muted">Member ID: ${memberEsc(u.employee_id)} · @${memberEsc(u.username)}</div><div style="margin-top:8px"><span class="member-status ${u.active?'':'off'}">${u.active?'Active':'Inactive'}</span> <span class="member-detail-muted">${memberEsc(u.role)}</span></div></div></div>`;
+  html+=`<div class="member-detail-stats"><div class="member-detail-stat"><span class="member-detail-muted">Currently issued</span><strong>${d.issued_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Returned</span><strong>${d.returned_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Department</span><strong style="font-size:15px">${memberEsc(u.department)}</strong></div></div>`;
+  html+=`<section class="member-detail-section"><h3>Personal Information</h3><div class="member-detail-grid"><div class="member-detail-item"><b>Full name</b>${memberEsc(u.name)}</div><div class="member-detail-item"><b>Gender</b>${memberEsc(u.gender)}</div><div class="member-detail-item"><b>Email</b>${memberEsc(u.email)}</div><div class="member-detail-item"><b>Username</b>${memberEsc(u.username)}</div><div class="member-detail-item"><b>Joined</b>${memberDate(u.created_at)}</div><div class="member-detail-item"><b>Last login</b>${memberDate(u.last_login)}</div></div></section>`;
+  html+=`<section class="member-detail-section"><h3>Issue a Book</h3><form class="member-issue-form" method="post" action="/admin/users/${u.id}/issue-book"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><select name="book_id" required ${!u.active?'disabled':''}><option value="">Choose available book…</option>${(d.available_books||[]).map(b=>`<option value="${b.id}">${memberEsc(b.title)} — ${memberEsc(b.author)} (${b.available_copies} available)</option>`).join('')}</select><button type="submit" ${!u.active?'disabled':''}>Issue Book</button></form><div class="member-detail-muted" style="margin-top:8px">Issued books have a 14-day due date.</div></section>`;
+  html+=`<section class="member-detail-section"><h3>Books Issued & Returned</h3>${d.loans.length?d.loans.map(l=>`<div class="member-book-row"><strong>${memberEsc(l.title)}</strong><div class="member-detail-muted">${memberEsc(l.author)} · Issued: ${memberDate(l.issued_at)}</div><div style="margin-top:5px"><span class="member-status ${l.status==='issued'?'':'off'}">${l.status==='issued'?'Currently issued':'Returned'}</span> ${l.due_at?`<span class="member-detail-muted">Due: ${memberDate(l.due_at)}</span>`:''} ${l.returned_at?`<span class="member-detail-muted">Returned: ${memberDate(l.returned_at)}</span>`:''}</div>${l.status==='issued'?`<form class="member-return-form" method="post" action="/admin/book-loans/${l.id}/return" onsubmit="return confirm('Mark this book as returned?')"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><button type="submit">Mark Returned</button></form>`:''}</div>`).join(''):'<div class="member-detail-muted">No book issue/return records yet.</div>'}</section>`;
+  html+=`<section class="member-detail-section"><h3>Recent Activity</h3>${d.activity.length?d.activity.map(a=>`<div class="member-activity-row"><strong>${memberEsc(a.action.replaceAll('_',' '))}</strong><div>${memberEsc(a.details||'')}</div><div class="member-detail-muted">${memberDate(a.timestamp)}</div></div>`).join(''):'<div class="member-detail-muted">No recent account activity recorded yet.</div>'}</section>`;
+  content.innerHTML=html;
+ }catch(e){content.innerHTML=`<div class="member-detail-loading">${memberEsc(e.message||'Could not load details. Please try again.')}</div>`;}
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMemberDetails();});
+</script>
+
 </body>
 </html>
