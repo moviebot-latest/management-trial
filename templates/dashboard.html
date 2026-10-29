@@ -319,8 +319,8 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       </form>
 
       <!-- Table -->
-      <div class="table-scroll">
-        <table>
+      <div class="table-scroll users-table-scroll">
+        <table class="users-table">
           <thead>
             <tr>
               <th>EMP ID</th>
@@ -804,6 +804,84 @@ async function openMemberDetails(id){
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMemberDetails();});
 </script>
+
+
+<style id="premium-member-mobile-ui">
+/* Premium members management UI; existing routes/forms/actions are unchanged. */
+.users-table-scroll{border:1px solid #e8eaf6;border-radius:18px;overflow:auto;background:#fff;box-shadow:0 10px 28px rgba(35,42,100,.055)}
+.users-table{width:100%;border-collapse:separate;border-spacing:0;min-width:850px}
+.users-table thead th{background:linear-gradient(135deg,#f6f7ff,#f2f5ff);color:#7c87a1;font-size:11px;letter-spacing:.075em;text-transform:uppercase;padding:15px 13px;border-bottom:1px solid #e7eaf5;white-space:nowrap}
+.users-table tbody tr{transition:background .18s,transform .18s}
+.users-table tbody tr:hover{background:#f8f7ff}
+.users-table tbody td{padding:17px 13px;border-bottom:1px solid #edf0f8;vertical-align:middle}
+.users-table tbody tr:last-child td{border-bottom:0}
+.users-table .cell-id{font-weight:800;color:#6d4aff;white-space:normal;overflow-wrap:anywhere}
+.users-table .cell-name{font-weight:800;color:#172554;font-size:14px}
+.users-table .cell-email{overflow-wrap:anywhere;max-width:210px}
+.users-table .cell-actions{display:flex;flex-wrap:wrap;gap:7px;min-width:210px}
+.users-table .cell-actions .btn{border-radius:11px;padding:8px 11px;min-height:36px;font-weight:700}
+.member-detail-backdrop{background:rgba(12,18,56,.60);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.member-detail-panel{border:1px solid rgba(255,255,255,.8);box-shadow:0 28px 90px rgba(9,15,52,.30)}
+.member-detail-head{background:linear-gradient(130deg,#17266a 0%,#4932b8 56%,#7c4dff 100%);position:sticky;top:0;z-index:2}
+.member-detail-profile{background:linear-gradient(135deg,#f5f3ff,#f1f7ff);border:1px solid #e6e4ff}
+.member-avatar{background:linear-gradient(135deg,#7655ff,#a78bfa);color:#fff;box-shadow:0 8px 18px #7655ff35}
+.member-detail-stat{background:linear-gradient(145deg,#f7f5ff,#f1f4ff);border:1px solid #e8e7ff}
+.member-detail-section{box-shadow:0 5px 16px rgba(27,39,95,.035);background:#fff}
+.member-detail-section h3{display:flex;align-items:center;gap:8px;color:#172554}
+.member-detail-section h3:before{content:"";width:4px;height:18px;border-radius:8px;background:linear-gradient(#7954ff,#4d7cff);display:inline-block}
+.member-issue-form select:focus{outline:3px solid #ddd6fe;border-color:#8b5cf6}
+.member-issue-form button{background:linear-gradient(120deg,#6548f5,#8b5cf6);box-shadow:0 5px 14px #7655ff30}
+.member-return-form button{border:1px solid #fde68a}
+@media(max-width:700px){
+  .users-table-scroll{overflow:visible;border:0;background:transparent;box-shadow:none}
+  .users-table{min-width:0;width:100%;display:block;border-spacing:0}
+  .users-table thead{display:none}
+  .users-table tbody{display:grid;gap:12px}
+  .users-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr);background:#fff;border:1px solid #e8eafd;border-radius:18px;overflow:hidden;box-shadow:0 7px 20px rgba(31,41,95,.065);padding:4px 13px}
+  .users-table tbody tr:hover{background:#fff;transform:translateY(-1px)}
+  .users-table tbody td{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:start;gap:10px;padding:11px 2px;border-bottom:1px solid #f0f1f8;min-width:0;font-size:13px;overflow-wrap:anywhere}
+  .users-table tbody td:last-child{border-bottom:0}
+  .users-table tbody td:before{font-size:10px;font-weight:800;letter-spacing:.065em;text-transform:uppercase;color:#8993ad;padding-top:3px}
+  .users-table tbody td:nth-child(1):before{content:"Member ID"}
+  .users-table tbody td:nth-child(2):before{content:"Name"}
+  .users-table tbody td:nth-child(3):before{content:"Department"}
+  .users-table tbody td:nth-child(4):before{content:"Role"}
+  .users-table tbody td:nth-child(5):before{content:"Email"}
+  .users-table tbody td:nth-child(6):before{content:"Username"}
+  .users-table tbody td:nth-child(7):before{content:"Status"}
+  .users-table tbody td:nth-child(8):before{content:"Actions"}
+  .users-table .cell-name{font-size:14px}
+  .users-table .cell-actions{min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .users-table .cell-actions>*{min-width:0;width:100%;margin:0!important}
+  .users-table .cell-actions .btn{width:100%;white-space:normal;min-height:40px;padding:8px 6px;font-size:12px}
+  .users-table .cell-actions form{display:block}
+  .users-table .cell-actions form button{width:100%}
+  .users-table .inline-form select{max-width:100%!important;width:100%;margin-bottom:5px}
+  .member-detail-backdrop{padding:0;align-items:stretch}
+  .member-detail-panel{width:100%;height:100dvh;max-height:100dvh;border-radius:0;border:0;overflow:auto;padding-bottom:env(safe-area-inset-bottom)}
+  .member-detail-head{padding:17px 16px;position:sticky;top:0}
+  .member-detail-head h2{font-size:20px}
+  .member-detail-body{padding:13px;gap:12px}
+  .member-detail-profile{padding:14px;border-radius:18px}
+  .member-detail-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .member-detail-stat{padding:11px 8px;border-radius:14px;min-width:0}
+  .member-detail-stat .member-detail-muted{font-size:10px;line-height:1.3;display:block}
+  .member-detail-stat strong{font-size:19px;overflow-wrap:anywhere}
+  .member-detail-section{padding:13px;border-radius:16px}
+  .member-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 10px}
+  .member-detail-item{font-size:12px;min-width:0}
+  .member-issue-form{display:grid;grid-template-columns:1fr}
+  .member-issue-form select{width:100%;min-width:0}
+  .member-issue-form button{width:100%;min-height:43px}
+}
+@media(max-width:380px){
+ .users-table tbody td{grid-template-columns:82px minmax(0,1fr);gap:7px}
+ .users-table .cell-actions{grid-template-columns:1fr 1fr}
+ .member-detail-stats{grid-template-columns:1fr 1fr}
+ .member-detail-stat:last-child{grid-column:1/-1}
+ .member-detail-grid{grid-template-columns:1fr}
+}
+</style>
 
 </body>
 </html>
