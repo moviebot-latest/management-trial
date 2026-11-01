@@ -286,16 +286,16 @@ def db_retry(fn):
         return fn()
 
 
-def next_employee_id(department, joining_year=None):
-    """Generate immutable DEPT-YY-NNNN IDs, unique per department/year.
+def next_employee_id(department=None, joining_year=None):
+    """Generate the public-facing Library ID (LIB-YY-NNNN).
 
-    Existing legacy EMP### IDs are ignored for new numbering; they remain valid
-    and unique. The database UNIQUE constraint is the final safety net.
+    The legacy physical column remains named employee_id to avoid a destructive
+    database migration. Existing IDs are intentionally preserved; only newly
+    created accounts receive the LIB format.
     """
-    code = DEPARTMENT_CODES.get(department, "EMP")
     year = int(joining_year or datetime.now().year)
     yy = year % 100
-    prefix = f"{code}-{yy:02d}-"
+    prefix = f"LIB-{yy:02d}-"
 
     def query():
         rows = User.query.with_entities(User.employee_id).filter(
@@ -1517,8 +1517,7 @@ def dashboard():
         if search:
             pat = f"%{search}%"
             q = q.filter(
-                db.or_(User.name.ilike(pat), User.email.ilike(pat),
-                        User.username.ilike(pat), User.employee_id.ilike(pat))
+                db.or_(User.username.ilike(pat), User.employee_id.ilike(pat))
             )
         if dept_filter:
             q = q.filter_by(department=dept_filter)
@@ -1715,7 +1714,7 @@ def profile():
     if not user.email: missing_items.append("Email address")
     if not user.gender: missing_items.append("Gender")
     if not user.department: missing_items.append("Department")
-    if not user.employee_id: missing_items.append("Employee ID")
+    if not user.employee_id: missing_items.append("Library ID")
 
     security_score = 100 if user.is_active and not user.is_locked() else 60
     return render_template("profile.html",
@@ -2393,7 +2392,7 @@ def analytics():
     recent_users = User.query.order_by(User.created_at.desc()).limit(10).all()
 
     return render_template("analytics.html",
-                           current_name=session["name"],
+                           current_name=session["name"], role=session.get("role", "admin"),
                            total=total, active=active, inactive=inactive,
                            locked=locked, dept_count=dept_count,
                            month_reg=month_reg,
@@ -2410,7 +2409,7 @@ def settings():
     db_url = app.config["SQLALCHEMY_DATABASE_URI"]
     db_type = "PostgreSQL" if db_url.startswith("postgresql") else "SQLite"
     return render_template("settings.html",
-                           current_name=session["name"],
+                           current_name=session["name"], role=session.get("role", "admin"),
                            db_type=db_type,
                            total_users=User.query.count(),
                            total_logs=AuditLog.query.count(),
@@ -2471,7 +2470,7 @@ def audit_logs():
     total_logs = AuditLog.query.count()
 
     return render_template("audit_logs.html",
-                           current_name=session["name"],
+                           current_name=session["name"], role=session.get("role", "admin"),
                            logs=pagination.items,
                            pagination=pagination,
                            total_logs=total_logs,
@@ -2494,7 +2493,7 @@ def admin_user_details(user_id):
                 .order_by(AuditLog.timestamp.desc()).limit(12).all())
     return jsonify({
         "member": {
-            "id": member.id, "employee_id": member.employee_id, "name": member.name,
+            "id": member.id, "library_id": member.employee_id, "employee_id": member.employee_id, "name": member.name,
             "gender": member.gender, "department": member.department, "email": member.email,
             "username": member.username, "role": member.role,
             "active": bool(member.is_active), "created_at": member.created_at.isoformat() if member.created_at else None,
@@ -2512,8 +2511,9 @@ def admin_user_details(user_id):
         "available_books": [{"id": book.id, "title": book.title, "author": book.author,
                              "available_copies": book.available_copies}
                             for book in Book.query.filter(Book.available_copies > 0).order_by(Book.title.asc()).limit(200).all()],
-        "issued_count": sum(1 for loan in loans if loan.status == "issued"),
-        "returned_count": sum(1 for loan in loans if loan.status == "returned"),
+        "issued_count": BookLoan.query.filter_by(user_id=member.id, status="issued").count(),
+        "returned_count": BookLoan.query.filter_by(user_id=member.id, status="returned").count(),
+        "pending_count": BookLoan.query.filter_by(user_id=member.id, status="issued").count(),
         "csrf_token": _csrf_token(),
     })
 
@@ -2856,7 +2856,7 @@ def export_users():
             return "'" + value
         return value
     writer.writerow([
-        "Employee ID", "Name", "Gender", "Department",
+        "Library ID", "Name", "Gender", "Department",
         "Email", "Username", "Role", "Active", "Created At"
     ])
     for u in users:
