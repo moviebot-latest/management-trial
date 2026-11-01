@@ -71,49 +71,27 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       </div>
     </div>
 
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav shared-sidebar-nav">
       <div class="sidebar-section-title">Navigation</div>
-      <a href="{{ url_for('dashboard') }}" class="nav-item active">
-        <span class="nav-icon">📊</span> Dashboard
-      </a>
-      <a href="{{ url_for('profile') }}" class="nav-item">
-        <span class="nav-icon">👤</span> My Profile
-      </a>
-      {% if role != 'admin' %}
-      <a href="/change-password" class="nav-item">
-        <span class="nav-icon">🔒</span> Change Password
-      </a>
-      {% endif %}
+      <a href="{{ url_for('dashboard') }}" class="nav-item active"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="{{ url_for('profile') }}" class="nav-item "><span class="nav-icon">👤</span> My Profile</a>
       {% if role == 'admin' %}
-      <div class="sidebar-section-title" style="margin-top:8px">Admin</div>
-      <button class="nav-item" type="button" onclick="openModal('createModal')">
-        <span class="nav-icon">➕</span> New User
-      </button>
-      <a href="{{ url_for('analytics') }}" class="nav-item">
-        <span class="nav-icon">📈</span> Analytics
-      </a>
-      <a href="{{ url_for('settings') }}" class="nav-item">
-        <span class="nav-icon">⚙️</span> Settings
-      </a>
-      <a href="{{ url_for('email_campaigns') }}" class="nav-item">
-        <span class="nav-icon">✉️</span> Email Campaigns
-      </a>
-      <a href="{{ url_for('audit_logs') }}" class="nav-item">
-        <span class="nav-icon">📋</span> Audit Logs
-      </a>
-      <a href="{{ url_for('export_users') }}" class="nav-item">
-        <span class="nav-icon">📥</span> Export CSV
-      </a>
+      <div class="sidebar-section-title" style="margin-top:8px">Administration</div>
+      <a href="{{ url_for('analytics') }}" class="nav-item "><span class="nav-icon">📈</span> Analytics</a>
+      <a href="{{ url_for('settings') }}" class="nav-item "><span class="nav-icon">⚙️</span> Settings</a>
+      <a href="{{ url_for('email_campaigns') }}" class="nav-item"><span class="nav-icon">✉️</span> Email Campaigns</a>
+      <a href="{{ url_for('audit_logs') }}" class="nav-item "><span class="nav-icon">📋</span> Audit Logs</a>
+      <a href="{{ url_for('export_users') }}" class="nav-item"><span class="nav-icon">📥</span> Export CSV</a>
       <a href="{{ url_for('books_catalog') }}" class="nav-item"><span class="nav-icon">📚</span> Book Catalog</a>
       <a href="{{ url_for('add_book') }}" class="nav-item"><span class="nav-icon">➕</span> Add Book</a>
       {% elif role == 'librarian' %}
-      <div class="sidebar-section-title" style="margin-top:8px">Librarian Workspace</div>
-      <a href="{{ url_for('dashboard') }}" class="nav-item"><span class="nav-icon">📚</span> Staff Dashboard</a>
-      <a href="{{ url_for('books_catalog') }}" class="nav-item"><span class="nav-icon">📖</span> Book Catalog</a>
+      <div class="sidebar-section-title" style="margin-top:8px">Librarian</div>
+      <a href="{{ url_for('books_catalog') }}" class="nav-item"><span class="nav-icon">📚</span> Book Catalog</a>
       <a href="{{ url_for('add_book') }}" class="nav-item"><span class="nav-icon">➕</span> Add Book</a>
       {% else %}
       <div class="sidebar-section-title" style="margin-top:8px">Library</div>
       <a href="{{ url_for('books_catalog') }}" class="nav-item"><span class="nav-icon">📚</span> Browse Books</a>
+      <a href="/change-password" class="nav-item"><span class="nav-icon">🔒</span> Change Password</a>
       {% endif %}
     </nav>
 
@@ -296,7 +274,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 
       <!-- Toolbar / filters -->
       <form method="get" action="{{ url_for('dashboard') }}" class="toolbar">
-        <input type="search" name="q" placeholder="🔍 Search name, email, username…"
+        <input type="search" name="q" placeholder="🔍 Search Library ID or username…"
                value="{{ search }}" maxlength="80">
         <select name="dept">
           <option value="">All Departments</option>
@@ -323,7 +301,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
         <table class="users-table">
           <thead>
             <tr>
-              <th>EMP ID</th>
+              <th>Library ID</th>
               <th>Name</th>
               <th>Department</th>
               <th>Role</th>
@@ -346,16 +324,6 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
               </td>
               <td>
                 <span class="badge {% if u.role == 'admin' %}badge-admin{% elif u.role == 'librarian' %}badge-active{% else %}badge-inactive{% endif %}">{{ u.role|capitalize }}</span>
-                {% if u.role != 'admin' %}
-                <form method="post" action="{{ url_for('change_user_role', user_id=u.id) }}" class="inline-form" style="margin-top:6px">
-                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                  <select name="role" aria-label="Change role for {{ u.username }}" style="max-width:120px;font-size:11px;padding:5px">
-                    <option value="user" {% if u.role == 'user' %}selected{% endif %}>User</option>
-                    <option value="librarian" {% if u.role == 'librarian' %}selected{% endif %}>Librarian</option>
-                  </select>
-                  <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Change role for {{ u.username|e }}?')">Save role</button>
-                </form>
-                {% endif %}
               </td>
               <td class="cell-email">{{ u.email }}</td>
               <td style="font-family:monospace;font-size:12px;color:var(--gray-500)">{{ u.username }}</td>
@@ -793,9 +761,12 @@ async function openMemberDetails(id){
  try{
   const r=await fetch('/admin/users/'+id+'/details',{credentials:'same-origin',cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load member');
   const u=d.member,active=d.loans.filter(x=>x.status==='issued'),returned=d.loans.filter(x=>x.status==='returned');
-  let html=`<div class="member-detail-profile"><div class="member-avatar">${memberEsc((u.name||'M').trim().charAt(0).toUpperCase())}</div><div style="flex:1;min-width:0"><h3>${memberEsc(u.name)}</h3><div class="member-detail-muted">Member ID: ${memberEsc(u.employee_id)} · @${memberEsc(u.username)}</div><div style="margin-top:8px"><span class="member-status ${u.active?'':'off'}">${u.active?'Active':'Inactive'}</span> <span class="member-detail-muted">${memberEsc(u.role)}</span></div></div></div>`;
-  html+=`<div class="member-detail-stats"><div class="member-detail-stat"><span class="member-detail-muted">Currently issued</span><strong>${d.issued_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Returned</span><strong>${d.returned_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Department</span><strong style="font-size:15px">${memberEsc(u.department)}</strong></div></div>`;
+  let html=`<div class="member-detail-profile"><div class="member-avatar">${memberEsc((u.name||'M').trim().charAt(0).toUpperCase())}</div><div style="flex:1;min-width:0"><h3>${memberEsc(u.name)}</h3><div class="member-detail-muted">Library ID: ${memberEsc(u.library_id||u.employee_id)} · @${memberEsc(u.username)}</div><div style="margin-top:8px"><span class="member-status ${u.active?'':'off'}">${u.active?'Active':'Inactive'}</span> <span class="member-detail-muted">${memberEsc(u.role)}</span></div></div></div>`;
+  html+=`<div class="member-detail-stats"><div class="member-detail-stat"><span class="member-detail-muted">Currently issued</span><strong>${d.issued_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Returned</span><strong>${d.returned_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Pending</span><strong>${d.pending_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Department</span><strong style="font-size:15px">${memberEsc(u.department)}</strong></div></div>`;
   html+=`<section class="member-detail-section"><h3>Personal Information</h3><div class="member-detail-grid"><div class="member-detail-item"><b>Full name</b>${memberEsc(u.name)}</div><div class="member-detail-item"><b>Gender</b>${memberEsc(u.gender)}</div><div class="member-detail-item"><b>Email</b>${memberEsc(u.email)}</div><div class="member-detail-item"><b>Username</b>${memberEsc(u.username)}</div><div class="member-detail-item"><b>Joined</b>${memberDate(u.created_at)}</div><div class="member-detail-item"><b>Last login</b>${memberDate(u.last_login)}</div></div></section>`;
+  if(u.role!=='admin'){
+   html+=`<section class="member-detail-section"><h3>Account Role</h3><form class="member-role-form" method="post" action="/admin/users/${u.id}/role"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><label for="memberRoleSelect">Assign role</label><div class="member-role-controls"><select id="memberRoleSelect" name="role"><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="librarian" ${u.role==='librarian'?'selected':''}>Librarian</option></select><button type="submit" onclick="return confirmRoleChange(event, '${memberEsc(u.username)}')">Save role</button></div></form></section>`;
+  }
   html+=`<section class="member-detail-section"><h3>Issue a Book</h3><form class="member-issue-form" method="post" action="/admin/users/${u.id}/issue-book"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><select name="book_id" required ${!u.active?'disabled':''}><option value="">Choose available book…</option>${(d.available_books||[]).map(b=>`<option value="${b.id}">${memberEsc(b.title)} — ${memberEsc(b.author)} (${b.available_copies} available)</option>`).join('')}</select><button type="submit" ${!u.active?'disabled':''}>Issue Book</button></form><div class="member-detail-muted" style="margin-top:8px">Issued books have a 14-day due date.</div></section>`;
   html+=`<section class="member-detail-section"><h3>Books Issued & Returned</h3>${d.loans.length?d.loans.map(l=>`<div class="member-book-row"><strong>${memberEsc(l.title)}</strong><div class="member-detail-muted">${memberEsc(l.author)} · Issued: ${memberDate(l.issued_at)}</div><div style="margin-top:5px"><span class="member-status ${l.status==='issued'?'':'off'}">${l.status==='issued'?'Currently issued':'Returned'}</span> ${l.due_at?`<span class="member-detail-muted">Due: ${memberDate(l.due_at)}</span>`:''} ${l.returned_at?`<span class="member-detail-muted">Returned: ${memberDate(l.returned_at)}</span>`:''}</div>${l.status==='issued'?`<form class="member-return-form" method="post" action="/admin/book-loans/${l.id}/return" onsubmit="return confirm('Mark this book as returned?')"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><button type="submit">Mark Returned</button></form>`:''}</div>`).join(''):'<div class="member-detail-muted">No book issue/return records yet.</div>'}</section>`;
   html+=`<section class="member-detail-section"><h3>Recent Activity</h3>${d.activity.length?d.activity.map(a=>`<div class="member-activity-row"><strong>${memberEsc(a.action.replaceAll('_',' '))}</strong><div>${memberEsc(a.details||'')}</div><div class="member-detail-muted">${memberDate(a.timestamp)}</div></div>`).join(''):'<div class="member-detail-muted">No recent account activity recorded yet.</div>'}</section>`;
@@ -803,6 +774,24 @@ async function openMemberDetails(id){
  }catch(e){content.innerHTML=`<div class="member-detail-loading">${memberEsc(e.message||'Could not load details. Please try again.')}</div>`;}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMemberDetails();});
+function confirmRoleChange(event,username){
+ const form=event.currentTarget.form;
+ if(!form)return true;
+ event.preventDefault();
+ showMemberConfirm('Save role change?', 'Update access role for '+username+'?', 'Save role').then(ok=>{if(ok)form.submit();});
+ return false;
+}
+function showMemberConfirm(title,message,yesLabel){
+ return new Promise(resolve=>{
+  const old=document.getElementById('memberConfirmDialog');if(old)old.remove();
+  const wrap=document.createElement('div');wrap.id='memberConfirmDialog';wrap.className='member-confirm-backdrop';
+  wrap.innerHTML=`<section class="member-confirm-card" role="dialog" aria-modal="true"><div class="member-confirm-mark">?</div><h3>${memberEsc(title)}</h3><p>${memberEsc(message)}</p><div class="member-confirm-actions"><button type="button" class="member-confirm-cancel">Cancel</button><button type="button" class="member-confirm-yes">${memberEsc(yesLabel||'Confirm')}</button></div></section>`;
+  document.body.appendChild(wrap);const finish=value=>{wrap.remove();resolve(value);};
+  wrap.querySelector('.member-confirm-cancel').onclick=()=>finish(false);
+  wrap.querySelector('.member-confirm-yes').onclick=()=>finish(true);
+  wrap.addEventListener('click',e=>{if(e.target===wrap)finish(false)});
+ });
+}
 </script>
 
 
@@ -837,23 +826,23 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMemberDetails()
   .users-table{min-width:0;width:100%;display:block;border-spacing:0}
   .users-table thead{display:none}
   .users-table tbody{display:grid;gap:12px}
-  .users-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr);background:#fff;border:1px solid #e8eafd;border-radius:18px;overflow:hidden;box-shadow:0 7px 20px rgba(31,41,95,.065);padding:4px 13px}
+  .users-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr);background:#fff;border:1px solid #e8eafd;border-radius:18px;overflow:hidden;box-shadow:0 7px 20px rgba(31,41,95,.065);padding:3px 12px}
   .users-table tbody tr:hover{background:#fff;transform:translateY(-1px)}
-  .users-table tbody td{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:start;gap:10px;padding:11px 2px;border-bottom:1px solid #f0f1f8;min-width:0;font-size:13px;overflow-wrap:anywhere}
+  .users-table tbody td{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:center;gap:9px;padding:8px 2px;border-bottom:1px solid #f0f1f8;min-width:0;font-size:12px;overflow-wrap:anywhere}
   .users-table tbody td:last-child{border-bottom:0}
   .users-table tbody td:before{font-size:10px;font-weight:800;letter-spacing:.065em;text-transform:uppercase;color:#8993ad;padding-top:3px}
   .users-table tbody td:nth-child(1):before{content:"Member ID"}
   .users-table tbody td:nth-child(2):before{content:"Name"}
   .users-table tbody td:nth-child(3):before{content:"Department"}
   .users-table tbody td:nth-child(4):before{content:"Role"}
-  .users-table tbody td:nth-child(5):before{content:"Email"}
+  .users-table tbody td:nth-child(5){display:none}
   .users-table tbody td:nth-child(6):before{content:"Username"}
   .users-table tbody td:nth-child(7):before{content:"Status"}
   .users-table tbody td:nth-child(8):before{content:"Actions"}
   .users-table .cell-name{font-size:14px}
-  .users-table .cell-actions{min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .users-table .cell-actions{min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
   .users-table .cell-actions>*{min-width:0;width:100%;margin:0!important}
-  .users-table .cell-actions .btn{width:100%;white-space:normal;min-height:40px;padding:8px 6px;font-size:12px}
+  .users-table .cell-actions .btn{width:100%;white-space:normal;min-height:36px;padding:6px 5px;font-size:11px}
   .users-table .cell-actions form{display:block}
   .users-table .cell-actions form button{width:100%}
   .users-table .inline-form select{max-width:100%!important;width:100%;margin-bottom:5px}
@@ -863,7 +852,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMemberDetails()
   .member-detail-head h2{font-size:20px}
   .member-detail-body{padding:13px;gap:12px}
   .member-detail-profile{padding:14px;border-radius:18px}
-  .member-detail-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .member-detail-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
   .member-detail-stat{padding:11px 8px;border-radius:14px;min-width:0}
   .member-detail-stat .member-detail-muted{font-size:10px;line-height:1.3;display:block}
   .member-detail-stat strong{font-size:19px;overflow-wrap:anywhere}
@@ -874,6 +863,19 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMemberDetails()
   .member-issue-form select{width:100%;min-width:0}
   .member-issue-form button{width:100%;min-height:43px}
 }
+/* Branded confirmation dialog */
+.member-confirm-backdrop{position:fixed;inset:0;z-index:2500;background:rgba(15,23,42,.58);backdrop-filter:blur(5px);display:grid;place-items:center;padding:18px}
+.member-confirm-card{width:min(100%,360px);background:#fff;border-radius:22px;padding:24px;box-shadow:0 24px 70px #11182740;text-align:center}
+.member-confirm-mark{width:42px;height:42px;margin:0 auto 12px;border-radius:14px;display:grid;place-items:center;background:#eeeaff;color:#6948e8;font-size:23px;font-weight:900}
+.member-confirm-card h3{margin:0;color:#172554;font-size:18px}.member-confirm-card p{color:#718096;font-size:14px;line-height:1.5;margin:9px 0 20px}
+.member-confirm-actions{display:flex;gap:10px}.member-confirm-actions button{flex:1;border:0;border-radius:12px;padding:12px;font-weight:800}.member-confirm-cancel{background:#f1f5f9;color:#475569}.member-confirm-yes{background:linear-gradient(120deg,#6548f5,#8b5cf6);color:#fff}
+/* Consistent compact role editor and confirmation surfaces */
+.member-role-form label{display:block;font-size:12px;font-weight:800;color:#718096;margin:0 0 8px}
+.member-role-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.member-role-controls select{flex:1;min-width:150px;border:1px solid #dfe4f1;border-radius:12px;padding:11px 13px;background:#fff;color:#26324b;font:inherit}
+.member-role-controls button{border:0;border-radius:12px;padding:11px 18px;color:#fff;font-weight:800;background:linear-gradient(120deg,#6548f5,#8b5cf6);box-shadow:0 7px 16px #7655ff30}
+.member-role-controls button:active{transform:translateY(1px)}
+@media(max-width:520px){.member-role-controls{display:grid;grid-template-columns:1fr}.member-role-controls button{width:100%;min-height:43px}}
 @media(max-width:380px){
  .users-table tbody td{grid-template-columns:82px minmax(0,1fr);gap:7px}
  .users-table .cell-actions{grid-template-columns:1fr 1fr}
