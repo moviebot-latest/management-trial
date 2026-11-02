@@ -36,6 +36,42 @@
 @keyframes confirmPop{from{opacity:.6;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:480px){.confirm-overlay{padding:14px}.confirm-card{border-radius:22px}.confirm-body{padding:22px 20px 17px}.confirm-title{font-size:21px}.confirm-foot{padding:14px 20px 20px}.confirm-btn{flex:1;padding:0 12px}}
 
+
+/* Mobile-first campaign center refinements */
+.test-email-form{display:grid;gap:10px;min-width:0}.test-email-form .field{margin:0}.test-email-form input{min-width:0}
+.table-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.table-wrap table{min-width:680px}
+.report .card-head{align-items:flex-start}.report .card-head>a{flex:0 0 auto;white-space:normal;text-align:center;max-width:130px}
+.small-form{min-width:0}.small-form input{min-width:0;max-width:100%}
+@media(max-width:700px){
+ .page{padding:12px 10px 34px}.top{align-items:flex-start}.top-actions{width:100%}.top-actions .button{flex:1}
+ .hero{border-radius:20px;padding:22px 18px}.hero h2{font-size:27px}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{padding:12px;border-radius:15px}.stat strong{font-size:21px}
+ .layout{grid-template-columns:minmax(0,1fr);gap:13px}.preview-wrap{position:static}.card{border-radius:19px}.card-head,.card-body{padding:16px}.preview-shell{padding:12px}.email-content{padding:17px 14px}
+ .row2{grid-template-columns:minmax(0,1fr)}.mode-grid{grid-template-columns:minmax(0,1fr)}.preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .form-actions{display:grid;grid-template-columns:minmax(0,1fr)}.form-actions .button{width:100%}
+ .report .card-head{display:flex;flex-direction:column;align-items:stretch}.report .card-head>a{max-width:none;width:100%}
+ .report .table-wrap{overflow:visible;padding:10px 12px 14px}.report .table-wrap table,.report .table-wrap tbody,.report .table-wrap tr,.report .table-wrap td{display:block;width:100%;min-width:0}
+ .report .table-wrap thead{display:none}.report .table-wrap tbody{display:grid;gap:10px}.report .table-wrap tr{border:1px solid #e7eaf3;border-radius:15px;background:#fff;padding:9px 12px;box-shadow:0 5px 16px #202b4d08}
+ .report .table-wrap td{display:grid;grid-template-columns:minmax(92px,34%) minmax(0,1fr);gap:10px;align-items:start;padding:9px 2px;border-bottom:1px solid #f0f2f7;overflow-wrap:anywhere;word-break:break-word;text-align:left}
+ .report .table-wrap td:last-child{border-bottom:0}.report .table-wrap td:before{content:attr(data-label);font-size:10px;line-height:1.5;font-weight:900;letter-spacing:.55px;text-transform:uppercase;color:#8992a8}
+ .report .table-wrap td.empty{display:block}.report .table-wrap td.empty:before{content:none}
+ .actions-inline{display:flex;flex-wrap:wrap;gap:6px}.actions-inline form{display:inline-flex}.actions-inline .mini-btn{white-space:normal}
+ .report .table-wrap table[style*="min-width"]{min-width:0!important}
+ .report .card-body .row2{gap:10px}.report .small-form{display:grid;grid-template-columns:minmax(0,1fr)}.report .small-form button{width:100%}
+ .confirm-foot{display:grid;grid-template-columns:1fr 1fr}.confirm-btn{min-width:0}
+ .report .table-wrap td{grid-template-columns:minmax(82px,30%) minmax(0,1fr);font-size:12px}
+ .report .table-wrap td[data-label="Email"]{overflow-wrap:anywhere;word-break:break-all}
+ .report .table-wrap td[data-label="Delivered at / Error"] small{display:block;margin-top:5px}
+ .report .card-body{padding:14px}
+ .report .card-body form{min-width:0}
+ .report .card-body .button{width:100%;white-space:normal}
+ .preview-wrap,.layout,.card,.card-body,.card-head{min-width:0}
+ .email-preview{width:100%;max-width:100%}
+ .email-content,.email-header,.email-foot{overflow-wrap:anywhere}
+ .provider-note{overflow-wrap:anywhere}
+}
+@media(max-width:380px){.report .table-wrap td{grid-template-columns:1fr;gap:3px}.report .table-wrap td:before{font-size:9px}.confirm-foot{grid-template-columns:1fr}.stat-grid{gap:7px}.stat strong{font-size:19px}}
+
 </style>
 </head>
 <body>
@@ -127,9 +163,16 @@ Please sign in to the Management System to review the latest information.</texta
         </div>
         <div class="card-body" style="padding-top:0">
           <div class="section-label">Send a test to yourself first</div>
-          <div class="field"><label for="test_to">Test recipient email</label><input id="test_to" name="test_to" form="campaignForm" type="email" placeholder="you@example.com" autocomplete="email"></div>
-          <button type="submit" form="campaignForm" formaction="{{ url_for('send_test_campaign_email') }}" formmethod="post" formnovalidate class="button ghost" style="width:100%" id="testBtn">✉️ Send test email</button>
-          <div class="provider-note">Test sends only to the address above, not to the selected audience. The result is recorded in campaign history. For accidental-send protection, immediate all/active-user broadcasts have a configurable cooldown; each campaign also has a recipient cap.</div>
+          <form id="testEmailForm" method="post" action="{{ url_for('send_test_campaign_email') }}" class="test-email-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="subject" id="test_subject" value="">
+            <input type="hidden" name="message" id="test_message" value="">
+            <input type="hidden" name="cta_label" id="test_cta_label" value="">
+            <input type="hidden" name="cta_url" id="test_cta_url" value="">
+            <div class="field"><label for="test_to">Test recipient email</label><input id="test_to" name="test_to" type="email" placeholder="you@example.com" autocomplete="email" required></div>
+            <button type="submit" class="button ghost" style="width:100%" id="testBtn">✉️ Send test email</button>
+          </form>
+          <div class="provider-note">Test sends directly to the email address above. No audience selection is needed, and campaign recipients will not receive this test. The result is recorded in campaign history.</div>
         </div>
       </section>
     </aside>
@@ -139,14 +182,14 @@ Please sign in to the Management System to review the latest information.</texta
     <div class="card-head"><div><h3>🗂️ Campaign history &amp; delivery reports</h3><p>Latest 100 records · sent, failed, pending and scheduled counts per campaign.</p></div><span class="pill queued">Audit trail</span></div>
     <div class="table-wrap"><table><thead><tr><th>CAMPAIGN</th><th>CREATED</th><th>AUDIENCE</th><th>RECIPIENTS</th><th>STATUS</th><th>REPORT / ACTION</th></tr></thead><tbody>
     {% for c in campaigns %}<tr>
-      <td><b>{{ c.subject }}</b>{% if c.test_only %}<small>Test delivery · by {{ c.created_by }}</small>{% else %}<small>By {{ c.created_by }} · {{ c.template }}</small>{% endif %}</td>
-      <td>{{ c.created_at.strftime('%d %b %Y') }}<small>{{ c.created_at.strftime('%I:%M %p') }} UTC</small></td>
-      <td>{{ c.recipient_mode|replace('_',' ')|title }}{% if c.scheduled_at %}<small>Due {{ c.scheduled_at.replace(tzinfo=utc_tz).astimezone(ist_tz).strftime('%d %b %Y, %I:%M %p') }} IST</small>{% endif %}</td>
-      <td><b>{{ c.total_recipients }} total</b><small>{{ c.report_counts.sent }} sent · {{ c.report_counts.failed }} failed · {{ c.report_counts.pending }} pending</small></td>
-      <td><span class="pill {{ c.status }}">{% if c.status == 'sent' %}Complete{% elif c.status == 'queued' %}Pending{% elif c.status == 'sending' %}Processing{% elif c.status == 'scheduled' %}Scheduled{% elif c.status == 'partial' %}Partial{% elif c.status == 'failed' %}Failed{% elif c.status == 'cancelled' %}Cancelled{% elif c.status == 'test_sent' %}Test complete{% elif c.status == 'test_failed' %}Test failed{% else %}{{ c.status|replace('_',' ') }}{% endif %}</span></td>
-      <td><div class="actions-inline"><a class="link" href="{{ url_for('email_campaigns', detail=c.id) }}">View report →</a>
+      <td data-label="Campaign"><b>{{ c.subject }}</b>{% if c.test_only %}<small>Test delivery · by {{ c.created_by }}</small>{% else %}<small>By {{ c.created_by }} · {{ c.template }}</small>{% endif %}</td>
+      <td data-label="Created">{{ c.created_at.replace(tzinfo=utc_tz).astimezone(ist_tz).strftime('%d %b %Y') }}<small>{{ c.created_at.replace(tzinfo=utc_tz).astimezone(ist_tz).strftime('%I:%M %p') }} · IST</small></td>
+      <td data-label="Audience">{{ c.recipient_mode|replace('_',' ')|title }}{% if c.scheduled_at %}<small>Due {{ c.scheduled_at.replace(tzinfo=utc_tz).astimezone(ist_tz).strftime('%d %b %Y, %I:%M %p') }} IST</small>{% endif %}</td>
+      <td data-label="Recipients"><b>{{ c.total_recipients }} total</b><small>{{ c.report_counts.sent }} sent · {{ c.report_counts.failed }} failed · {{ c.report_counts.pending }} pending</small></td>
+      <td data-label="Status"><span class="pill {{ c.status }}">{% if c.status == 'sent' %}Complete{% elif c.status == 'queued' %}Pending{% elif c.status == 'sending' %}Processing{% elif c.status == 'scheduled' %}Scheduled{% elif c.status == 'partial' %}Partial{% elif c.status == 'failed' %}Failed{% elif c.status == 'cancelled' %}Cancelled{% elif c.status == 'test_sent' %}Test complete{% elif c.status == 'test_failed' %}Test failed{% else %}{{ c.status|replace('_',' ') }}{% endif %}</span></td>
+      <td data-label="Report / Action"><div class="actions-inline"><a class="link" href="{{ url_for('email_campaigns', detail=c.id) }}">View report →</a>
         {% if c.status == 'queued' %}<form method="post" action="{{ url_for('process_email_campaign', campaign_id=c.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="mini-btn" type="submit">Send next batch</button></form>{% endif %}
-        {% if c.report_counts.failed > 0 and c.status != 'sending' %}<form method="post" action="{{ url_for('retry_email_campaign', campaign_id=c.id) }}" onsubmit="return confirm('Retry the failed recipients for this campaign?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="mini-btn" type="submit">Retry failed</button></form>{% endif %}
+        {% if c.report_counts.failed > 0 and c.status != 'sending' %}<form method="post" action="{{ url_for('retry_email_campaign', campaign_id=c.id) }}" data-confirm-title="Retry failed recipients?" data-confirm-message="Only recipients marked Failed will be attempted again." data-confirm-icon="↻" data-confirm-ok="Retry failed"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="mini-btn" type="submit">Retry failed</button></form>{% endif %}
       </div></td>
     </tr>{% else %}<tr><td colspan="6" class="empty">No campaigns yet. Create one above, preview it, then send a test email before a larger announcement.</td></tr>{% endfor %}
     </tbody></table></div>
@@ -154,12 +197,12 @@ Please sign in to the Management System to review the latest information.</texta
 
   {% if detail_campaign %}<section class="card report" id="detailReport">
     <div class="card-head"><div><h3>📊 Report · Campaign #{{ detail_campaign.id }}</h3><p>{{ detail_campaign.subject }} · {{ detail_campaign.report_counts.sent if detail_campaign.report_counts is defined else detail_campaign.sent_count }} delivered, {{ detail_campaign.failed_count }} failed · recipient-level delivery status</p></div><a class="button ghost" href="{{ url_for('email_campaigns') }}">Close report ×</a></div>
-    {% if detail_campaign.status == 'scheduled' %}<div class="card-body"><div class="row2"><form method="post" action="{{ url_for('update_email_campaign_schedule', campaign_id=detail_campaign.id) }}" class="small-form"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><input name="scheduled_at" type="datetime-local" min="{{ now_ist }}" value="{{ detail_campaign.scheduled_at.replace(tzinfo=utc_tz).astimezone(ist_tz).strftime('%Y-%m-%dT%H:%M') if detail_campaign.scheduled_at else '' }}" required aria-label="New scheduled time"><button class="button ghost" type="submit">Update schedule</button></form><form method="post" action="{{ url_for('cancel_email_campaign', campaign_id=detail_campaign.id) }}" onsubmit="return confirm('Cancel this scheduled campaign?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="button ghost" type="submit">Cancel scheduled email</button></form></div></div>{% endif %}
+    {% if detail_campaign.status == 'scheduled' %}<div class="card-body"><div class="row2"><form method="post" action="{{ url_for('update_email_campaign_schedule', campaign_id=detail_campaign.id) }}" class="small-form"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><input name="scheduled_at" type="datetime-local" min="{{ now_ist }}" value="{{ detail_campaign.scheduled_at.replace(tzinfo=utc_tz).astimezone(ist_tz).strftime('%Y-%m-%dT%H:%M') if detail_campaign.scheduled_at else '' }}" required aria-label="New scheduled time"><button class="button ghost" type="submit">Update schedule</button></form><form method="post" action="{{ url_for('cancel_email_campaign', campaign_id=detail_campaign.id) }}" data-confirm-title="Cancel scheduled email?" data-confirm-message="This scheduled campaign will be cancelled and no recipients will be emailed by it." data-confirm-icon="✕" data-confirm-ok="Cancel schedule"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="button ghost" type="submit">Cancel scheduled email</button></form></div></div>{% endif %}
     <div class="table-wrap"><table style="min-width:560px"><thead><tr><th>RECIPIENT</th><th>EMAIL</th><th>STATUS</th><th>DELIVERED AT / ERROR</th></tr></thead><tbody>
-    {% for r in detail_recipients %}<tr><td><b>{{ r.recipient_name }}</b></td><td>{{ r.email }}</td><td><span class="recipient-status {{ r.status }}">{% if r.status == 'sent' %}Complete{% elif r.status == 'pending' %}Pending{% elif r.status == 'failed' %}Failed{% else %}{{ r.status }}{% endif %}</span></td><td>{% if r.sent_at %}{{ r.sent_at.strftime('%d %b %Y, %I:%M:%S %p') }} UTC{% endif %}{% if r.error %}<small style="color:#b12638">{{ r.error }}</small>{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="empty">No recipient report is available.</td></tr>{% endfor %}
+    {% for r in detail_recipients %}<tr><td data-label="Recipient"><b>{{ r.recipient_name }}</b></td><td data-label="Email">{{ r.email }}</td><td data-label="Status"><span class="recipient-status {{ r.status }}">{% if r.status == 'sent' %}Complete{% elif r.status == 'pending' %}Pending{% elif r.status == 'failed' %}Failed{% else %}{{ r.status }}{% endif %}</span></td><td data-label="Delivered at / Error">{% if r.sent_at %}{{ r.sent_at.replace(tzinfo=utc_tz).astimezone(ist_tz).strftime('%d %b %Y, %I:%M:%S %p') }} · IST{% endif %}{% if r.error %}<small style="color:#b12638">{{ r.error }}</small>{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="empty">No recipient report is available.</td></tr>{% endfor %}
     </tbody></table></div>
     {% if detail_campaign.status == 'queued' %}<div class="card-body"><form method="post" action="{{ url_for('process_email_campaign', campaign_id=detail_campaign.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="button primary" type="submit">⚡ Process next batch</button></form></div>{% endif %}
-    {% if detail_campaign.failed_count > 0 %}<div class="card-body"><form method="post" action="{{ url_for('retry_email_campaign', campaign_id=detail_campaign.id) }}" onsubmit="return confirm('Retry all failed recipients?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="button ghost" type="submit">↻ Retry failed recipients</button></form></div>{% endif %}
+    {% if detail_campaign.failed_count > 0 %}<div class="card-body"><form method="post" action="{{ url_for('retry_email_campaign', campaign_id=detail_campaign.id) }}" data-confirm-title="Retry failed recipients?" data-confirm-message="All recipients marked Failed will be queued for another delivery attempt." data-confirm-icon="↻" data-confirm-ok="Retry recipients"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="button ghost" type="submit">↻ Retry failed recipients</button></form></div>{% endif %}
   </section>{% endif %}
   <p style="text-align:center;font-size:10px;line-height:1.7;color:#959db0;margin:20px 0 0">Delivery reports reflect provider acceptance, not proof that a message reached the inbox. Check Brevo / SMTP provider logs for final delivery, bounces or spam filtering.</p>
 </main>
@@ -230,35 +273,54 @@ confirmOk.addEventListener('click',()=>closeCampaignConfirm(true));
 confirmCancel.addEventListener('click',()=>closeCampaignConfirm(false));
 confirmOverlay.addEventListener('click',e=>{if(e.target===confirmOverlay)closeCampaignConfirm(false);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&confirmOverlay.classList.contains('is-open'))closeCampaignConfirm(false);});
-let approvedSubmitter=null;
-async function confirmSubmit(button, details){
-  if(!form.reportValidity())return;
-  const yes=await campaignConfirm(details);
-  if(!yes)return;
-  approvedSubmitter=button;
-  form.requestSubmit(button);
-}
-document.getElementById('sendNow').addEventListener('click',e=>{
-  e.preventDefault();
-  confirmSubmit(e.currentTarget,{title:'Send campaign now?',message:'This will send the campaign to the selected audience. The recipient list will be saved for delivery reporting.',icon:'🚀',kicker:'Send campaign',okText:'Send campaign'});
-});
-document.getElementById('scheduleBtn').addEventListener('click',e=>{
-  e.preventDefault();
-  const scheduled=document.getElementById('scheduled_at');
-  if(!scheduled.value){campaignConfirm({title:'Choose a send time',message:'Select a future date and time before scheduling this email campaign.',icon:'🗓️',kicker:'Schedule email',okText:'Got it'});return;}
-  confirmSubmit(e.currentTarget,{title:'Schedule this campaign?',message:'Your campaign will be scheduled for the selected date and time in India Standard Time (IST).',icon:'🗓️',kicker:'Schedule email',okText:'Confirm schedule'});
-});
-document.getElementById('testBtn').addEventListener('click',async e=>{
+const testForm=document.getElementById('testEmailForm');
+const testBtn=document.getElementById('testBtn');
+testForm.addEventListener('submit',async e=>{
   e.preventDefault();
   const target=document.getElementById('test_to');
-  if(!subject.value.trim()||!message.value.trim()||!target.value.trim()){
-    campaignConfirm({title:'Complete the test email',message:'Enter an email subject, message, and test recipient address before sending a test copy.',icon:'📝',kicker:'Missing information',okText:'Got it'});return;
+  if(!target.reportValidity())return;
+  if(!subject.value.trim()||!message.value.trim()){
+    await campaignConfirm({title:'Complete the test email',message:'Enter an email subject and message before sending a test copy.',icon:'📝',kicker:'Missing information',okText:'Got it'});return;
   }
-  if(!form.reportValidity())return;
-  const yes=await campaignConfirm({title:'Send a test email?',message:'A test copy will be sent only to '+target.value+'. Your full campaign audience will not receive this test.',icon:'🧪',kicker:'Test email',okText:'Send test'});
-  if(yes){approvedSubmitter=e.currentTarget;form.requestSubmit(e.currentTarget);}
+  document.getElementById('test_subject').value=subject.value;
+  document.getElementById('test_message').value=message.value;
+  document.getElementById('test_cta_label').value=ctaLabel.value;
+  document.getElementById('test_cta_url').value=ctaUrl.value;
+  const yes=await campaignConfirm({title:'Send a test email?',message:'A test copy will be sent only to '+target.value+'. Your selected campaign audience will not receive this test.',icon:'🧪',kicker:'Test email',okText:'Send test'});
+  if(yes){testBtn.disabled=true;testBtn.textContent='Sending test…';testForm.submit();}
 });
-form.addEventListener('submit',e=>{const submitter=e.submitter;if(approvedSubmitter===submitter){approvedSubmitter=null;}if(submitter===document.getElementById('testBtn')){submitter.disabled=true;submitter.textContent='Sending test…';return;}const mode=modes.find(m=>m.checked)?.value||'all';if(mode==='selected'&&!checkboxes.some(c=>c.checked)){alert('Select at least one recipient.');e.preventDefault();return;}if(mode==='single'&&!document.getElementById('single_user_id').value){alert('Choose one user.');e.preventDefault();return;}if(submitter===document.getElementById('sendNow')){submitter.disabled=true;submitter.textContent='Preparing campaign…';}});
+let campaignValidationApproved=false;
+form.addEventListener('submit',async e=>{
+  const submitter=e.submitter;
+  if(campaignValidationApproved){campaignValidationApproved=false;if(submitter===document.getElementById('sendNow')){submitter.disabled=true;submitter.textContent='Preparing campaign…';}return;}
+  const mode=modes.find(m=>m.checked)?.value||'all';
+  let issue=null;
+  if(mode==='selected'&&!checkboxes.some(c=>c.checked))issue={title:'Select recipients',message:'Choose at least one person in the recipient list, or switch to All registered users / Active users.',icon:'👥',kicker:'Audience required',okText:'Got it'};
+  if(mode==='single'&&!document.getElementById('single_user_id').value)issue={title:'Choose one user',message:'Select the account that should receive this campaign.',icon:'👤',kicker:'Audience required',okText:'Got it'};
+  if(issue){e.preventDefault();await campaignConfirm(issue);return;}
+  if(submitter===document.getElementById('sendNow')){e.preventDefault();const yes=await campaignConfirm({title:'Send campaign now?',message:'This will send the campaign to the selected audience. The recipient list will be saved for delivery reporting.',icon:'🚀',kicker:'Send campaign',okText:'Send campaign'});if(yes){campaignValidationApproved=true;form.requestSubmit(submitter);}}
+  else if(submitter===document.getElementById('scheduleBtn')){
+    const scheduled=document.getElementById('scheduled_at');
+    if(!scheduled.value){e.preventDefault();await campaignConfirm({title:'Choose a send time',message:'Select a future date and time before scheduling this email campaign.',icon:'🗓️',kicker:'Schedule email',okText:'Got it'});return;}
+    e.preventDefault();const yes=await campaignConfirm({title:'Schedule this campaign?',message:'Your campaign will be scheduled for the selected date and time in India Standard Time (IST).',icon:'🗓️',kicker:'Schedule email',okText:'Confirm schedule'});if(yes){campaignValidationApproved=true;form.requestSubmit(submitter);}
+  }
+});
+// Use the same branded confirmation dialog for retry and cancellation actions.
+document.querySelectorAll('form[data-confirm-title]').forEach(confirmForm=>{
+  confirmForm.addEventListener('submit',async e=>{
+    if(confirmForm.dataset.confirmApproved==='yes'){delete confirmForm.dataset.confirmApproved;return;}
+    e.preventDefault();
+    const yes=await campaignConfirm({title:confirmForm.dataset.confirmTitle||'Confirm action',message:confirmForm.dataset.confirmMessage||'Please confirm this action.',icon:confirmForm.dataset.confirmIcon||'✉️',kicker:'Please confirm',okText:confirmForm.dataset.confirmOk||'Continue'});
+    if(yes){confirmForm.dataset.confirmApproved='yes';confirmForm.requestSubmit();}
+  });
+});
 refreshPreview();modeChanged();
 </script>
+
+<style id="developer-credit-style">
+.developer-credit{display:block;width:100%;box-sizing:border-box;text-align:center;padding:12px 16px;margin:24px 0 0;color:#64748b;font:500 11px/1.5 Inter,Arial,sans-serif;letter-spacing:.2px;border-top:1px solid rgba(148,163,184,.18)}
+.developer-credit strong{color:#475569;font-weight:700}
+</style>
+<div class="developer-credit">Developed by <strong>Aman Kumar</strong></div>
+
 </body></html>

@@ -3,4 +3,11 @@
 <label style="display:block;margin:8px 0"><input type="radio" name="payment_method" value="COD" checked> Cash on Delivery (COD)</label>
 <label style="display:block;margin:8px 0"><input type="radio" name="payment_method" value="ONLINE"> Online Payment</label>
 <small style="color:#64748b">Online payment is a simulated internship gateway. No real money is charged.</small>
-</div><div style="margin-top:18px;display:flex;justify-content:flex-end"><button class="btn btn-primary" type="submit">📦 Place Order — ₹{{'%.2f'|format(total)}}</button></div></form></div>{% else %}<div style="text-align:center;padding:80px;color:#64748b">Your cart is empty.<br><br><a class="btn btn-primary" href="{{url_for('books')}}">Browse Books</a></div>{% endif %}</div></body></html>
+</div><div style="margin-top:18px;display:flex;justify-content:flex-end"><button class="btn btn-primary" type="submit">📦 Place Order — ₹{{'%.2f'|format(total)}}</button></div></form></div>{% else %}<div style="text-align:center;padding:80px;color:#64748b">Your cart is empty.<br><br><a class="btn btn-primary" href="{{url_for('books')}}">Browse Books</a></div>{% endif %}</div>
+<style id="developer-credit-style">
+.developer-credit{display:block;width:100%;box-sizing:border-box;text-align:center;padding:12px 16px;margin:24px 0 0;color:#64748b;font:500 11px/1.5 Inter,Arial,sans-serif;letter-spacing:.2px;border-top:1px solid rgba(148,163,184,.18)}
+.developer-credit strong{color:#475569;font-weight:700}
+</style>
+<div class="developer-credit">Developed by <strong>Aman Kumar</strong></div>
+
+</body></html>

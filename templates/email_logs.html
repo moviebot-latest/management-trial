@@ -46,4 +46,11 @@ th,td{padding:9px 8px;text-align:left;border-bottom:1px solid #eef0f6;vertical-a
 <td>{% if l.status=='sent' %}<span class="pill ok">sent</span>{% elif l.status=='failed' %}<span class="pill bad" title="{{ l.error }}">failed</span>{% elif l.status=='skipped' %}<span class="pill warn">skipped</span>{% else %}<span class="pill warn">queued</span>{% endif %}{% if l.error %}<div style="color:#aa2d3e;font-size:11px;margin-top:4px;max-width:260px">{{ l.error }}</div>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" style="color:#7f899d;padding:18px">No emails yet.</td></tr>{% endfor %}
 </tbody></table></div></section>
-</main></body></html>
+</main>
+<style id="developer-credit-style">
+.developer-credit{display:block;width:100%;box-sizing:border-box;text-align:center;padding:12px 16px;margin:24px 0 0;color:#64748b;font:500 11px/1.5 Inter,Arial,sans-serif;letter-spacing:.2px;border-top:1px solid rgba(148,163,184,.18)}
+.developer-credit strong{color:#475569;font-weight:700}
+</style>
+<div class="developer-credit">Developed by <strong>Aman Kumar</strong></div>
+
+</body></html>

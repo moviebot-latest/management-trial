@@ -43,4 +43,11 @@ function syncFiles(){const dt=new DataTransfer();selectedFiles.forEach(f=>dt.ite
 function renderPhotos(){photosBox.innerHTML='';if(!selectedFiles.length){photosBox.innerHTML='<div class="empty-photo">No photos selected</div>';return}selectedFiles.forEach((file,i)=>{const wrap=document.createElement('div');wrap.className='photo';const img=document.createElement('img');img.src=URL.createObjectURL(file);const x=document.createElement('button');x.type='button';x.className='remove-photo';x.textContent='×';x.onclick=()=>{selectedFiles.splice(i,1);syncFiles();renderPhotos()};wrap.append(img,x);photosBox.append(wrap)});}
 renderPhotos();
 form.addEventListener('submit',e=>{if(!loan.value){e.preventDefault();errorNote.textContent='Please select the issued book.';errorNote.classList.remove('hidden');return}if(reason.value==='Other'&&!otherReason.value.trim()){e.preventDefault();errorNote.textContent='Please enter the Other Reason.';errorNote.classList.remove('hidden');return}submitBtn.disabled=true;submitBtn.textContent='Saving Fine…';});
-</script></body></html>
+</script>
+<style id="developer-credit-style">
+.developer-credit{display:block;width:100%;box-sizing:border-box;text-align:center;padding:12px 16px;margin:24px 0 0;color:#64748b;font:500 11px/1.5 Inter,Arial,sans-serif;letter-spacing:.2px;border-top:1px solid rgba(148,163,184,.18)}
+.developer-credit strong{color:#475569;font-weight:700}
+</style>
+<div class="developer-credit">Developed by <strong>Aman Kumar</strong></div>
+
+</body></html>

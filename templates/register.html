@@ -158,5 +158,12 @@ if(resendBtn&&resendCountdown){let seconds=Math.max(0,Number({{ resend_wait|defa
 document.getElementById('resendForm')?.addEventListener('submit',function(){const b=this.querySelector('button[type=submit]');if(b){b.disabled=true;b.textContent='Sending…';}});
 document.getElementById('verifyBtn')?.form?.addEventListener('submit',function(e){const input=document.getElementById('otp');if(input&&input.value.length!==6){e.preventDefault();input.focus();return;}const b=document.getElementById('verifyBtn');if(b){b.disabled=true;b.setAttribute('aria-busy','true');b.innerHTML='Verifying code…';}});
 </script>
+
+<style id="developer-credit-style">
+.developer-credit{display:block;width:100%;box-sizing:border-box;text-align:center;padding:12px 16px;margin:24px 0 0;color:#64748b;font:500 11px/1.5 Inter,Arial,sans-serif;letter-spacing:.2px;border-top:1px solid rgba(148,163,184,.18)}
+.developer-credit strong{color:#475569;font-weight:700}
+</style>
+<div class="developer-credit">Developed by <strong>Aman Kumar</strong></div>
+
 </body>
 </html>

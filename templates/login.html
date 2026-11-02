@@ -140,7 +140,7 @@ form.addEventListener('submit',async function(e){
     const currentPath=window.location.pathname.replace(/\/$/,'')||'/';
     const finalPath=finalUrl.pathname.replace(/\/$/,'')||'/';
     const loginPath=new URL(form.action,window.location.href).pathname.replace(/\/$/,'')||'/login';
-    if(response.ok && finalPath!==loginPath && !/^\/login\/?$/.test(finalPath)){
+    if(response.ok && finalPath!==loginPath && !/login/i.test(finalPath)){
       setStep(stepDone,'active','LIVE','Opening your secure workspace');
       document.getElementById('aiMetricStatus').textContent='SUCCESS';
       document.getElementById('aiPercent').textContent='COMPLETE';
@@ -169,5 +169,12 @@ form.addEventListener('submit',async function(e){
   }
 });
 </script>
+
+<style id="developer-credit-style">
+.developer-credit{display:block;width:100%;box-sizing:border-box;text-align:center;padding:12px 16px;margin:24px 0 0;color:#64748b;font:500 11px/1.5 Inter,Arial,sans-serif;letter-spacing:.2px;border-top:1px solid rgba(148,163,184,.18)}
+.developer-credit strong{color:#475569;font-weight:700}
+</style>
+<div class="developer-credit">Developed by <strong>Aman Kumar</strong></div>
+
 </body>
 </html>
