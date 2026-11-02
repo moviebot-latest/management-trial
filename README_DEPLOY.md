@@ -79,3 +79,6 @@ Never paste production secrets into chat or commit them to GitHub. `.env.example
 ## OTP screens
 
 Registration OTP and forgot-password OTP now use clearer verification steps, mobile-friendly 6-digit inputs, expiry guidance, resend countdowns, protected resend forms, and confirmation/loading states. The password-recovery “Start over” link explicitly clears only the reset session state; it does not delete user or OTP history.
+
+
+Project credit: **Developed by Aman Kumar.**

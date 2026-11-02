@@ -29,3 +29,6 @@ Use either Brevo (`BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, optional `BREVO_SENDER_
 ## Verification notes
 
 `CODE_TEST_REPORT_V51.md` records checks run on the source in this workspace. Syntax, template parsing, and JavaScript syntax checks do not prove real email delivery or a successful live Neon/Vercel deployment. Use a test campaign after you configure valid provider credentials.
+
+
+Project credit: **Developed by Aman Kumar.**
