@@ -23,6 +23,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy import inspect, text, update, Text, ForeignKey, UniqueConstraint
 from werkzeug.security import generate_password_hash, check_password_hash
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 try:
     from dotenv import load_dotenv
@@ -935,14 +936,33 @@ def inject_globals():
     }
 
 
+def _csrf_serializer():
+    """Signed CSRF tokens work across separate Vercel serverless workers."""
+    secret = app.config.get("SECRET_KEY")
+    if not secret:
+        return None
+    return URLSafeTimedSerializer(secret, salt="management-system-csrf-v1")
+
+
 def _csrf_token():
-    # The public landing page can render during incomplete deployment setup.
-    # Do not touch Flask's session when SECRET_KEY is absent.
-    if not app.config.get("SECRET_KEY"):
+    serializer = _csrf_serializer()
+    if serializer is None:
         return ""
-    if "_csrf_token" not in session:
-        session["_csrf_token"] = secrets.token_urlsafe(32)
-    return session["_csrf_token"]
+    # Fresh unpredictable token per rendered form; signature is verified on POST.
+    return serializer.dumps(secrets.token_urlsafe(32))
+
+
+def _valid_csrf_token(token):
+    if not token or not isinstance(token, str):
+        return False
+    serializer = _csrf_serializer()
+    if serializer is None:
+        return False
+    try:
+        value = serializer.loads(token, max_age=4 * 60 * 60)
+        return isinstance(value, str) and len(value) >= 32
+    except (BadSignature, SignatureExpired, TypeError, ValueError):
+        return False
 
 
 @app.before_request
@@ -958,13 +978,15 @@ def before_request():
         }), 503
     if session.get("user_id"):
         session.modified = True
-    # CSRF on POST (skip landing / static)
+    # Validate signed CSRF tokens, independent of the session cookie. This is
+    # important when Vercel serves the GET and POST on different serverless workers.
     if request.method == "POST":
-        sent     = request.form.get("_csrf_token", "")
-        expected = session.get("_csrf_token", "")
-        if not expected or not sent or not secrets.compare_digest(sent, expected):
-            return render_template("error.html", code=400,
-                                   message="Invalid or missing security token."), 400
+        sent = request.form.get("_csrf_token", "")
+        if not _valid_csrf_token(sent):
+            return render_template(
+                "error.html", code=400,
+                message="Your security token is missing or expired. Refresh the page and try again."
+            ), 400
 
 
 @app.after_request
