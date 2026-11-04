@@ -50,7 +50,7 @@ app.config.update(
     SESSION_COOKIE_SECURE=is_production,
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
-    MAX_CONTENT_LENGTH=2 * 1024 * 1024,
+    MAX_CONTENT_LENGTH=26 * 1024 * 1024,  # bounded 25 MB merge-restore upload + multipart overhead
 )
 
 # ── Database ──────────────────────────────────────────────────────────────
@@ -192,6 +192,10 @@ class Book(db.Model):
     created_by = db.Column(db.String(80), nullable=False, default="system")
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
 
+    @property
+    def book_id(self):
+        return f"BK-{self.id:06d}" if self.id else "BK-PENDING"
+
 
 class BookLoan(db.Model):
     """Tracks a book issued to a library member and its return status."""
@@ -203,6 +207,12 @@ class BookLoan(db.Model):
     due_at = db.Column(db.DateTime, nullable=True)
     returned_at = db.Column(db.DateTime, nullable=True)
     issued_by = db.Column(db.String(80), nullable=False, default="admin")
+    book = db.relationship("Book", foreign_keys=[book_id])
+    member = db.relationship("User", foreign_keys=[user_id])
+
+    @property
+    def user(self):
+        return self.member
 
 
 class EmailVerification(db.Model):
@@ -1000,7 +1010,7 @@ def security_headers(response):
     h["Pragma"]                    = "no-cache"
     h["Expires"]                   = "0"
     h["Referrer-Policy"]           = "strict-origin-when-cross-origin"
-    h["Permissions-Policy"]        = "camera=(), microphone=(), geolocation=(), payment=()"
+    h["Permissions-Policy"]        = "camera=(self), microphone=(), geolocation=(), payment=()"
     h["Content-Security-Policy"]   = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -1056,7 +1066,7 @@ def public_script():
 @app.route("/__version")
 def deployment_version():
     """Non-sensitive marker to verify which deployment is serving requests."""
-    return jsonify({"version": "V51", "application": "Management System", "email_campaign_center": True}), 200
+    return jsonify({"version": "V60", "application": "Library Management System", "email_campaign_center": True, "member_self_issue": True, "book_requests": True, "qr_barcode": True, "fines_damage": True, "manual_upi": True, "backup_reports": True}), 200
 
 
 @app.route("/")
@@ -1600,6 +1610,8 @@ def books_catalog():
     q = request.args.get("q", "").strip()
     category = request.args.get("category", "").strip()
     query = Book.query
+    if session.get("role") == "user":
+        query = query.filter(Book.is_active.is_(True))
     if q:
         pat = f"%{q}%"
         query = query.filter(db.or_(Book.title.ilike(pat), Book.author.ilike(pat), Book.isbn.ilike(pat)))
@@ -1651,6 +1663,10 @@ def add_book():
         db.session.add(book)
         db.session.commit()
         log_action(session.get("username", "staff"), "BOOK_CREATED", f"Added book: {title}")
+        try:
+            app.extensions["library_v60_helpers"]["queue_availability_emails"](book)
+        except Exception:
+            app.logger.exception("Availability notification could not be sent after book creation")
         flash(f'"{title}" was added to the catalog.', "success")
         return redirect(url_for("books_catalog"))
     return render_template("add_book.html", book=None)
@@ -1697,6 +1713,11 @@ def edit_book(book_id):
             book.cover_data = cover_data
         db.session.commit()
         log_action(session.get("username", "staff"), "BOOK_UPDATED", f"Updated book: {title}")
+        try:
+            if book.available_copies > 0:
+                app.extensions["library_v60_helpers"]["queue_availability_emails"](book)
+        except Exception:
+            app.logger.exception("Availability notification could not be sent after book update")
         flash(f'"{title}" was updated.', "success")
         return redirect(url_for("books_catalog"))
     return render_template("add_book.html", book=book)
@@ -1707,11 +1728,66 @@ def edit_book(book_id):
 def delete_book(book_id):
     book = Book.query.get_or_404(book_id)
     title = book.title
-    db.session.delete(book)
+    book.is_active = False
+    book.available_copies = 0
     db.session.commit()
-    log_action(session.get("username", "staff"), "BOOK_DELETED", f"Deleted book: {title}")
-    flash(f'"{title}" was removed from the catalog.', "success")
+    log_action(session.get("username", "staff"), "BOOK_ARCHIVED", f"Archived book: {title}; loan and request history retained")
+    flash(f'"{title}" was archived. Its issue/request history has been preserved.', "success")
     return redirect(url_for("books_catalog"))
+
+
+@app.route("/books/<int:book_id>/restore", methods=["POST"])
+@staff_required
+def restore_book(book_id):
+    book = Book.query.get_or_404(book_id)
+    active_loans = BookLoan.query.filter_by(book_id=book.id, status="issued").count()
+    book.is_active = True
+    book.total_copies = max(0, int(book.total_copies or 0))
+    book.available_copies = max(0, book.total_copies - active_loans)
+    db.session.commit()
+    log_action(session.get("username", "staff"), "BOOK_RESTORED", f"Restored book: {book.title}; available={book.available_copies}")
+    try:
+        if book.available_copies > 0:
+            app.extensions["library_v60_helpers"]["queue_availability_emails"](book)
+    except Exception:
+        app.logger.exception("Availability notification could not be sent after book restore")
+    flash(f'"{book.title}" was restored to the active catalog.', "success")
+    return redirect(url_for("books_catalog"))
+
+
+# ═════════════════════ MEMBER SELF-SERVICE BOOKS ═════════════════════
+@app.route("/my-books")
+@login_required
+def my_books():
+    loans = (BookLoan.query.filter_by(user_id=session["user_id"])
+             .order_by(BookLoan.issued_at.desc()).limit(100).all())
+    loan_rows = []
+    now = datetime.utcnow()
+    for loan in loans:
+        book = db.session.get(Book, loan.book_id)
+        loan_rows.append({"loan": loan, "book": book,
+                          "overdue": bool(loan.status == "issued" and loan.due_at and loan.due_at < now)})
+    return render_template("my_books.html", loan_rows=loan_rows,
+                           current_name=session.get("name", "Member"), role=session.get("role", "user"))
+
+
+@app.route("/books/<int:book_id>/issue", methods=["POST"])
+@login_required
+def self_issue_book(book_id):
+    member = db.session.get(User, session["user_id"])
+    book = db.session.get(Book, book_id)
+    try:
+        loan = app.extensions["library_v60_helpers"]["create_issue"](
+            member, book, member.username if member else "user")
+        db.session.commit()
+        app.extensions["library_v60_helpers"]["notify_issued"](loan)
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+        return redirect(url_for("books_catalog"))
+    log_action(member.username, "BOOK_SELF_ISSUED", f"{book.title} ({app.extensions['library_v60_helpers']['book_code'](book)}); due {loan.due_at:%d %b %Y}")
+    flash(f'"{book.title}" issued successfully. Due date: {loan.due_at:%d %b %Y}.', "success")
+    return redirect(url_for("my_books"))
 
 
 # ═════════════════════════ PROFILE ═══════════════════════════
@@ -2545,47 +2621,53 @@ def admin_user_details(user_id):
 def issue_book_to_user(user_id):
     member = db.session.get(User, user_id)
     book = db.session.get(Book, request.form.get("book_id", type=int))
-    if not member or not book:
-        flash("Member or book could not be found.", "error")
+    try:
+        loan = app.extensions["library_v60_helpers"]["create_issue"](
+            member, book, session.get("username", "admin"))
+        db.session.commit()
+        app.extensions["library_v60_helpers"]["notify_issued"](loan)
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
         return redirect(url_for("dashboard"))
-    if not member.is_active:
-        flash("Activate this member before issuing a book.", "error")
-        return redirect(url_for("dashboard"))
-    if (book.available_copies or 0) < 1:
-        flash("No copies of this book are currently available.", "error")
-        return redirect(url_for("dashboard"))
-    loan = BookLoan(user_id=member.id, book_id=book.id, status="issued",
-                    issued_at=datetime.utcnow(), due_at=datetime.utcnow() + timedelta(days=14),
-                    issued_by=session.get("username", "admin"))
-    book.available_copies -= 1
-    db.session.add(loan)
-    db.session.commit()
-    log_action(session.get("username"), "BOOK_ISSUED", f"{book.title} issued to {member.username} (due in 14 days)")
-    log_action(member.username, "BOOK_ISSUED", f"Book: {book.title}; due in 14 days")
-    flash(f'"{book.title}" issued to {member.name}. Due in 14 days.', "success")
+    log_action(session.get("username"), "BOOK_ISSUED", f"{book.title} issued to {member.username}; due {loan.due_at:%d %b %Y}")
+    flash(f'"{book.title}" issued to {member.name}. Due {loan.due_at:%d %b %Y}.', "success")
     return redirect(url_for("dashboard"))
 
 
 @app.route("/admin/book-loans/<int:loan_id>/return", methods=["POST"])
-@admin_required
+@staff_required
 def return_issued_book(loan_id):
     loan = db.session.get(BookLoan, loan_id)
     if not loan or loan.status != "issued":
         flash("Active book issue was not found.", "error")
         return redirect(url_for("dashboard"))
-    book = db.session.get(Book, loan.book_id)
-    member = db.session.get(User, loan.user_id)
-    loan.status = "returned"
-    loan.returned_at = datetime.utcnow()
-    if book:
-        book.available_copies = min(book.total_copies or 0, (book.available_copies or 0) + 1)
-    db.session.commit()
-    title = book.title if book else "Book"
-    log_action(session.get("username"), "BOOK_RETURNED", f"{title} returned by {member.username if member else loan.user_id}")
-    if member:
-        log_action(member.username, "BOOK_RETURNED", f"Book: {title}")
-    flash(f'"{title}" marked as returned.', "success")
-    return redirect(url_for("dashboard"))
+    condition = request.form.get("condition", "good")
+    damage_type = request.form.get("damage_type", "none")
+    description = request.form.get("description", "").strip()
+    try:
+        damage_fine = float(request.form.get("damage_fine", "0") or 0)
+        fine_permission = app.extensions["library_v60_helpers"]["librarian_fine_allowed"]
+        if damage_fine > 0 and not fine_permission():
+            raise ValueError("Admin has not granted the Librarian permission to add damage fines.")
+        if damage_fine < 0 or damage_fine > 1000000:
+            raise ValueError
+        photo_data = None
+        photo = request.files.get("damage_photo")
+        if photo and photo.filename:
+            raw = photo.read(500001)
+            if len(raw) > 500000 or (photo.mimetype or "").lower() not in {"image/jpeg", "image/png", "image/webp"}:
+                raise ValueError("Damage photo must be JPG, PNG or WebP under 500 KB.")
+            import base64
+            photo_data = f"data:{photo.mimetype};base64," + base64.b64encode(raw).decode("ascii")
+        late = app.extensions["library_v60_helpers"]["return_loan"](
+            loan, condition, damage_type, description, damage_fine, photo_data)
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+        return redirect(url_for("dashboard"))
+    flash(f"Return recorded. Automatic late fine: ₹{late:.2f}.", "success")
+    return redirect(url_for("admin_fines"))
 
 
 # ════════════════════════ ADMIN USER MGMT ══════════════════════
@@ -2829,10 +2911,12 @@ def delete_user(user_id):
         flash("You cannot delete your own account.", "error")
         return redirect(url_for("dashboard"))
     uname = user.username
-    db.session.delete(user)
+    # Preserve referential history (loans, fines, payments and audit logs):
+    # account removal is a soft-deactivation, not a destructive SQL DELETE.
+    user.is_active = False
     db.session.commit()
-    log_action(session.get("username", "admin"), "ADMIN_DELETE", f"Deleted user {uname}")
-    flash(f"✅ User ‘{uname}’ deleted.", "success")
+    log_action(session.get("username", "admin"), "ADMIN_SOFT_DELETE", f"Deactivated user {uname}; history preserved")
+    flash(f"User ‘{uname}’ deactivated. Their library and payment history has been preserved.", "success")
     return redirect(url_for("dashboard"))
 
 
@@ -3116,6 +3200,26 @@ def _migrate_existing_schema():
                 "No rows were deleted; back up the database and reconcile those pending reset rows manually."
             )
 
+    # Library circulation tables may exist in older releases with only a subset
+    # of the current lifecycle fields. Add nullable/defaulted columns in place;
+    # never drop or rewrite historical loan rows.
+    if inspect(db.engine).has_table("book_loan"):
+        loan_cols = _columns_for("book_loan")
+        required_loan_keys = {"id", "user_id", "book_id"}
+        missing_loan_keys = sorted(required_loan_keys - loan_cols)
+        if missing_loan_keys:
+            raise RuntimeError(
+                "Existing book_loan table is missing required link columns: " + ", ".join(missing_loan_keys) +
+                ". No loan rows were deleted; back up and reconcile this legacy table before deployment."
+            )
+        _add_missing_columns("book_loan", {
+            "status": "VARCHAR(20) NOT NULL DEFAULT 'issued'",
+            "issued_at": "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "due_at": "TIMESTAMP NULL",
+            "returned_at": "TIMESTAMP NULL",
+            "issued_by": "VARCHAR(80) NOT NULL DEFAULT 'system'",
+        })
+
     if inspect(db.engine).has_table("audit_log"):
         audit_defs = {
             "username": "VARCHAR(80) NOT NULL DEFAULT 'system'",
@@ -3256,7 +3360,7 @@ def _initialize_database_before_request():
     # endpoint caused concurrent cold starts to compete for Neon connections.
     # /public-stats handles query errors itself and returns a safe 503 fallback.
     if request.path in {
-        "/", "/style.css", "/ui_advanced.js", "/favicon.ico",
+        "/", "/__version", "/style.css", "/ui_advanced.js", "/favicon.ico",
         "/public-stats", "/auth-status",
     } or request.endpoint == "static":
         return None
@@ -3276,6 +3380,10 @@ def _initialize_database_before_request():
                     "In Vercel, verify DATABASE_URL points to your existing Neon database, then check Function Logs. "
                     "No database records were intentionally deleted by this request."
         ), 503
+
+
+from library_v60 import register_library_v60
+register_library_v60(app, db, User, Book, BookLoan, AuditLog, login_required, staff_required, admin_required, log_action)
 
 
 if __name__ == '__main__':

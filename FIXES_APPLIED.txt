@@ -1,3 +1,5 @@
+HISTORICAL NOTES: These were V52-era fixes. See README.md and V60_IMPLEMENTATION_TEST_REPORT.md for the current V60 package.
+
 Management Trial - targeted production fixes
 
 1. Admin OTP CSRF protection
