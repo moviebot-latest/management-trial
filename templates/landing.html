@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Management System &mdash; Modern Employee Portal</title>
-  <meta name="description" content="Secure, modern employee management system. Manage users, departments, and access with ease.">
+  <title>Library Management System &mdash; Modern Library Portal</title>
+  <meta name="description" content="Secure library management portal. Browse books, manage issue and return, track availability, fines and member accounts.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' font-family='Inter,Arial' font-weight='900' fill='white'%3EMS%3C/text%3E%3C/svg%3E">
@@ -248,8 +248,8 @@
 <!-- NAV -->
 <nav class="lnav">
   <a href="/" class="lnav-logo">
-    <div class="lnav-mark">MS</div>
-    <span class="lnav-name">Management System</span>
+    <div class="lnav-mark">LM</div>
+    <span class="lnav-name">Library Management</span>
   </a>
   <div class="lnav-links">
     <a href="#features" class="lnav-link">Features</a>
@@ -276,9 +276,9 @@
       <span class="hero-badge-dot"></span>
       Modern &bull; Secure &bull; Fast
     </div>
-    <h1 class="hero-title" aria-label="Employee Management Made Simple, Secure, Smarter or Clear"><span class="hero-static-word word-one">Employee</span> <span class="hero-static-word word-two">Management</span><br><span class="hero-rotator" aria-live="polite"><span class="rotator-word is-active">Made Simple</span><span class="rotator-word">Made Secure</span><span class="rotator-word">Made Smarter</span><span class="rotator-word">Made Clear</span></span></h1>
+    <h1 class="hero-title" aria-label="Library Management Made Simple, Secure, Smarter or Clear"><span class="hero-static-word word-one">Library</span> <span class="hero-static-word word-two">Management</span><br><span class="hero-rotator" aria-live="polite"><span class="rotator-word is-active">Made Simple</span><span class="rotator-word">Made Secure</span><span class="rotator-word">Made Smarter</span><span class="rotator-word">Made Clear</span></span></h1>
     <p class="hero-sub" data-reveal>
-      A powerful, secure portal to manage your team, departments, and access — built with modern design and enterprise-grade security.
+      A secure library portal to manage the book catalogue, issue and return, member access, requests and fines — all in one place.
     </p>
     <div class="hero-cta" data-reveal>
       <a href="/register" class="btn-hero-primary">Get Started Free &rarr;</a>
@@ -292,9 +292,9 @@
         <span class="mock-title">Admin Dashboard</span>
       </div>
       <div class="mock-body" id="liveMockStats" aria-live="polite">
-        <div class="mock-card b"><div class="mock-val" data-stat="total_users">—</div><div class="mock-lbl">Total Users</div></div>
-        <div class="mock-card g"><div class="mock-val" data-stat="active_users">—</div><div class="mock-lbl">Active Users</div></div>
-        <div class="mock-card p"><div class="mock-val" data-stat="departments">—</div><div class="mock-lbl">Departments</div></div>
+        <div class="mock-card b"><div class="mock-val" data-stat="total_users">—</div><div class="mock-lbl">Members</div></div>
+        <div class="mock-card g"><div class="mock-val" data-stat="active_users">—</div><div class="mock-lbl">Active Members</div></div>
+        <div class="mock-card p"><div class="mock-val" data-stat="departments">—</div><div class="mock-lbl">Member departments</div></div>
         <div class="mock-card a"><div class="mock-val" data-stat="new_today">—</div><div class="mock-lbl">New Today</div></div>
       </div>
     </div>
@@ -303,9 +303,9 @@
 
 <!-- STATS STRIP -->
 <div class="stats-strip" id="liveStats" aria-live="polite">
-  <div class="strip-stat"><div class="strip-val" data-stat="total_users">—</div><div class="strip-lbl">Total Users</div></div>
-  <div class="strip-stat"><div class="strip-val" data-stat="active_users">—</div><div class="strip-lbl">Active Users</div></div>
-  <div class="strip-stat"><div class="strip-val" data-stat="departments">—</div><div class="strip-lbl">Departments</div></div>
+  <div class="strip-stat"><div class="strip-val" data-stat="total_users">—</div><div class="strip-lbl">Members</div></div>
+  <div class="strip-stat"><div class="strip-val" data-stat="active_users">—</div><div class="strip-lbl">Active Members</div></div>
+  <div class="strip-stat"><div class="strip-val" data-stat="departments">—</div><div class="strip-lbl">Member departments</div></div>
   <div class="strip-stat"><div class="strip-val" data-stat="new_today">—</div><div class="strip-lbl">New Today</div></div>
 </div>
 <div class="live-updated" id="liveUpdated" aria-live="polite"><span class="live-dot"></span> Live totals • updating automatically</div>
@@ -333,13 +333,13 @@
 <!-- FEATURES -->
 <section class="features" id="features">
   <span class="section-tag">What you get</span>
-  <h2 class="section-title">Everything you need to manage your team</h2>
-  <p class="section-sub">From user creation to audit logs — every feature built with security and speed in mind.</p>
+  <h2 class="section-title">Everything you need to run your library</h2>
+  <p class="section-sub">From book catalogue and circulation to fines, payments and audit logs — built for secure daily operations.</p>
   <div class="feat-grid">
     <div class="feat-card" data-reveal>
       <div class="feat-icon-wrap indigo">👥</div>
-      <h3>User Management</h3>
-      <p>Create, edit, activate, deactivate and delete employees with a few clicks. Assign roles and departments instantly.</p>
+      <h3>Member Management</h3>
+      <p>Manage member accounts, assign Admin, Librarian and User roles, and control account access.</p>
     </div>
     <div class="feat-card" data-reveal>
       <div class="feat-icon-wrap green">🔒</div>
@@ -348,8 +348,8 @@
     </div>
     <div class="feat-card" data-reveal>
       <div class="feat-icon-wrap blue">📊</div>
-      <h3>Live Analytics</h3>
-      <p>Visual dashboard with stat cards, weekly registration charts, department analytics, and downloadable CSV reports.</p>
+      <h3>Library Reports</h3>
+      <p>Review stock, issued books, overdue loans, pending requests, outstanding fines and verified collections.</p>
     </div>
     <div class="feat-card" data-reveal>
       <div class="feat-icon-wrap amber">📋</div>
@@ -358,8 +358,8 @@
     </div>
     <div class="feat-card" data-reveal>
       <div class="feat-icon-wrap pink">🏢</div>
-      <h3>Department Control</h3>
-      <p>Organise employees across 10 departments: HR, Finance, IT, Sales, Marketing and more — all configurable by admin.</p>
+      <h3>Book Circulation</h3>
+      <p>Track available copies, self-issue, returns, sold-out requests, damage inspection and QR/barcode identity.</p>
     </div>
     <div class="feat-card" data-reveal>
       <div class="feat-icon-wrap sky">⚡</div>
@@ -375,12 +375,12 @@
     <div data-reveal>
       <span class="story-kicker">One workspace, clear outcomes</span>
       <h2 class="story-head">Less admin work.<br><span style="color:#a5b4fc">More visibility.</span></h2>
-      <p class="story-copy">Explore the building blocks behind the portal: protected sign-in, employee lifecycle controls, and searchable audit history. These are product capabilities—not made-up testimonials.</p>
+      <p class="story-copy">Explore the building blocks behind the portal: protected sign-in, member account controls, and searchable audit history. These are product capabilities—not made-up testimonials.</p>
       <div class="story-controls"><button type="button" class="story-next" id="storyNext">Next capability →</button><div class="story-dots" id="storyDots" aria-label="Capability position"><span class="story-dot active"></span><span class="story-dot"></span><span class="story-dot"></span></div></div>
     </div>
     <div class="story-stack" id="storyStack" aria-label="Rotating capability cards">
       <article class="story-card"><div class="story-icon">🔐</div><h3>Protected access</h3><p>Password hashes, CSRF validation, account lockout and short-lived sessions support a more controlled sign-in flow.</p><span class="story-chip">SECURITY</span></article>
-      <article class="story-card"><div class="story-icon">👥</div><h3>Employee lifecycle</h3><p>Manage profile details, employee identifiers, department assignment, active status and account access in one place.</p><span class="story-chip">USER MANAGEMENT</span></article>
+      <article class="story-card"><div class="story-icon">👥</div><h3>Member accounts</h3><p>Manage member profiles, Library IDs, role assignments, active status and access in one place.</p><span class="story-chip">USER MANAGEMENT</span></article>
       <article class="story-card"><div class="story-icon">📋</div><h3>Traceable activity</h3><p>Admin and account events can be reviewed in audit history, with analytics and CSV export for authorized admins.</p><span class="story-chip">AUDITABILITY</span></article>
     </div>
   </div>
@@ -396,8 +396,8 @@
     <div class="tour-app">
       <aside class="tour-side"><div class="tour-brand">MS / Workspace</div><div class="tour-nav-item active">▦ Dashboard</div><div class="tour-nav-item">♙ My Profile</div><div class="tour-nav-item">▤ Analytics</div><div class="tour-nav-item">◷ Audit Logs</div></aside>
       <div class="tour-content">
-        <div class="tour-content-top"><h3>Team overview</h3><button type="button" class="tour-add" id="playTour">▶ Replay guided tour</button></div>
-        <div class="tour-kpis"><div class="tour-kpi" id="tourKpi1"><b>Users</b><span>Account directory</span></div><div class="tour-kpi" id="tourKpi2"><b>Insights</b><span>Activity summaries</span></div><div class="tour-kpi" id="tourKpi3"><b>Security</b><span>Protected access</span></div></div>
+        <div class="tour-content-top"><h3>Library overview</h3><button type="button" class="tour-add" id="playTour">▶ Replay guided tour</button></div>
+        <div class="tour-kpis"><div class="tour-kpi" id="tourKpi1"><b>Members</b><span>Member directory</span></div><div class="tour-kpi" id="tourKpi2"><b>Insights</b><span>Activity summaries</span></div><div class="tour-kpi" id="tourKpi3"><b>Security</b><span>Protected access</span></div></div>
         <div class="tour-activity"><strong>Workspace activity</strong><span>Illustration only · no personal records</span></div>
         <div class="tour-cursor" id="tourCursor" aria-hidden="true">↖</div>
       </div>
@@ -427,8 +427,8 @@
   <h2 class="section-title">A structured workspace beats scattered manual steps</h2>
   <p class="section-sub">A qualitative feature comparison—no fabricated performance percentages or competitor claims.</p>
   <div class="versus-table" data-reveal>
-    <div class="versus-row versus-head"><div>Workflow</div><div>Scattered process</div><div>Management system</div></div>
-    <div class="versus-row" data-reveal><div>Employee directory</div><div>Manual lists</div><div>Centralized records ✓</div></div>
+    <div class="versus-row versus-head"><div>Workflow</div><div>Scattered process</div><div>Library system</div></div>
+    <div class="versus-row" data-reveal><div>Book catalogue</div><div>Manual lists</div><div>Centralized records ✓</div></div>
     <div class="versus-row" data-reveal><div>Account access</div><div>Hard to track</div><div>Active / inactive controls ✓</div></div>
     <div class="versus-row" data-reveal><div>Password recovery</div><div>Ad-hoc requests</div><div>Email OTP flow ✓</div></div>
     <div class="versus-row" data-reveal><div>Audit history</div><div>Separate notes</div><div>Searchable event log ✓</div></div>
@@ -444,9 +444,9 @@
   <p class="section-sub">From email verification to a secure workspace, every step has a clear purpose.</p>
   <div class="steps" id="processSteps">
     <svg class="process-svg" id="processSvg" aria-hidden="true"><path id="processPath" d=""></path></svg>
-    <div class="step" data-reveal><div class="step-num">1</div><h3>Create your account</h3><p>Enter your name, email and department, then choose a strong password.</p></div>
+    <div class="step" data-reveal><div class="step-num">1</div><h3>Create your member account</h3><p>Enter your name, email and Library ID details, then choose a strong password.</p></div>
     <div class="step" data-reveal><div class="step-num">2</div><h3>Verify your email</h3><p>Confirm the 6-digit OTP delivered to your registered email before the account is created.</p></div>
-    <div class="step" data-reveal><div class="step-num">3</div><h3>Manage with clarity</h3><p>Sign in to your workspace for profile tools, and authorized admins can use user management, analytics and audit logs.</p></div>
+    <div class="step" data-reveal><div class="step-num">3</div><h3>Manage with clarity</h3><p>Sign in to your workspace for profile tools, and authorized staff can manage books, circulation, fines, requests, reports and audit history.</p></div>
   </div>
   <div class="versus-cta" style="margin-top:36px"><span class="story-chip" style="background:#e0e7ff;color:#4338ca">✓ Email verified · Account created</span></div>
 </section>
@@ -457,7 +457,7 @@
     <div>
       <span class="section-tag" style="text-align:left;display:block">Security First</span>
       <h2 class="section-title" style="text-align:left;font-size:2.2rem">Built for enterprise-grade protection</h2>
-      <p style="color:#64748b;font-size:1rem;line-height:1.7;margin-top:12px">Every layer of this system is hardened against common attacks. Your team's data is protected from the ground up.</p>
+      <p style="color:#64748b;font-size:1rem;line-height:1.7;margin-top:12px">Every layer of this system is hardened against common attacks. Library member and circulation data are protected from the ground up.</p>
       <div class="sec-list">
         <div class="sec-item" data-reveal><div class="sec-item-icon">🔐</div><div class="sec-item-text"><h4>Bcrypt Password Hashing</h4><p>Passwords are never stored in plain text. Industry-standard hashing with salting is used on every account.</p></div></div>
         <div class="sec-item" data-reveal><div class="sec-item-icon">🛡️</div><div class="sec-item-text"><h4>CSRF Token Protection</h4><p>Every form submission is validated with a unique server-side token to prevent cross-site request forgery.</p></div></div>
@@ -482,13 +482,13 @@
 <!-- CTA BANNER -->
 <section class="cta-banner">
   <h2>Ready to get started?</h2>
-  <p>Create your free account today and experience modern employee management.</p>
+  <p>Create your member account to browse the catalogue, issue books and track your library activity.</p>
   <a href="/register" class="btn-cta-white">Create Your Account &rarr;</a>
 </section>
 
 <!-- FOOTER -->
 <footer class="footer">
-  <div class="footer-brand">💼 Management System &mdash; v23</div>
+  <div class="footer-brand">📚 Library Management System &mdash; V60</div>
   <div class="footer-links">
     <a href="#features">Features</a>
     <a href="#insights">Insights</a>
@@ -497,7 +497,7 @@
     <a href="/login">Sign In</a>
     <a href="/register">Register</a>
   </div>
-  <div class="footer-copy">&copy; {{ current_year }} Management System. Built with Flask &amp; ♥️</div>
+  <div class="footer-copy">&copy; {{ current_year }} Library Management System. Built with Flask &amp; ♥️ · Developed by Aman Kumar</div>
 </footer>
 
 <script>

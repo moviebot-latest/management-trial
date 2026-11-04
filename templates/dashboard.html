@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Dashboard — Management System</title>
+  <title>Dashboard — Library Management System</title>
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#6366f1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,8 +65,8 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       <div class="sidebar-brand">
         <div class="sidebar-brand-logo">MS</div>
         <div>
-          <div class="sidebar-brand-name">Mgmt System</div>
-          <div class="sidebar-brand-sub">v23 &mdash; Advanced</div>
+          <div class="sidebar-brand-name">Library System</div>
+          <div class="sidebar-brand-sub">V60 &mdash; Library Management</div>
         </div>
       </div>
     </div>
@@ -80,17 +80,31 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       <a href="{{ url_for('analytics') }}" class="nav-item "><span class="nav-icon">📈</span> Analytics</a>
       <a href="{{ url_for('settings') }}" class="nav-item "><span class="nav-icon">⚙️</span> Settings</a>
       <a href="{{ url_for('email_campaigns') }}" class="nav-item"><span class="nav-icon">✉️</span> Email Campaigns</a>
+      <a href="{{ url_for('email_logs') }}" class="nav-item"><span class="nav-icon">📨</span> Email Logs</a>
       <a href="{{ url_for('audit_logs') }}" class="nav-item "><span class="nav-icon">📋</span> Audit Logs</a>
       <a href="{{ url_for('export_users') }}" class="nav-item"><span class="nav-icon">📥</span> Export CSV</a>
       <a href="{{ url_for('books_catalog') }}" class="nav-item"><span class="nav-icon">📚</span> Book Catalog</a>
       <a href="{{ url_for('add_book') }}" class="nav-item"><span class="nav-icon">➕</span> Add Book</a>
+      <a href="{{ url_for('library_management') }}" class="nav-item"><span class="nav-icon">🏛️</span> Library Center</a>
+      <a href="{{ url_for('admin_book_requests') }}" class="nav-item"><span class="nav-icon">📥</span> Book Requests</a>
+      <a href="{{ url_for('admin_payments') }}" class="nav-item"><span class="nav-icon">💳</span> Payment Review</a>
+      <a href="{{ url_for('admin_fines') }}" class="nav-item"><span class="nav-icon">🧾</span> Fines & Damage</a>
+      <a href="{{ url_for('library_members') }}" class="nav-item"><span class="nav-icon">👥</span> Member Lookup</a>
       {% elif role == 'librarian' %}
       <div class="sidebar-section-title" style="margin-top:8px">Librarian</div>
       <a href="{{ url_for('books_catalog') }}" class="nav-item"><span class="nav-icon">📚</span> Book Catalog</a>
       <a href="{{ url_for('add_book') }}" class="nav-item"><span class="nav-icon">➕</span> Add Book</a>
+      <a href="{{ url_for('library_management') }}" class="nav-item"><span class="nav-icon">🏛️</span> Library Center</a>
+      <a href="{{ url_for('admin_book_requests') }}" class="nav-item"><span class="nav-icon">📥</span> Book Requests</a>
+      <a href="{{ url_for('admin_fines') }}" class="nav-item"><span class="nav-icon">🧾</span> Fines & Damage</a>
+      <a href="{{ url_for('library_members') }}" class="nav-item"><span class="nav-icon">👥</span> Member Lookup</a>
       {% else %}
       <div class="sidebar-section-title" style="margin-top:8px">Library</div>
       <a href="{{ url_for('books_catalog') }}" class="nav-item"><span class="nav-icon">📚</span> Browse Books</a>
+      <a href="{{ url_for('my_books') }}" class="nav-item"><span class="nav-icon">📖</span> My Books</a>
+      <a href="{{ url_for('my_book_requests') }}" class="nav-item"><span class="nav-icon">📥</span> My Requests</a>
+      <a href="{{ url_for('my_fines') }}" class="nav-item"><span class="nav-icon">₹</span> My Fines & Payments</a>
+      <a href="{{ url_for('library_scanner') }}" class="nav-item"><span class="nav-icon">▦</span> QR Scanner</a>
       <a href="/change-password" class="nav-item"><span class="nav-icon">🔒</span> Change Password</a>
       {% endif %}
     </nav>
@@ -430,7 +444,12 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
       <div class="panel-body">
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
           <a class="btn btn-primary" href="{{ url_for('books_catalog') }}">📚 Manage Book Catalog</a>
-          <a class="btn btn-ghost" href="{{ url_for('add_book') }}">🎨 Create Book Cover</a>
+          <a class="btn btn-ghost" href="{{ url_for('add_book') }}">➕ Add Book</a>
+          <a class="btn btn-ghost" href="{{ url_for('library_management') }}">🏛️ Library Centre</a>
+          <a class="btn btn-ghost" href="{{ url_for('admin_book_requests') }}">📥 Book Requests</a>
+          <a class="btn btn-ghost" href="{{ url_for('library_members') }}">👥 Member Lookup</a>
+          <a class="btn btn-ghost" href="{{ url_for('admin_fines') }}">🧾 Fines & Damage</a>
+          <a class="btn btn-ghost" href="{{ url_for('library_scanner') }}">▦ QR Scanner</a>
         </div>
         <div class="info-grid">
           <div class="info-cell"><div class="lbl">Name</div><div class="val">{{ current_name }}</div></div>
@@ -765,22 +784,26 @@ async function openMemberDetails(id){
   html+=`<div class="member-detail-stats"><div class="member-detail-stat"><span class="member-detail-muted">Currently issued</span><strong>${d.issued_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Returned</span><strong>${d.returned_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Pending</span><strong>${d.pending_count}</strong></div><div class="member-detail-stat"><span class="member-detail-muted">Department</span><strong style="font-size:15px">${memberEsc(u.department)}</strong></div></div>`;
   html+=`<section class="member-detail-section"><h3>Personal Information</h3><div class="member-detail-grid"><div class="member-detail-item"><b>Full name</b>${memberEsc(u.name)}</div><div class="member-detail-item"><b>Gender</b>${memberEsc(u.gender)}</div><div class="member-detail-item"><b>Email</b>${memberEsc(u.email)}</div><div class="member-detail-item"><b>Username</b>${memberEsc(u.username)}</div><div class="member-detail-item"><b>Joined</b>${memberDate(u.created_at)}</div><div class="member-detail-item"><b>Last login</b>${memberDate(u.last_login)}</div></div></section>`;
   if(u.role!=='admin'){
-   html+=`<section class="member-detail-section"><h3>Account Role</h3><form class="member-role-form" method="post" action="/admin/users/${u.id}/role"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><label for="memberRoleSelect">Assign role</label><div class="member-role-controls"><select id="memberRoleSelect" name="role"><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="librarian" ${u.role==='librarian'?'selected':''}>Librarian</option></select><button type="submit" onclick="return confirmRoleChange(event, '${memberEsc(u.username)}')">Save role</button></div></form></section>`;
+   html+=`<section class="member-detail-section"><h3>Account Role</h3><form class="member-role-form" data-member-username="${memberEsc(u.username)}" method="post" action="/admin/users/${u.id}/role"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><label for="memberRoleSelect">Assign role</label><div class="member-role-controls"><select id="memberRoleSelect" name="role"><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="librarian" ${u.role==='librarian'?'selected':''}>Librarian</option></select><button type="submit">Save role</button></div></form></section>`;
   }
   html+=`<section class="member-detail-section"><h3>Issue a Book</h3><form class="member-issue-form" method="post" action="/admin/users/${u.id}/issue-book"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><select name="book_id" required ${!u.active?'disabled':''}><option value="">Choose available book…</option>${(d.available_books||[]).map(b=>`<option value="${b.id}">${memberEsc(b.title)} — ${memberEsc(b.author)} (${b.available_copies} available)</option>`).join('')}</select><button type="submit" ${!u.active?'disabled':''}>Issue Book</button></form><div class="member-detail-muted" style="margin-top:8px">Issued books have a 14-day due date.</div></section>`;
-  html+=`<section class="member-detail-section"><h3>Books Issued & Returned</h3>${d.loans.length?d.loans.map(l=>`<div class="member-book-row"><strong>${memberEsc(l.title)}</strong><div class="member-detail-muted">${memberEsc(l.author)} · Issued: ${memberDate(l.issued_at)}</div><div style="margin-top:5px"><span class="member-status ${l.status==='issued'?'':'off'}">${l.status==='issued'?'Currently issued':'Returned'}</span> ${l.due_at?`<span class="member-detail-muted">Due: ${memberDate(l.due_at)}</span>`:''} ${l.returned_at?`<span class="member-detail-muted">Returned: ${memberDate(l.returned_at)}</span>`:''}</div>${l.status==='issued'?`<form class="member-return-form" method="post" action="/admin/book-loans/${l.id}/return" onsubmit="return confirm('Mark this book as returned?')"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><button type="submit">Mark Returned</button></form>`:''}</div>`).join(''):'<div class="member-detail-muted">No book issue/return records yet.</div>'}</section>`;
+  html+=`<section class="member-detail-section"><h3>Books Issued & Returned</h3>${d.loans.length?d.loans.map(l=>`<div class="member-book-row"><strong>${memberEsc(l.title)}</strong><div class="member-detail-muted">${memberEsc(l.author)} · Issued: ${memberDate(l.issued_at)}</div><div style="margin-top:5px"><span class="member-status ${l.status==='issued'?'':'off'}">${l.status==='issued'?'Currently issued':'Returned'}</span> ${l.due_at?`<span class="member-detail-muted">Due: ${memberDate(l.due_at)}</span>`:''} ${l.returned_at?`<span class="member-detail-muted">Returned: ${memberDate(l.returned_at)}</span>`:''}</div>${l.status==='issued'?`<form class="member-return-form" method="post" enctype="multipart/form-data" action="/admin/book-loans/${l.id}/return" onsubmit="return confirm('Save return inspection and mark this book as returned?')"><input type="hidden" name="_csrf_token" value="${memberEsc(d.csrf_token)}"><select name="condition" aria-label="Book condition"><option value="good">Good</option><option value="damaged">Damaged</option><option value="lost">Lost</option></select><select name="damage_type" aria-label="Damage type"><option value="none">No damage</option><option value="cover_damaged">Cover damaged</option><option value="torn_pages">Torn pages</option><option value="water_damage">Water damage</option><option value="other">Other</option><option value="lost">Lost</option></select><input name="damage_fine" type="number" min="0" step="0.01" placeholder="Damage fine ₹"><input name="description" maxlength="1000" placeholder="Inspection remarks"><input name="damage_photo" type="file" accept="image/*"><button type="submit">Save inspection & return</button></form>`:''}</div>`).join(''):'<div class="member-detail-muted">No book issue/return records yet.</div>'}</section>`;
   html+=`<section class="member-detail-section"><h3>Recent Activity</h3>${d.activity.length?d.activity.map(a=>`<div class="member-activity-row"><strong>${memberEsc(a.action.replaceAll('_',' '))}</strong><div>${memberEsc(a.details||'')}</div><div class="member-detail-muted">${memberDate(a.timestamp)}</div></div>`).join(''):'<div class="member-detail-muted">No recent account activity recorded yet.</div>'}</section>`;
   content.innerHTML=html;
  }catch(e){content.innerHTML=`<div class="member-detail-loading">${memberEsc(e.message||'Could not load details. Please try again.')}</div>`;}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMemberDetails();});
-function confirmRoleChange(event,username){
- const form=event.currentTarget.form;
- if(!form)return true;
+document.addEventListener('submit',function(event){
+ const form=event.target;
+ if(!form || !form.classList || !form.classList.contains('member-role-form'))return;
+ if(form.dataset.roleConfirmed==='true'){form.dataset.roleConfirmed='';return;}
  event.preventDefault();
- showMemberConfirm('Save role change?', 'Update access role for '+username+'?', 'Save role').then(ok=>{if(ok)form.submit();});
- return false;
-}
+ const select=form.querySelector('select[name="role"]');
+ const username=form.dataset.memberUsername||'this member';
+ showMemberConfirm('Save role change?', 'Update access role for '+username+' to '+(select?select.value:'selected role')+'?', 'Save role').then(ok=>{
+  if(ok){form.dataset.roleConfirmed='true';form.requestSubmit();}
+ });
+});
 function showMemberConfirm(title,message,yesLabel){
  return new Promise(resolve=>{
   const old=document.getElementById('memberConfirmDialog');if(old)old.remove();

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#171a46">
-<title>Email Campaign Center · Management System</title>
+<title>Email Campaign Center · Library Management System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='mobile-drawer-20261024') }}">
@@ -109,9 +109,9 @@
           <div class="field"><label for="subject">Email subject <span style="color:#d92d20">*</span></label><input id="subject" name="subject" required maxlength="200" placeholder="Write a clear, helpful subject" value="Important announcement"><div class="hint"><span id="subjectCount">22</span>/200 characters · Subject line is shown in the email inbox.</div></div>
           <div class="field"><label for="message">Message <span style="color:#d92d20">*</span></label><textarea id="message" name="message" required maxlength="12000" placeholder="Write your announcement...">We have an update to share with you.
 
-Please sign in to the Management System to review the latest information.</textarea><div class="hint"><span id="messageCount">0</span>/12,000 characters · Plain text is safely formatted into a branded HTML email.</div></div>
+Please sign in to the Library Management System to review the latest information.</textarea><div class="hint"><span id="messageCount">0</span>/12,000 characters · Plain text is safely formatted into a branded HTML email.</div></div>
           <div class="row2">
-            <div class="field"><label for="cta_label">Button label</label><input id="cta_label" name="cta_label" maxlength="80" value="Sign in to Management System" placeholder="e.g. Open my dashboard"></div>
+            <div class="field"><label for="cta_label">Button label</label><input id="cta_label" name="cta_label" maxlength="80" value="Sign in to Library Management System" placeholder="e.g. Open my dashboard"></div>
             <div class="field"><label for="cta_url">Button link</label><input id="cta_url" name="cta_url" type="url" maxlength="500" value="{{ login_url }}" placeholder="https://your-domain/login"><div class="hint">Uses your public website URL. Set PUBLIC_APP_URL in Vercel for a fixed canonical domain.</div></div>
           </div>
 
@@ -156,9 +156,9 @@ Please sign in to the Management System to review the latest information.</texta
         <div class="preview-shell">
           <div class="preview-bar"><span>EMAIL · RESPONSIVE</span><span>● LIVE</span></div>
           <div class="email-preview">
-            <div class="email-header"><div class="email-logo">MS</div><div class="email-overline">MANAGEMENT SYSTEM</div><h4 id="previewSubject">Important announcement</h4></div>
-            <div class="email-content"><div class="email-to">Hello Aman / there,</div><div class="preview-message" id="previewMessage">We have an update to share with you.<br><br>Please sign in to the Management System to review the latest information.</div><div style="text-align:center"><a class="preview-cta" id="previewCta" href="{{ login_url }}" target="_blank" rel="noopener">Sign in to Management System →</a></div><p style="font-size:10px;line-height:1.7;color:#98a2b3;margin:22px 0 0">You are receiving this message from your Management System administrator. If this message was not intended for you, you may ignore it.</p></div>
-            <div class="email-foot">Management System · Official notification</div>
+            <div class="email-header"><div class="email-logo">LM</div><div class="email-overline">LIBRARY MANAGEMENT SYSTEM</div><h4 id="previewSubject">Important announcement</h4></div>
+            <div class="email-content"><div class="email-to">Hello Aman / there,</div><div class="preview-message" id="previewMessage">We have an update to share with you.<br><br>Please sign in to the Library Management System to review the latest information.</div><div style="text-align:center"><a class="preview-cta" id="previewCta" href="{{ login_url }}" target="_blank" rel="noopener">Sign in to Library Management System →</a></div><p style="font-size:10px;line-height:1.7;color:#98a2b3;margin:22px 0 0">You are receiving this message from your Library Management System administrator. If this message was not intended for you, you may ignore it.</p></div>
+            <div class="email-foot">Library Management System · Official notification</div>
           </div>
         </div>
         <div class="card-body" style="padding-top:0">
@@ -225,12 +225,12 @@ Please sign in to the Management System to review the latest information.</texta
 
 <script>
 const presets = {
- announcement: {s:'Important announcement', m:'We have an update to share with you.\n\nPlease sign in to the Management System to review the latest information.'},
- welcome: {s:'Welcome to the Management System!',m:'Welcome aboard! Your account is ready. Sign in to explore your dashboard, account details, and available library services.'},
- come_back: {s:'Your Management System account is ready',m:'It has been a little while since your last visit. Sign in to check your dashboard and see what is new.'},
- update: {s:'A new system update is available',m:'We have made an update to the Management System. Please sign in to review the latest changes.'},
- reminder: {s:'A quick reminder from the Management System',m:'This is a friendly reminder to review any pending items or upcoming due dates in your account.'},
- maintenance: {s:'Scheduled maintenance notice',m:'The Management System may be temporarily unavailable during scheduled maintenance. Thank you for your patience.'}
+ announcement: {s:'Important announcement', m:'We have an update to share with you.\n\nPlease sign in to the Library Management System to review the latest information.'},
+ welcome: {s:'Welcome to the Library Management System!',m:'Welcome aboard! Your account is ready. Sign in to explore your dashboard, account details, and available library services.'},
+ come_back: {s:'Your Library Management System account is ready',m:'It has been a little while since your last visit. Sign in to check your dashboard and see what is new.'},
+ update: {s:'A new system update is available',m:'We have made an update to the Library Management System. Please sign in to review the latest changes.'},
+ reminder: {s:'A quick reminder from the Library Management System',m:'This is a friendly reminder to review any pending items or upcoming due dates in your account.'},
+ maintenance: {s:'Scheduled maintenance notice',m:'The Library Management System may be temporarily unavailable during scheduled maintenance. Thank you for your patience.'}
 };
 const form=document.getElementById('campaignForm'), subject=document.getElementById('subject'), message=document.getElementById('message'), ctaLabel=document.getElementById('cta_label'), ctaUrl=document.getElementById('cta_url');
 function escapeHTML(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

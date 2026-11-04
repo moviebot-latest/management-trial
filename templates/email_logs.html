@@ -42,8 +42,8 @@ th,td{padding:9px 8px;text-align:left;border-bottom:1px solid #eef0f6;vertical-a
 
 <section class="card"><b>Recent emails (last 200)</b>
 <div class="scroll"><table><thead><tr><th>TIME (IST)</th><th>EVENT</th><th>TO</th><th>SUBJECT</th><th>STATUS</th></tr></thead><tbody>
-{% for l in logs %}<tr><td>{{ to_ist(l.created_at).strftime('%d %b %I:%M %p') }}</td><td>{{ l.event }}</td><td>{{ l.recipient }}</td><td>{{ l.subject }}</td>
-<td>{% if l.status=='sent' %}<span class="pill ok">sent</span>{% elif l.status=='failed' %}<span class="pill bad" title="{{ l.error }}">failed</span>{% elif l.status=='skipped' %}<span class="pill warn">skipped</span>{% else %}<span class="pill warn">queued</span>{% endif %}{% if l.error %}<div style="color:#aa2d3e;font-size:11px;margin-top:4px;max-width:260px">{{ l.error }}</div>{% endif %}</td></tr>
+{% for l in logs %}<tr><td>{{ l.sent_at.strftime('%d %b %I:%M %p') }}</td><td>{{ l.event_type }}</td><td>{{ l.recipient }}</td><td>{{ l.subject }}</td>
+<td>{% if l.status=='sent' %}<span class="pill ok">sent</span>{% elif l.status=='failed' %}<span class="pill bad" title="{{ l.error or '' }}">failed</span>{% elif l.status=='skipped' %}<span class="pill warn">skipped</span>{% else %}<span class="pill warn">queued</span>{% endif %}{% if l.error %}<div style="color:#aa2d3e;font-size:11px;margin-top:4px;max-width:260px">{{ l.error or '' }}</div>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" style="color:#7f899d;padding:18px">No emails yet.</td></tr>{% endfor %}
 </tbody></table></div></section>
 </main>
